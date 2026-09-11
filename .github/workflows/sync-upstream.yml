@@ -31,6 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      # Pin every gh call to THIS fork. The job adds an 'upstream' remote, and gh
+      # prefers a remote named upstream as the base repo - which sent label and
+      # issue writes at the maintainer's repository instead of this fork.
+      GH_REPO: ${{ github.repository }}
       UPSTREAM: lasswellt/govee-homeassistant
       BRANCH: ${{ inputs.target_branch || 'main' }}
       UPSTREAM_REF: ${{ inputs.upstream_ref || 'main' }}
