@@ -1,0 +1,132 @@
+name: Sync with upstream
+
+# Keeps this fork's main branch level with the upstream project.
+# Runs every day; if the merge conflicts, it backs out and opens an issue here.
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    - cron: "17 9 * * *" # 09:17 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM: lasswellt/govee-homeassistant
+      BRANCH: main
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM}.git" 2>/dev/null || \
+            git remote set-url upstream "https://github.com/${UPSTREAM}.git"
+          git fetch upstream "${BRANCH}" --tags
+
+      - name: Merge upstream into main
+        id: merge
+        run: |
+          BEFORE="$(git rev-parse HEAD)"
+          UPSTREAM_HEAD="$(git rev-parse "upstream/${BRANCH}")"
+          echo "upstream_head=${UPSTREAM_HEAD}" >> "$GITHUB_OUTPUT"
+
+          if [ "$(git rev-list --count "HEAD..upstream/${BRANCH}")" -eq 0 ]; then
+            echo "result=up-to-date" >> "$GITHUB_OUTPUT"
+            echo "Already level with upstream."
+            exit 0
+          fi
+
+          if git merge --no-edit "upstream/${BRANCH}"; then
+            AFTER="$(git rev-parse HEAD)"
+            if [ "$BEFORE" = "$AFTER" ]; then
+              echo "result=up-to-date" >> "$GITHUB_OUTPUT"
+            else
+              echo "result=merged" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            git merge --abort || true
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+            {
+              echo "conflicts<<EOF"
+              git diff --name-only --diff-filter=U || true
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push merged main
+        if: steps.merge.outputs.result == 'merged'
+        run: git push origin "HEAD:${BRANCH}" --follow-tags
+
+      - name: Close stale conflict issues
+        if: steps.merge.outputs.result != 'conflict'
+        run: |
+          for n in $(gh issue list --state open --label upstream-sync \
+                      --json number --jq '.[].number'); do
+            gh issue comment "$n" --body "Upstream merged cleanly on $(date -u +%Y-%m-%d). Closing."
+            gh issue close "$n"
+          done
+
+      - name: Open conflict issue
+        if: steps.merge.outputs.result == 'conflict'
+        env:
+          UPSTREAM_HEAD: ${{ steps.merge.outputs.upstream_head }}
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+        run: |
+          gh label create upstream-sync \
+            --description "Automated upstream sync" --color B60205 2>/dev/null || true
+
+          EXISTING="$(gh issue list --state open --label upstream-sync \
+                       --json number --jq '.[0].number')"
+
+          BODY="$(cat <<EOF
+The daily upstream sync could not merge \`${UPSTREAM}@${BRANCH}\` into this fork's \`${BRANCH}\` without conflicts. Nothing was pushed; \`${BRANCH}\` is unchanged.
+
+**Upstream commit:** \`${UPSTREAM_HEAD}\`
+
+**Conflicting files:**
+\`\`\`
+${CONFLICTS}
+\`\`\`
+
+To resolve locally:
+\`\`\`sh
+git fetch upstream ${BRANCH}
+git checkout ${BRANCH}
+git merge upstream/${BRANCH}
+# fix the conflicts, then
+git commit && git push origin ${BRANCH}
+\`\`\`
+
+This issue closes itself once a later run merges cleanly.
+EOF
+)"
+
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create \
+              --title "Upstream sync conflict: ${UPSTREAM} -> ${BRANCH}" \
+              --label upstream-sync \
+              --body "$BODY"
+          fi
+          exit 1
