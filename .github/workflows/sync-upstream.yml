@@ -92,7 +92,7 @@ jobs:
           && env.BRANCH == 'main' && env.UPSTREAM_REF == 'main'
         run: |
           for n in $(gh issue list --state open --label upstream-sync \
-                      --json number --jq '.[].number'); do
+                      --json number --jq '.[].number' || true); do
             gh issue comment "$n" \
               --body "Upstream merged cleanly on $(date -u +%Y-%m-%d). Closing."
             gh issue close "$n"
@@ -104,8 +104,12 @@ jobs:
           UPSTREAM_HEAD: ${{ steps.merge.outputs.upstream_head }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
         run: |
+          # Best effort. A fork inherits no labels, and label creation can fail for
+          # reasons unrelated to the conflict being reported - so never let it decide
+          # whether the conflict gets reported at all.
           gh label create upstream-sync \
-            --description "Automated upstream sync" --color B60205 2>/dev/null || true
+            --description "Automated upstream sync" --color B60205 \
+            || echo "note: could not create the upstream-sync label; continuing unlabelled"
 
           BODY_FILE="$(mktemp)"
           {
@@ -129,14 +133,15 @@ jobs:
           } > "${BODY_FILE}"
 
           EXISTING="$(gh issue list --state open --label upstream-sync \
-                       --json number --jq '.[0].number')"
+                       --json number --jq '.[0].number' || true)"
 
           if [ -n "${EXISTING}" ] && [ "${EXISTING}" != "null" ]; then
             gh issue comment "${EXISTING}" --body-file "${BODY_FILE}"
           else
-            gh issue create \
-              --title "Upstream sync conflict: ${UPSTREAM}@${UPSTREAM_REF} -> ${BRANCH}" \
-              --label upstream-sync \
-              --body-file "${BODY_FILE}"
+            TITLE="Upstream sync conflict: ${UPSTREAM}@${UPSTREAM_REF} -> ${BRANCH}"
+            # An issue that exists unlabelled beats a clean exit nobody sees.
+            gh issue create --title "${TITLE}" --label upstream-sync \
+              --body-file "${BODY_FILE}" \
+              || gh issue create --title "${TITLE}" --body-file "${BODY_FILE}"
           fi
           exit 1
