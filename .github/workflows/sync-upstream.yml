@@ -8,13 +8,22 @@ on:
   schedule:
     - cron: "17 9 * * *" # 09:17 UTC daily
   workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "Upstream branch to merge from (default: main)"
+        required: false
+        default: main
+      target_branch:
+        description: "Branch in this fork to merge into (default: main)"
+        required: false
+        default: main
 
 permissions:
   contents: write
   issues: write
 
 concurrency:
-  group: sync-upstream
+  group: sync-upstream-${{ inputs.target_branch || 'main' }}
   cancel-in-progress: false
 
 jobs:
@@ -23,12 +32,13 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       UPSTREAM: lasswellt/govee-homeassistant
-      BRANCH: main
+      BRANCH: ${{ inputs.target_branch || 'main' }}
+      UPSTREAM_REF: ${{ inputs.upstream_ref || 'main' }}
     steps:
       - name: Check out fork
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ inputs.target_branch || 'main' }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -41,22 +51,22 @@ jobs:
         run: |
           git remote add upstream "https://github.com/${UPSTREAM}.git" 2>/dev/null || \
             git remote set-url upstream "https://github.com/${UPSTREAM}.git"
-          git fetch upstream "${BRANCH}" --tags
+          git fetch upstream "${UPSTREAM_REF}" --tags
 
       - name: Merge upstream into main
         id: merge
         run: |
           BEFORE="$(git rev-parse HEAD)"
-          UPSTREAM_HEAD="$(git rev-parse "upstream/${BRANCH}")"
+          UPSTREAM_HEAD="$(git rev-parse "upstream/${UPSTREAM_REF}")"
           echo "upstream_head=${UPSTREAM_HEAD}" >> "$GITHUB_OUTPUT"
 
-          if [ "$(git rev-list --count "HEAD..upstream/${BRANCH}")" -eq 0 ]; then
+          if [ "$(git rev-list --count "HEAD..upstream/${UPSTREAM_REF}")" -eq 0 ]; then
             echo "result=up-to-date" >> "$GITHUB_OUTPUT"
             echo "Already level with upstream."
             exit 0
           fi
 
-          if git merge --no-edit "upstream/${BRANCH}"; then
+          if git merge --no-edit "upstream/${UPSTREAM_REF}"; then
             AFTER="$(git rev-parse HEAD)"
             if [ "$BEFORE" = "$AFTER" ]; then
               echo "result=up-to-date" >> "$GITHUB_OUTPUT"
@@ -77,7 +87,9 @@ jobs:
         run: git push origin "HEAD:${BRANCH}" --follow-tags
 
       - name: Close stale conflict issues
-        if: steps.merge.outputs.result != 'conflict'
+        if: |
+          steps.merge.outputs.result != 'conflict'
+          && env.BRANCH == 'main' && env.UPSTREAM_REF == 'main'
         run: |
           for n in $(gh issue list --state open --label upstream-sync \
                       --json number --jq '.[].number'); do
@@ -98,7 +110,7 @@ jobs:
           BODY_FILE="$(mktemp)"
           {
             printf 'The daily upstream sync could not merge `%s@%s` into this\n' \
-              "${UPSTREAM}" "${BRANCH}"
+              "${UPSTREAM}" "${UPSTREAM_REF}"
             printf "fork's \`%s\` without conflicts. Nothing was pushed; \`%s\` is\n" \
               "${BRANCH}" "${BRANCH}"
             printf 'unchanged.\n\n'
@@ -107,9 +119,9 @@ jobs:
             printf '```\n%s\n```\n\n' "${CONFLICTS}"
             printf 'To resolve locally:\n\n'
             printf '```sh\n'
-            printf 'git fetch upstream %s\n' "${BRANCH}"
+            printf 'git fetch upstream %s\n' "${UPSTREAM_REF}"
             printf 'git checkout %s\n' "${BRANCH}"
-            printf 'git merge upstream/%s\n' "${BRANCH}"
+            printf 'git merge upstream/%s\n' "${UPSTREAM_REF}"
             printf '# fix the conflicts, then\n'
             printf 'git commit && git push origin %s\n' "${BRANCH}"
             printf '```\n\n'
@@ -123,7 +135,7 @@ jobs:
             gh issue comment "${EXISTING}" --body-file "${BODY_FILE}"
           else
             gh issue create \
-              --title "Upstream sync conflict: ${UPSTREAM} -> ${BRANCH}" \
+              --title "Upstream sync conflict: ${UPSTREAM}@${UPSTREAM_REF} -> ${BRANCH}" \
               --label upstream-sync \
               --body-file "${BODY_FILE}"
           fi
