@@ -2,6 +2,14 @@ name: Sync with upstream
 
 # Keeps this fork's main branch level with the upstream project.
 # Runs every day; if the merge conflicts, it backs out and opens an issue here.
+#
+# Tags are deliberately NOT followed in either direction. This fork carries its
+# own "-house.N" version in manifest.json, and republishing upstream's release
+# tags from here would make the fork's version indistinguishable from upstream's.
+#
+# Do NOT create GitHub Releases on this fork without reading the install notes in
+# PLAN.md first: for the Govee fork a release silently switches HACS from tracking
+# the default branch to tracking releases.
 
 # yamllint disable-line rule:truthy
 on:
@@ -32,12 +40,15 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       # Pin every gh call to THIS fork. The job adds an 'upstream' remote, and gh
-      # prefers a remote named upstream as the base repo - which sent label and
+      # prefers a remote named upstream as the base repo - which aimed label and
       # issue writes at the maintainer's repository instead of this fork.
       GH_REPO: ${{ github.repository }}
       UPSTREAM: lasswellt/govee-homeassistant
       BRANCH: ${{ inputs.target_branch || 'main' }}
       UPSTREAM_REF: ${{ inputs.upstream_ref || 'main' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # Dates in this repo are read in the maintainer's local timezone, not the runner's.
+      TZ: America/Los_Angeles
     steps:
       - name: Check out fork
         uses: actions/checkout@v4
@@ -55,9 +66,9 @@ jobs:
         run: |
           git remote add upstream "https://github.com/${UPSTREAM}.git" 2>/dev/null || \
             git remote set-url upstream "https://github.com/${UPSTREAM}.git"
-          git fetch upstream "${UPSTREAM_REF}" --tags
+          git fetch upstream "${UPSTREAM_REF}"
 
-      - name: Merge upstream into main
+      - name: Merge upstream
         id: merge
         run: |
           BEFORE="$(git rev-parse HEAD)"
@@ -71,66 +82,94 @@ jobs:
           fi
 
           if git merge --no-edit "upstream/${UPSTREAM_REF}"; then
-            AFTER="$(git rev-parse HEAD)"
-            if [ "$BEFORE" = "$AFTER" ]; then
+            if [ "$BEFORE" = "$(git rev-parse HEAD)" ]; then
               echo "result=up-to-date" >> "$GITHUB_OUTPUT"
             else
               echo "result=merged" >> "$GITHUB_OUTPUT"
             fi
           else
+            # Read the unmerged paths BEFORE aborting; the abort clears them.
             CONFLICTS="$(git diff --name-only --diff-filter=U || true)"
             git merge --abort || true
             echo "result=conflict" >> "$GITHUB_OUTPUT"
             echo "conflicts<<CONFLICT_LIST" >> "$GITHUB_OUTPUT"
             echo "${CONFLICTS}" >> "$GITHUB_OUTPUT"
             echo "CONFLICT_LIST" >> "$GITHUB_OUTPUT"
+            if [ "$BEFORE" != "$(git rev-parse HEAD)" ]; then
+              echo "::error::abort left ${BRANCH} moved; refusing to continue"
+              exit 1
+            fi
           fi
 
-      - name: Push merged main
+      - name: Push merged branch
         if: steps.merge.outputs.result == 'merged'
-        run: git push origin "HEAD:${BRANCH}" --follow-tags
+        run: git push origin "HEAD:${BRANCH}"
 
-      - name: Close stale conflict issues
+      - name: Close resolved conflict issues
         if: steps.merge.outputs.result != 'conflict'
         run: |
-          # Only close alerts raised for THIS ref pair. Matching on the title keeps a
-          # self-test run from closing a live main-to-main alert, while still letting
-          # the close path be exercised on demand.
+          # Only close alerts raised for THIS ref pair, so a self-test run cannot
+          # close a live main-to-main alert.
           SUFFIX="@${UPSTREAM_REF} -> ${BRANCH}"
           gh issue list --state open --label upstream-sync \
             --json number,title \
             --jq ".[] | select(.title | endswith(\"${SUFFIX}\")) | .number" \
-            > /tmp/stale.txt || true
+            > stale.txt || true
           while read -r n; do
             [ -n "$n" ] || continue
             gh issue comment "$n" \
-              --body "Upstream merged cleanly on $(date -u +%Y-%m-%d). Closing."
+              --body "Upstream merged cleanly on $(date '+%Y-%m-%d'). Closing."
             gh issue close "$n"
-          done < /tmp/stale.txt
+          done < stale.txt
 
-      - name: Open conflict issue
+      - name: Report conflict
         if: steps.merge.outputs.result == 'conflict'
         env:
           UPSTREAM_HEAD: ${{ steps.merge.outputs.upstream_head }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
         run: |
           # Best effort. A fork inherits no labels, and label creation can fail for
-          # reasons unrelated to the conflict being reported - so never let it decide
-          # whether the conflict gets reported at all.
+          # reasons unrelated to the conflict being reported - so never let it
+          # decide whether the conflict gets reported at all.
           gh label create upstream-sync \
             --description "Automated upstream sync" --color B60205 \
             || echo "note: could not create the upstream-sync label; continuing unlabelled"
 
+          TITLE="Upstream sync conflict: ${UPSTREAM}@${UPSTREAM_REF} -> ${BRANCH}"
+          # Fingerprints this exact conflict, so a persistent one is reported once
+          # instead of every morning until somebody mutes the repository.
+          MARKER="<!-- sync-upstream-state: ${UPSTREAM_HEAD} -->"
+
+          EXISTING="$(gh issue list --state open --label upstream-sync \
+                       --json number,title \
+                       --jq ".[] | select(.title == \"${TITLE}\") | .number" \
+                       | head -n1 || true)"
+
+          if [ -n "${EXISTING}" ]; then
+            SEEN="$(gh issue view "${EXISTING}" --json body,comments \
+                      --jq '[.body] + [.comments[].body] | join("\n")' || true)"
+            if printf '%s' "${SEEN}" | grep -qF "${MARKER}"; then
+              echo "Same conflict against the same upstream commit ${UPSTREAM_HEAD}."
+              echo "Already reported on issue #${EXISTING}; staying quiet."
+              exit 0
+            fi
+          fi
+
           BODY_FILE="$(mktemp)"
           {
-            printf 'The daily upstream sync could not merge `%s@%s` into this\n' \
+            printf 'The upstream sync could not merge `%s@%s` into this fork.\n\n' \
               "${UPSTREAM}" "${UPSTREAM_REF}"
-            printf "fork's \`%s\` without conflicts. Nothing was pushed; \`%s\` is\n" \
-              "${BRANCH}" "${BRANCH}"
-            printf 'unchanged.\n\n'
+            printf 'Nothing was pushed; `%s` is exactly where it was.\n\n' "${BRANCH}"
             printf '**Upstream commit:** `%s`\n\n' "${UPSTREAM_HEAD}"
-            printf '**Conflicting files:**\n\n'
-            printf '```\n%s\n```\n\n' "${CONFLICTS}"
+            if [ -n "${CONFLICTS}" ]; then
+              printf '**Conflicting files:**\n\n'
+              printf '```\n%s\n```\n\n' "${CONFLICTS}"
+            else
+              printf '**No file-level conflicts were reported.** The merge failed for\n'
+              printf 'some other reason - unrelated histories, an unclean index, or\n'
+              printf 'files that would be overwritten. The run log has the real error:\n'
+              printf '%s\n\n' "${RUN_URL}"
+            fi
             printf 'To resolve locally:\n\n'
             printf '```sh\n'
             printf 'git fetch upstream %s\n' "${UPSTREAM_REF}"
@@ -139,16 +178,15 @@ jobs:
             printf '# fix the conflicts, then\n'
             printf 'git commit && git push origin %s\n' "${BRANCH}"
             printf '```\n\n'
-            printf 'This issue closes itself once a later run merges cleanly.\n'
+            printf 'This issue closes itself once a later run merges cleanly, and it\n'
+            printf 'will not be commented on again unless the upstream commit changes.\n\n'
+            printf 'Run: %s\n\n' "${RUN_URL}"
+            printf '%s\n' "${MARKER}"
           } > "${BODY_FILE}"
 
-          EXISTING="$(gh issue list --state open --label upstream-sync \
-                       --json number --jq '.[0].number' || true)"
-
-          if [ -n "${EXISTING}" ] && [ "${EXISTING}" != "null" ]; then
+          if [ -n "${EXISTING}" ]; then
             gh issue comment "${EXISTING}" --body-file "${BODY_FILE}"
           else
-            TITLE="Upstream sync conflict: ${UPSTREAM}@${UPSTREAM_REF} -> ${BRANCH}"
             # An issue that exists unlabelled beats a clean exit nobody sees.
             gh issue create --title "${TITLE}" --label upstream-sync \
               --body-file "${BODY_FILE}" \
