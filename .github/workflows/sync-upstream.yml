@@ -64,13 +64,12 @@ jobs:
               echo "result=merged" >> "$GITHUB_OUTPUT"
             fi
           else
+            CONFLICTS="$(git diff --name-only --diff-filter=U || true)"
             git merge --abort || true
             echo "result=conflict" >> "$GITHUB_OUTPUT"
-            {
-              echo "conflicts<<EOF"
-              git diff --name-only --diff-filter=U || true
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            echo "conflicts<<CONFLICT_LIST" >> "$GITHUB_OUTPUT"
+            echo "${CONFLICTS}" >> "$GITHUB_OUTPUT"
+            echo "CONFLICT_LIST" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Push merged main
@@ -82,7 +81,8 @@ jobs:
         run: |
           for n in $(gh issue list --state open --label upstream-sync \
                       --json number --jq '.[].number'); do
-            gh issue comment "$n" --body "Upstream merged cleanly on $(date -u +%Y-%m-%d). Closing."
+            gh issue comment "$n" \
+              --body "Upstream merged cleanly on $(date -u +%Y-%m-%d). Closing."
             gh issue close "$n"
           done
 
@@ -95,38 +95,36 @@ jobs:
           gh label create upstream-sync \
             --description "Automated upstream sync" --color B60205 2>/dev/null || true
 
+          BODY_FILE="$(mktemp)"
+          {
+            printf 'The daily upstream sync could not merge `%s@%s` into this\n' \
+              "${UPSTREAM}" "${BRANCH}"
+            printf "fork's \`%s\` without conflicts. Nothing was pushed; \`%s\` is\n" \
+              "${BRANCH}" "${BRANCH}"
+            printf 'unchanged.\n\n'
+            printf '**Upstream commit:** `%s`\n\n' "${UPSTREAM_HEAD}"
+            printf '**Conflicting files:**\n\n'
+            printf '```\n%s\n```\n\n' "${CONFLICTS}"
+            printf 'To resolve locally:\n\n'
+            printf '```sh\n'
+            printf 'git fetch upstream %s\n' "${BRANCH}"
+            printf 'git checkout %s\n' "${BRANCH}"
+            printf 'git merge upstream/%s\n' "${BRANCH}"
+            printf '# fix the conflicts, then\n'
+            printf 'git commit && git push origin %s\n' "${BRANCH}"
+            printf '```\n\n'
+            printf 'This issue closes itself once a later run merges cleanly.\n'
+          } > "${BODY_FILE}"
+
           EXISTING="$(gh issue list --state open --label upstream-sync \
                        --json number --jq '.[0].number')"
 
-          BODY="$(cat <<EOF
-The daily upstream sync could not merge \`${UPSTREAM}@${BRANCH}\` into this fork's \`${BRANCH}\` without conflicts. Nothing was pushed; \`${BRANCH}\` is unchanged.
-
-**Upstream commit:** \`${UPSTREAM_HEAD}\`
-
-**Conflicting files:**
-\`\`\`
-${CONFLICTS}
-\`\`\`
-
-To resolve locally:
-\`\`\`sh
-git fetch upstream ${BRANCH}
-git checkout ${BRANCH}
-git merge upstream/${BRANCH}
-# fix the conflicts, then
-git commit && git push origin ${BRANCH}
-\`\`\`
-
-This issue closes itself once a later run merges cleanly.
-EOF
-)"
-
-          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-            gh issue comment "$EXISTING" --body "$BODY"
+          if [ -n "${EXISTING}" ] && [ "${EXISTING}" != "null" ]; then
+            gh issue comment "${EXISTING}" --body-file "${BODY_FILE}"
           else
             gh issue create \
               --title "Upstream sync conflict: ${UPSTREAM} -> ${BRANCH}" \
               --label upstream-sync \
-              --body "$BODY"
+              --body-file "${BODY_FILE}"
           fi
           exit 1
