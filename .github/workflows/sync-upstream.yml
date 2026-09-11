@@ -91,16 +91,22 @@ jobs:
         run: git push origin "HEAD:${BRANCH}" --follow-tags
 
       - name: Close stale conflict issues
-        if: |
-          steps.merge.outputs.result != 'conflict'
-          && env.BRANCH == 'main' && env.UPSTREAM_REF == 'main'
+        if: steps.merge.outputs.result != 'conflict'
         run: |
-          for n in $(gh issue list --state open --label upstream-sync \
-                      --json number --jq '.[].number' || true); do
+          # Only close alerts raised for THIS ref pair. Matching on the title keeps a
+          # self-test run from closing a live main-to-main alert, while still letting
+          # the close path be exercised on demand.
+          SUFFIX="@${UPSTREAM_REF} -> ${BRANCH}"
+          gh issue list --state open --label upstream-sync \
+            --json number,title \
+            --jq ".[] | select(.title | endswith(\"${SUFFIX}\")) | .number" \
+            > /tmp/stale.txt || true
+          while read -r n; do
+            [ -n "$n" ] || continue
             gh issue comment "$n" \
               --body "Upstream merged cleanly on $(date -u +%Y-%m-%d). Closing."
             gh issue close "$n"
-          done
+          done < /tmp/stale.txt
 
       - name: Open conflict issue
         if: steps.merge.outputs.result == 'conflict'
