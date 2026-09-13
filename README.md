@@ -81,7 +81,7 @@ Govee in Home Assistant has several integrations, and it's easy to pick one that
 | **Ceiling fan + light combos** | H1310, H1370 | Separate Main Light & Background Light **and** a Fan entity (on/off, speed, reverse, oscillation). Govee's cloud never reports the fan's state, so with account login the integration reads it from the fan's own push frames — the entity follows the remote and the app; without it, state is what HA last sent |
 | **Tower / pedestal fans** | H7101, H7102, H7105, H7106, H7107 | Fan (speed, oscillation, preset modes); on the Tower Fan 2 (H7105/H7107) oscillation needs account login — see below |
 | **Air purifiers** | H7120–H7127 | Fan / work modes, filter‑life sensor, air‑quality (AQI) sensor, optional nightlight |
-| **Humidifiers & dehumidifiers** | H7140, H7141, H7150, H7151, H7152 | Modes + target‑humidity setpoint; dehumidifiers add a **Water Tank Full** sensor (real‑time event push, API key only) with a paired **Clear Water Alert** button |
+| **Humidifiers & dehumidifiers** | H7140, H7141, H7150, H7151, H7152 | Modes + target‑humidity setpoint; dehumidifiers add a **Water Tank Full** sensor (real‑time event push, API key only) with a paired **Clear Water Alert** button. The pump model (H7152) also gets a **Pump State** problem sensor, a **Mode** (Pump / Water Tank) sensor and live **Temperature** / **Humidity**, decoded from the AWS IoT push — account login required, and they update when the device pushes |
 | **Aroma diffusers** | H7161 | Power switch + light/mist scene selector |
 | **Space heaters** | H7130, H7131, H713B, H721C | Power switch, target‑temperature number, auto‑stop switch; temperature unit follows what the device itself reports |
 | **Kettles** | H717A, H7170 | Power switch and a water‑temperature sensor (unit follows what the kettle declares) |
@@ -163,7 +163,7 @@ RGBIC devices get a second step after submitting, where you choose a **segment m
 
 ## Real‑time updates & local LAN control
 
-With account login configured, the integration maintains an AWS IoT MQTT connection and applies state changes the moment they happen. Without it, state comes from polling on your configured interval. A **"Govee Integration"** device exposes diagnostics for this: API rate‑limit remaining, MQTT status, and a **"Last MQTT Received"** timestamp.
+With account login configured, the integration maintains an AWS IoT MQTT connection and applies state changes the moment they happen. Without it, state comes from polling on your configured interval. A **"Govee Integration"** device exposes diagnostics for this: API rate‑limit remaining (with `requests_today`, `requests_last_24h`, `requests_per_hour` and `daily_limit` attributes — Govee never reports the daily figure, so it is counted locally as a lower bound), MQTT status, and a **"Last MQTT Received"** timestamp.
 
 Every device also gets two diagnostic timestamps — **Last Update Received** and **Last Command Sent** — plus a **Connectivity** binary sensor and a **Connection Mode** sensor that names the transport actually carrying the device (`ble`, `lan`, `mqtt`, `cloud_api` or `unavailable`). Turning on **Expose per‑device transport connectivity sensors** adds one reachability sensor per transport (Cloud API, MQTT, Bluetooth, LAN) for pinpointing which path a device is actually using.
 
@@ -266,7 +266,7 @@ Some gateway‑bridged sensors are listed by Govee with no reading attached. Whe
 | Per‑outlet switches on an H5160/H5161 are unavailable | They exist only over the AWS IoT session — add account login. They are optimistic: they show what HA last set, not what the buttons or the app did. |
 | LAN sensor shows Disconnected / device not found locally | Enable **LAN Control** for the device in the Govee Home app. Across subnets/VLANs, add the device's IP or subnet under **LAN device addresses** in ⚙️ Configure. |
 | Re‑prompted for a 2FA code / login fails | Reconfigure the integration and complete the email‑code step; codes expire in ~15 minutes. |
-| Rate‑limit warnings | The Govee API allows 100 requests/min and 10,000/day. Increase the polling interval if you have many devices. |
+| Rate‑limit warnings | The Govee API allows 100 requests/min and 10,000/day. Increase the polling interval if you have many devices, and disable the entities of devices you no longer use from the cloud — a device whose entities are all disabled is no longer polled. |
 
 If something's still wrong, grab a diagnostics download (below) and [open an issue](https://github.com/lasswellt/govee-homeassistant/issues).
 
