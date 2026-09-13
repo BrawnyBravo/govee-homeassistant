@@ -155,7 +155,7 @@ After setup, open **Settings** > **Devices & services** > **Govee Cloud Integrat
 | **Enable scene selector** | `on` | Create a per‑device dropdown to activate Govee scenes. |
 | **Enable DIY scene selector** | `on` | Create a per‑device dropdown for your DIY scenes. |
 | **Expose per‑device transport connectivity sensors** | `off` | Add diagnostic binary sensors showing each device's MQTT/BLE/LAN reachability. |
-| **Send power/brightness/color over MQTT (experimental)** | `off` | Routes those commands through Govee's MQTT channel instead of the REST API — lower latency, bypasses REST rate limits. Requires account login; falls back to REST automatically. Uses an undocumented channel, so leave off if commands misbehave. |
+| **Send power, brightness, and color over MQTT (faster, experimental)** | `off` | Routes those commands through Govee's MQTT channel instead of the REST API — lower latency, bypasses REST rate limits. Requires account login; falls back to REST automatically. Uses an undocumented channel, so leave off if commands misbehave. |
 | **LAN device addresses / subnets (advanced)** | *(blank)* | Only needed when LAN‑enabled devices sit on a different subnet/VLAN than Home Assistant. Comma‑separated IPs, broadcast addresses, and/or CIDR subnets (/24 or smaller). Leave blank when everything shares HA's network — discovery is automatic. Enter `off` to disable LAN discovery and local control entirely. |
 
 RGBIC devices get a second step after submitting, where you choose a **segment mode** for each device individually — see [Segments](#rgbic-segment-control).

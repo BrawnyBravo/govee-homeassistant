@@ -269,3 +269,79 @@ Left open:
 - Low: the SKU lists are not consolidated, the annotation clean-ups are not done, `.serena/cache` is still tracked, and the `hacs.json` minimum version is unverified.
 
 Formatting: the whole repository is now black-formatted at 119 columns (`pyproject.toml` carries the shared config), CI runs `black --check --diff`, and the pre-commit and CI black versions are pinned to the same release.
+
+## Quality scale validation (2026-09-13, commit `cb989be`)
+
+Every rule in `quality_scale.yaml` re-checked against the checked-out code by a script (grep-level checks, a fresh coverage run, mypy, and the PyPI JSON API). 52 rules, 52 matches. Paths are relative to `custom_components/govee/`.
+
+### Bronze
+
+| Rule | Claimed | Observed | Evidence |
+|---|---|---|---|
+| action-setup | done | matches | services registered inside async_setup at __init__.py:95; handlers validate a loaded entry via 'not_loaded' at services.py:113 |
+| appropriate-polling | done | matches | coordinator coordinator.py:286; const.py:181 DEFAULT_POLL_INTERVAL: Final = 60  # seconds; const.py:185 MIN_POLL_INTERVAL: Final = 30; const.py:186 MAX_POLL_INTERVAL: Final = 300; disabled devices skipped at coordinator.py:3409; coordinator.py:3552 |
+| brands | done | matches | GitHub API: home-assistant/brands/custom_integrations/govee holds icon.png, icon@2x.png, logo.png, logo@2x.png (fetched 2026-09-13) |
+| common-modules | done | matches | coordinator.py and entity.py exist; every platform entity subclasses GoveeEntity or CoordinatorEntity |
+| config-flow | done | matches | manifest config_flow=true; steps ['account', 'bluetooth_confirm', 'reauth_confirm', 'reconfigure', 'user', 'verification_code']; fields without data_description: none |
+| config-flow-test-coverage | done | matches | config_flow.py 100.00% line coverage; 3256 passed; flow-manager tests: tests/test_config_flow_manager.py, tests/test_config_flow_manager_steps.py, tests/test_config_flow_bluetooth.py |
+| dependency-transparency | done | matches | requirements ['aiohttp-retry>=2.8.3', 'aiomqtt>=2.0.0', 'bleak-retry-connector>=3.4.0', 'cryptography>=41.0.0']; PyPI JSON API 2026-09-13: aiohttp-retry 2.9.1 MIT github.com/inyutin/aiohttp_retry; aiomqtt 2.5.1 BSD-3 github.com/empicano/aiomqtt; bleak-retry-connector 4.7.0 MIT github.com/bluetooth-devices/bleak-retry-connector; cryptography 50.0.1 Apache-2.0/BSD-3 github.com/pyca/cryptography |
+| docs-actions | done | matches | README heading '## Services' present |
+| docs-high-level-description | done | matches | README heading '## What this is' present |
+| docs-installation-instructions | done | matches | README heading '## How to install Govee in Home Assistant' present |
+| docs-removal-instructions | done | matches | README heading '## Removing the integration' present |
+| entity-event-setup | done | matches | 4 dispatcher subscriptions, all inside async_added_to_hass and released through async_on_remove; CoordinatorEntity handles its own listener; violations: none |
+| entity-unique-id | done | matches | GoveeEntity sets it at entity.py:55; standalone classes without one: none |
+| has-entity-name | done | matches | GoveeEntity: entity.py:37; standalone classes without it: none |
+| runtime-data | done | matches | __init__.py:257; alias coordinator.py:5007; remaining hass.data reads: __init__.py:280; __init__.py:282; __init__.py:301 (v1 to v2 migration only) |
+| test-before-configure | done | matches | user step validates the key before creating the entry at config_flow.py:200; config_flow.py:548; config_flow.py:601 |
+| test-before-setup | done | matches | __init__.py:241; __init__.py:243; ConfigEntryAuthFailed at coordinator.py:1634; coordinator.py:3436; coordinator.py:4027; ConfigEntryNotReady at __init__.py:249 |
+| unique-config-entry | done | matches | user step config_flow.py:198; reauth/reconfigure config_flow.py:546; config_flow.py:599; tests: test_config_flow_manager.py, test_config_flow_manager_steps.py |
+
+### Silver
+
+| Rule | Claimed | Observed | Evidence |
+|---|---|---|---|
+| action-exceptions | done | matches | _async_send_command raises command_failed at entity.py:123; services raise ServiceValidationError (services.py:90; services.py:111; services.py:146); direct control calls whose result is not checked: none |
+| config-entry-unloading | done | matches | __init__.py:337; coordinator shutdown __init__.py:339; entry.async_on_unload for BLE unsubscribes and the update listener at __init__.py:265; __init__.py:271 |
+| docs-configuration-parameters | done | matches | README '## Configuration options' table; options in strings.json: 11; labels not found in README: none |
+| docs-installation-parameters | done | matches | README '## Set up' covers the API key (step 1) and the optional account login with 2FA (step 3) |
+| entity-unavailable | done | matches | GoveeEntity.available combines super().available and state.online at entity.py:87; 14 overrides all keep a coordinator or data check (select.py:403; switch.py:231; switch.py:492; switch.py:634; switch.py:740; number.py:131 (+8 more)); segment overrides removed in 6b52404 |
+| integration-owner | done | matches | manifest codeowners ['@lasswellt'] |
+| log-when-unavailable | done | matches | total outage raises UpdateFailed at coordinator.py:1636; coordinator.py:3452 (coordinator logs once down, once up); MQTT logs the first failure at WARNING and the rest at DEBUG api/mqtt.py:674; OpenAPI warns once api/openapi_events.py:173 |
+| parallel-updates | done | matches | 12/12 platform modules declare PARALLEL_UPDATES (all 0: read-only or coordinator-paced) |
+| reauthentication-flow | done | matches | config_flow.py:522; config_flow.py:529; entry updated through async_update_reload_and_abort at config_flow.py:358; config_flow.py:396; config_flow.py:549 (+1 more); ConfigEntryAuthFailed raised during polling at coordinator.py:1634; coordinator.py:3436; coordinator.py:4027 |
+| test-coverage | done | matches | total 99.88%; modules at or below 95%: none; lowest: ble_advertisement.py 96.4%, openapi_events.py 98.4%, fan.py 99.3% |
+
+### Gold
+
+| Rule | Claimed | Observed | Evidence |
+|---|---|---|---|
+| devices | done | matches | GoveeEntity.device_info at entity.py:58 (via_device for hub-attached devices); standalone classes without device_info: none |
+| diagnostics | done | matches | diagnostics.py:485; TO_REDACT covers api key, email, password, token, refresh token, certificates, client id, account topic, device ids, MACs, IPs, LAN targets (diagnostics.py:60); MAC-shaped ids hashed (diagnostics.py:94) |
+| discovery | done | matches | manifest bluetooth matchers (4); config_flow.py:151; config_flow.py:168; tests/test_config_flow_bluetooth.py (5 tests) |
+| discovery-update-info | exempt | matches | exempt: Bluetooth discovery carries no network address and the cloud endpoint is fixed |
+| docs-data-update | done | matches | README heading '## Real‑time updates & local LAN control' present |
+| docs-examples | done | matches | README heading '## Example automations' present |
+| docs-known-limitations | done | matches | README heading '## Known limitations' present |
+| docs-supported-devices | done | matches | README heading '## Supported Govee devices' present |
+| docs-supported-functions | done | matches | README heading '## Supported Govee devices' present (column 'Entities you get' lists entities per device family) |
+| docs-troubleshooting | done | matches | README heading '## Troubleshooting' present |
+| docs-use-cases | done | matches | README heading '## Use cases' present |
+| dynamic-devices | done | matches | periodic rediscovery coordinator.py:1639 schedules a reload at coordinator.py:1677; coordinator.py:2230; coordinator.py:2524 (+1 more) |
+| entity-category | done | matches | 22 entities carry a category: 17 DIAGNOSTIC, 5 CONFIG (music sensitivity, heater auto-stop, probe limits, probe polling, scene refresh) |
+| entity-device-class | done | matches | 32 device-class assignments across sensors, binary sensors, numbers, switches, and the event entity |
+| entity-disabled-by-default | done | matches | 8 entities disabled by default: sensor.py:200; sensor.py:300; sensor.py:673; sensor.py:700; sensor.py:727; sensor.py:757; sensor.py:963; sensor.py:982 |
+| entity-translations | done | matches | 57 literal translation keys all declared in strings.json entity block (72 declared, dynamic keys probe_*/transport connectivity/named lights declared too); literal _attr_name strings: none |
+| exception-translations | done | matches | 9 user-facing raise sites, every one with translation_domain and a key in strings.json exceptions (['command_failed', 'device_not_found', 'not_loaded', 'segment_out_of_range', 'unknown_effect', 'unknown_option', 'unsupported_mode', 'unsupported_target_humidity']) |
+| icon-translations | done | matches | no _attr_icon in the package; icons.json covers 45 translation keys incl. state icons for connection_mode |
+| reconfiguration-flow | done | matches | config_flow.py:578; uses _get_reconfigure_entry and async_update_reload_and_abort |
+| repair-issues | done | matches | fixable issues ['rate_limited', 'mqtt_disconnected'] with RepairsFlow classes in repairs.py; informational issues ['mqtt_2fa_required', 'mqtt_token_expired'] tell the user to reconfigure; hassfest passes |
+| stale-devices | done | matches | __init__.py:392; manual removal __init__.py:343; leak sensors, hubs, and the diagnostics device protected |
+
+### Platinum
+
+| Rule | Claimed | Observed | Evidence |
+|---|---|---|---|
+| async-dependency | done | matches | aiohttp-retry, aiomqtt, bleak-retry-connector are asyncio libraries; TLS context and temp-file work runs in the executor (api/mqtt.py:499; api/mqtt.py:561; api/openapi_events.py:132) |
+| inject-websession | done | matches | async_get_clientsession used at api/client.py:102; api/auth.py:491; ClientSession created in the package: never |
+| strict-typing | done | matches | mypy: Success: no issues found in 44 source files; setup.cfg strict = True with no ignore_missing_imports; py.typed present; 9 targeted type-ignore comments, all with error codes |
