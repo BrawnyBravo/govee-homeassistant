@@ -122,7 +122,7 @@
         "name": "Luz nocturna"
       },
       "govee_segment": {
-        "name": "Segmento {segment_index} de {device_name}"
+        "name": "Segmento {segment_index}"
       },
       "govee_grouped_segment": {
         "name": "Segmentos de {device_name}"
@@ -368,12 +368,32 @@
   },
   "issues": {
     "rate_limited": {
-      "title": "API de Govee limitada por frecuencia",
-      "description": "La API de Govee ha limitado la frecuencia de solicitudes para {entry_title}. El funcionamiento normal se reanudará en aproximadamente {reset_time}. Considera aumentar el intervalo de sondeo en las opciones de la integración para reducir las llamadas a la API."
+      "title": "API de Govee limitada por frecuencia para {entry_title}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Aumentar el intervalo de sondeo",
+            "description": "La API de Govee ha limitado las solicitudes para {entry_title}; el funcionamiento normal se reanudará en aproximadamente {reset_time}. El intervalo de sondeo es de {current} segundos. Al enviar, se fijará en {proposed} segundos y se recargará la integración para que se mantenga dentro del límite de solicitudes de Govee. Puedes cambiarlo de nuevo más tarde en Configurar."
+          }
+        },
+        "abort": {
+          "entry_not_found": "La entrada de Govee ya no existe."
+        }
+      }
     },
     "mqtt_disconnected": {
-      "title": "MQTT de Govee desconectado",
-      "description": "Las actualizaciones en tiempo real de {entry_title} no están disponibles. Motivo: {reason}. La integración seguirá funcionando mediante sondeo. Si el problema persiste, revisa las credenciales de tu cuenta de Govee."
+      "title": "Actualizaciones en tiempo real de Govee no disponibles para {entry_title}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Reintentar la conexión de la cuenta de Govee",
+            "description": "Las actualizaciones en tiempo real de {entry_title} no están disponibles ({reason}); todo sigue funcionando mediante sondeo. Al enviar, se borra el fallo de inicio de sesión guardado y se recarga la integración para que vuelva a iniciar sesión y se reconecte al canal en tiempo real de Govee. Si la cuenta ahora requiere verificación por correo electrónico o una contraseña nueva, otra reparación te pedirá que la reconfigures."
+          }
+        },
+        "abort": {
+          "entry_not_found": "La entrada de Govee ya no existe."
+        }
+      }
     },
     "mqtt_2fa_required": {
       "title": "La cuenta de Govee requiere verificación",

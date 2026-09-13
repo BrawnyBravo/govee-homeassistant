@@ -41,13 +41,13 @@ def _entry(hass: HomeAssistant, **kwargs) -> MockConfigEntry:
     return entry
 
 
-def _flow(flow_cls, hass: HomeAssistant, issue_id: str, entry_id: str | None):
+def _flow(flow_cls, hass: HomeAssistant, issue_id: str, entry_id: str | None, **extra: str):
     flow = flow_cls()
     flow.hass = hass
     flow.handler = DOMAIN
     flow.flow_id = "test-flow"
     flow.issue_id = issue_id
-    flow.data = {"entry_id": entry_id} if entry_id else {}
+    flow.data = {"entry_id": entry_id, **extra} if entry_id else {}
     return flow
 
 
@@ -59,8 +59,8 @@ async def test_rate_limit_issue_is_fixable_and_deletable(hass: HomeAssistant) ->
     issue = registry.async_get_issue(DOMAIN, f"{ISSUE_RATE_LIMITED}_{entry.entry_id}")
     assert issue is not None
     assert issue.is_fixable is True
-    assert issue.translation_placeholders == {"reset_time": "120 seconds", "entry_title": entry.title}
-    assert issue.data == {"entry_id": entry.entry_id}
+    assert issue.translation_placeholders == {"entry_title": entry.title}
+    assert issue.data == {"entry_id": entry.entry_id, "reset_time": "120 seconds"}
 
     async_delete_rate_limit_issue(hass, entry)
     assert registry.async_get_issue(DOMAIN, f"{ISSUE_RATE_LIMITED}_{entry.entry_id}") is None
@@ -74,7 +74,8 @@ async def test_mqtt_issue_is_fixable_and_deletable(hass: HomeAssistant) -> None:
     issue = registry.async_get_issue(DOMAIN, f"{ISSUE_MQTT_DISCONNECTED}_{entry.entry_id}")
     assert issue is not None
     assert issue.is_fixable is True
-    assert issue.translation_placeholders["reason"] == "3 reconnect attempts failed"
+    assert issue.translation_placeholders == {"entry_title": entry.title}
+    assert issue.data == {"entry_id": entry.entry_id, "reason": "3 reconnect attempts failed"}
 
     async_delete_mqtt_issue(hass, entry)
     assert registry.async_get_issue(DOMAIN, f"{ISSUE_MQTT_DISCONNECTED}_{entry.entry_id}") is None
@@ -87,12 +88,19 @@ async def test_fix_flow_dispatch(hass: HomeAssistant) -> None:
 
 async def test_rate_limit_flow_doubles_the_polling_interval(hass: HomeAssistant) -> None:
     entry = _entry(hass, options={CONF_POLL_INTERVAL: 60})
-    flow = _flow(RateLimitRepairFlow, hass, f"{ISSUE_RATE_LIMITED}_{entry.entry_id}", entry.entry_id)
+    flow = _flow(
+        RateLimitRepairFlow, hass, f"{ISSUE_RATE_LIMITED}_{entry.entry_id}", entry.entry_id, reset_time="120 seconds"
+    )
 
     result = await flow.async_step_init()
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "confirm"
-    assert result["description_placeholders"] == {"entry_title": entry.title, "current": "60", "proposed": "120"}
+    assert result["description_placeholders"] == {
+        "entry_title": entry.title,
+        "reset_time": "120 seconds",
+        "current": "60",
+        "proposed": "120",
+    }
 
     result = await flow.async_step_confirm({})
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -105,6 +113,8 @@ async def test_rate_limit_flow_caps_at_the_maximum(hass: HomeAssistant) -> None:
 
     result = await flow.async_step_confirm()
     assert result["description_placeholders"]["proposed"] == str(MAX_POLL_INTERVAL)
+    # An issue created without a reset time still renders the step.
+    assert result["description_placeholders"]["reset_time"] == "a few minutes"
 
     await flow.async_step_confirm({})
     assert entry.options[CONF_POLL_INTERVAL] == MAX_POLL_INTERVAL
@@ -112,11 +122,17 @@ async def test_rate_limit_flow_caps_at_the_maximum(hass: HomeAssistant) -> None:
 
 async def test_mqtt_flow_clears_marker_and_reloads(hass: HomeAssistant) -> None:
     entry = _entry(hass, data={KEY_IOT_LOGIN_FAILED: "wrong password"})
-    flow = _flow(MqttReconnectRepairFlow, hass, f"{ISSUE_MQTT_DISCONNECTED}_{entry.entry_id}", entry.entry_id)
+    flow = _flow(
+        MqttReconnectRepairFlow,
+        hass,
+        f"{ISSUE_MQTT_DISCONNECTED}_{entry.entry_id}",
+        entry.entry_id,
+        reason="login failed",
+    )
 
     result = await flow.async_step_init()
     assert result["type"] is FlowResultType.FORM
-    assert result["description_placeholders"] == {"entry_title": entry.title}
+    assert result["description_placeholders"] == {"entry_title": entry.title, "reason": "login failed"}
 
     with patch.object(hass.config_entries, "async_reload", AsyncMock(return_value=True)) as reload:
         result = await flow.async_step_confirm({})

@@ -495,13 +495,12 @@
   },
   "issues": {
     "rate_limited": {
-      "title": "Govee API rate limited",
-      "description": "The Govee API has rate limited requests for {entry_title}. Normal operation will resume in approximately {reset_time}. Select Submit to raise the polling interval so the integration stays inside Govee's request budget.",
+      "title": "Govee API rate limited for {entry_title}",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Raise the polling interval",
-            "description": "The polling interval for {entry_title} is {current} seconds. Submitting sets it to {proposed} seconds and reloads the integration. You can change it again later under Configure."
+            "description": "The Govee API has rate limited requests for {entry_title}; normal operation resumes in approximately {reset_time}. The polling interval is {current} seconds. Submitting sets it to {proposed} seconds and reloads the integration so it stays inside Govee's request budget. You can change it again later under Configure."
           }
         },
         "abort": {
@@ -510,13 +509,12 @@
       }
     },
     "mqtt_disconnected": {
-      "title": "Govee real-time updates unavailable",
-      "description": "Real-time updates for {entry_title} are unavailable ({reason}). Everything keeps working over polling. Select Submit to retry the account sign-in and the connection; if the account now needs email verification or a new password, a separate repair will ask you to reconfigure.",
+      "title": "Govee real-time updates unavailable for {entry_title}",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Retry the Govee account connection",
-            "description": "Submitting clears the stored sign-in failure for {entry_title} and reloads the integration so it signs in and reconnects to Govee's real-time channel."
+            "description": "Real-time updates for {entry_title} are unavailable ({reason}); everything keeps working over polling. Submitting clears the stored sign-in failure and reloads the integration so it signs in and reconnects to Govee's real-time channel. If the account now needs email verification or a new password, a separate repair will ask you to reconfigure."
           }
         },
         "abort": {

@@ -61,11 +61,8 @@ def async_create_rate_limit_issue(
         is_persistent=False,  # Will auto-dismiss on next successful update
         severity=ir.IssueSeverity.WARNING,
         translation_key=ISSUE_RATE_LIMITED,
-        translation_placeholders={
-            "reset_time": reset_time,
-            "entry_title": entry.title,
-        },
-        data={"entry_id": entry.entry_id},
+        translation_placeholders={"entry_title": entry.title},
+        data={"entry_id": entry.entry_id, "reset_time": reset_time},
     )
     _LOGGER.debug("Created rate_limited repair issue for entry %s", entry.entry_id)
 
@@ -102,11 +99,8 @@ def async_create_mqtt_issue(
         is_persistent=False,
         severity=ir.IssueSeverity.WARNING,
         translation_key=ISSUE_MQTT_DISCONNECTED,
-        translation_placeholders={
-            "reason": reason,
-            "entry_title": entry.title,
-        },
-        data={"entry_id": entry.entry_id},
+        translation_placeholders={"entry_title": entry.title},
+        data={"entry_id": entry.entry_id, "reason": reason},
     )
     _LOGGER.debug("Created mqtt_disconnected repair issue for entry %s", entry.entry_id)
 
@@ -144,6 +138,11 @@ class _GoveeRepairFlow(RepairsFlow):
         if not entry_id:
             return None
         return self.hass.config_entries.async_get_entry(entry_id)
+
+    def _issue_text(self, key: str, default: str) -> str:
+        """Return a string the issue stored for its fix flow, or ``default``."""
+        value = self.data.get(key) if self.data else None
+        return str(value) if value else default
 
     async def async_step_init(
         self,
@@ -191,6 +190,7 @@ class RateLimitRepairFlow(_GoveeRepairFlow):
             data_schema=vol.Schema({}),
             description_placeholders={
                 "entry_title": entry.title,
+                "reset_time": self._issue_text("reset_time", "a few minutes"),
                 "current": str(current),
                 "proposed": str(proposed),
             },
@@ -219,5 +219,8 @@ class MqttReconnectRepairFlow(_GoveeRepairFlow):
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema({}),
-            description_placeholders={"entry_title": entry.title},
+            description_placeholders={
+                "entry_title": entry.title,
+                "reason": self._issue_text("reason", "connection lost"),
+            },
         )

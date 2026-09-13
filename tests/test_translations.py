@@ -192,6 +192,32 @@ def test_translation_preserves_placeholders(
                 f"    translated: {translated[key]!r}"
             )
 
+    assert not mismatches, f"Placeholder drift in translations/{lang}.json:\n" + "\n".join(mismatches)
+
+
+@pytest.mark.parametrize("lang", ("strings", *LANGUAGES))
+def test_repair_issues_follow_the_hassfest_schema(lang: str) -> None:
+    """Every repair issue has a title and exactly one of ``description`` or ``fix_flow``.
+
+    hassfest rejects an issue that carries both: a fixable issue explains
+    itself in its fix flow's step description, a non-fixable one in
+    ``description``. A fix flow needs at least one step.
+    """
+    path = _base_dir() / ("strings.json" if lang == "strings" else f"translations/{lang}.json")
+    data = _load_json(path)
+    assert isinstance(data, dict)
+
+    for issue_id, issue in data.get("issues", {}).items():
+        assert isinstance(issue, dict), f"{path}: issues.{issue_id} must be an object"
+        assert "title" in issue, f"{path}: issues.{issue_id} has no title"
+        has_description = "description" in issue
+        has_fix_flow = "fix_flow" in issue
+        assert has_description != has_fix_flow, (
+            f"{path}: issues.{issue_id} must have exactly one of description or fix_flow, " f"got {sorted(issue)}"
+        )
+        if has_fix_flow:
+            assert issue["fix_flow"].get("step"), f"{path}: issues.{issue_id}.fix_flow has no step"
+
 
 # ---------------------------------------------------------------------------
 # Helpers

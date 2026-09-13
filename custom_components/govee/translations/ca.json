@@ -122,7 +122,7 @@
         "name": "Llum nocturna"
       },
       "govee_segment": {
-        "name": "Segment {segment_index} de {device_name}"
+        "name": "Segment {segment_index}"
       },
       "govee_grouped_segment": {
         "name": "Segments de {device_name}"
@@ -368,12 +368,32 @@
   },
   "issues": {
     "rate_limited": {
-      "title": "API de Govee limitada per freqüència",
-      "description": "L'API de Govee ha limitat la freqüència de sol·licituds per a {entry_title}. El funcionament normal es reprendrà aproximadament a {reset_time}. Considera augmentar l'interval de sondeig a les opcions de la integració per reduir les crides a l'API."
+      "title": "API de Govee limitada per freqüència per a {entry_title}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Augmenta l'interval de sondeig",
+            "description": "L'API de Govee ha limitat les sol·licituds per a {entry_title}; el funcionament normal es reprendrà en aproximadament {reset_time}. L'interval de sondeig és de {current} segons. En enviar, es fixarà a {proposed} segons i es recarregarà la integració perquè es mantingui dins del límit de sol·licituds de Govee. Pots tornar-lo a canviar més tard a Configura."
+          }
+        },
+        "abort": {
+          "entry_not_found": "L'entrada de Govee ja no existeix."
+        }
+      }
     },
     "mqtt_disconnected": {
-      "title": "MQTT de Govee desconnectat",
-      "description": "Les actualitzacions en temps real de {entry_title} no estan disponibles. Motiu: {reason}. La integració continuarà funcionant mitjançant sondeig. Si el problema persisteix, revisa les credencials del teu compte de Govee."
+      "title": "Actualitzacions en temps real de Govee no disponibles per a {entry_title}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Torna a provar la connexió del compte de Govee",
+            "description": "Les actualitzacions en temps real de {entry_title} no estan disponibles ({reason}); tot continua funcionant mitjançant sondeig. En enviar, s'esborra l'error d'inici de sessió desat i es recarrega la integració perquè torni a iniciar sessió i es reconnecti al canal en temps real de Govee. Si el compte ara requereix verificació per correu electrònic o una contrasenya nova, una altra reparació et demanarà que reconfiguris."
+          }
+        },
+        "abort": {
+          "entry_not_found": "L'entrada de Govee ja no existeix."
+        }
+      }
     },
     "mqtt_2fa_required": {
       "title": "El compte de Govee requereix verificació",
