@@ -109,8 +109,8 @@ class TestReconfigureFlowOrdering:
 
         captured: dict = {}
 
-        def _abort(target, data_updates=None, **_kwargs):
-            captured["data_updates"] = data_updates
+        def _abort(target, data=None, **_kwargs):
+            captured["data"] = data
             return {"type": "abort", "reason": "reconfigure_successful"}
 
         with (
@@ -132,7 +132,7 @@ class TestReconfigureFlowOrdering:
                 }
             )
 
-        written = captured.get("data_updates") or {}
+        written = captured.get("data") or {}
         creds = written.get(KEY_IOT_CREDENTIALS)
         assert creds is not None, "reconfigure wrote no credentials at all"
         assert creds["token"] == "fresh-token", "reconfigure wrote the stale token back over the fresh one — #179"

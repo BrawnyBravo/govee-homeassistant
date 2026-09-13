@@ -367,10 +367,6 @@
     }
   },
   "issues": {
-    "auth_failed": {
-      "title": "Ha fallat l'autenticació amb Govee",
-      "description": "La clau d'API de {entry_title} ja no és vàlida. La integració no podrà comunicar-se amb Govee fins que tornis a autenticar-te."
-    },
     "rate_limited": {
       "title": "API de Govee limitada per freqüència",
       "description": "L'API de Govee ha limitat la freqüència de sol·licituds per a {entry_title}. El funcionament normal es reprendrà aproximadament a {reset_time}. Considera augmentar l'interval de sondeig a les opcions de la integració per reduir les crides a l'API."

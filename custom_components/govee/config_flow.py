@@ -74,9 +74,11 @@ from .const import (
     KEY_IOT_CREDENTIALS,
     KEY_IOT_LOGIN_FAILED,
     MAX_MQTT_STATUS_INTERVAL,
+    MAX_POLL_INTERVAL,
     MAX_PROBE_POLL_INTERVAL,
     MAX_WATER_DETECTOR_POLL_INTERVAL,
     MIN_MQTT_STATUS_INTERVAL,
+    MIN_POLL_INTERVAL,
     MIN_PROBE_POLL_INTERVAL,
     MIN_WATER_DETECTOR_POLL_INTERVAL,
     MQTT_STATUS_POLL_OFF,
@@ -318,9 +320,11 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
                     # doesn't try to login again (which would hit 2FA)
                     self._cache_iot_credentials(reconfigure_entry.entry_id)
                     self._sync_cached_creds(new_data, reconfigure_entry)
+                    # new_data is the complete replacement; data_updates would
+                    # merge and could never drop a removed email or password.
                     return self.async_update_reload_and_abort(
                         reconfigure_entry,
-                        data_updates=new_data,
+                        data=new_data,
                     )
                 return self._create_entry()
 
@@ -357,9 +361,9 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         ``_clear_mqtt_cache`` and ``_cache_iot_credentials`` write straight to
         ``entry.data``, but the payload passed to
         ``async_update_reload_and_abort`` is snapshotted from ``entry.data``
-        *before* those calls run — and ``data_updates`` overrides existing
-        keys. Without re-syncing, the stale token in that snapshot is written
-        back over the fresh one the flow just obtained: the user sees
+        *before* those calls run, and it replaces the entry data wholesale.
+        Without re-syncing, the stale token in that snapshot is written back
+        over the fresh one the flow just obtained: the user sees
         "Reconfiguration successful" and keeps the expired credentials.
 
         That is worse than it sounds, because reconfiguring is the obvious
@@ -449,6 +453,11 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._email and self._password:
             data[CONF_EMAIL] = self._email
             data[CONF_PASSWORD] = self._password
+            # Persist the IoT credentials the flow already obtained so the
+            # first setup reuses them instead of logging in again (and, with
+            # 2FA, being asked for a second verification code).
+            if self._iot_credentials is not None and is_dataclass(self._iot_credentials):
+                data[KEY_IOT_CREDENTIALS] = asdict(self._iot_credentials)
 
         return self.async_create_entry(
             title="Govee",
@@ -635,9 +644,10 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
                         self._cache_iot_credentials(reconfigure_entry.entry_id)
                         self._sync_cached_creds(new_data, reconfigure_entry)
 
+                        # Complete replacement, see async_step_reconfigure.
                         return self.async_update_reload_and_abort(
                             reconfigure_entry,
-                            data_updates=new_data,
+                            data=new_data,
                         )
 
                 except GoveeAuthError as err:
@@ -776,7 +786,7 @@ class GoveeOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_POLL_INTERVAL,
                         default=source.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=30, max=300)),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_POLL_INTERVAL, max=MAX_POLL_INTERVAL)),
                     vol.Optional(
                         CONF_WATER_DETECTOR_POLL_INTERVAL,
                         default=source.get(

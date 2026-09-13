@@ -494,17 +494,35 @@
     }
   },
   "issues": {
-    "auth_failed": {
-      "title": "Govee authentication failed",
-      "description": "The API key for {entry_title} is no longer valid. The integration cannot communicate with Govee until you re-authenticate."
-    },
     "rate_limited": {
       "title": "Govee API rate limited",
-      "description": "The Govee API has rate limited requests for {entry_title}. Normal operation will resume in approximately {reset_time}. Consider increasing the polling interval in the integration options to reduce API calls."
+      "description": "The Govee API has rate limited requests for {entry_title}. Normal operation will resume in approximately {reset_time}. Select Submit to raise the polling interval so the integration stays inside Govee's request budget.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Raise the polling interval",
+            "description": "The polling interval for {entry_title} is {current} seconds. Submitting sets it to {proposed} seconds and reloads the integration. You can change it again later under Configure."
+          }
+        },
+        "abort": {
+          "entry_not_found": "The Govee entry no longer exists."
+        }
+      }
     },
     "mqtt_disconnected": {
-      "title": "Govee MQTT disconnected",
-      "description": "Real-time updates for {entry_title} are unavailable ({reason}). Everything keeps working over polling, and the integration keeps retrying the connection on its own; this clears itself when the connection comes back. If it stays open for more than a few minutes, reload the integration from **Settings** > **Devices & services** > **Govee**. If it comes straight back after a reload, select **Reconfigure** to refresh the account sign-in."
+      "title": "Govee real-time updates unavailable",
+      "description": "Real-time updates for {entry_title} are unavailable ({reason}). Everything keeps working over polling. Select Submit to retry the account sign-in and the connection; if the account now needs email verification or a new password, a separate repair will ask you to reconfigure.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Retry the Govee account connection",
+            "description": "Submitting clears the stored sign-in failure for {entry_title} and reloads the integration so it signs in and reconnects to Govee's real-time channel."
+          }
+        },
+        "abort": {
+          "entry_not_found": "The Govee entry no longer exists."
+        }
+      }
     },
     "mqtt_2fa_required": {
       "title": "Govee account requires verification",

@@ -367,10 +367,6 @@
     }
   },
   "issues": {
-    "auth_failed": {
-      "title": "Falló la autenticación con Govee",
-      "description": "La clave de API de {entry_title} ya no es válida. La integración no podrá comunicarse con Govee hasta que vuelvas a autenticarte."
-    },
     "rate_limited": {
       "title": "API de Govee limitada por frecuencia",
       "description": "La API de Govee ha limitado la frecuencia de solicitudes para {entry_title}. El funcionamiento normal se reanudará en aproximadamente {reset_time}. Considera aumentar el intervalo de sondeo en las opciones de la integración para reducir las llamadas a la API."

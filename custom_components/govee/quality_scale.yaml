@@ -22,11 +22,12 @@ rules:
     status: done
     comment: User, account, verification, reauth, reconfigure, and options steps with data_description.
   config-flow-test-coverage:
-    status: todo
+    status: done
     comment: >-
-      The user step (including the duplicate-key abort) is driven through the
-      flow manager in tests/test_config_flow_manager.py; the account, 2FA,
-      reauth, and reconfigure steps are still unit-tested on the flow class.
+      Every step (user, account, 2FA code, reauth, reconfigure, options incl.
+      per-device segment modes) is driven through the flow manager in
+      tests/test_config_flow_manager*.py, covering aborts, errors, and entry
+      data; tests/test_config_flow.py adds unit coverage of the flow class.
   dependency-transparency:
     status: done
     comment: All requirements are declared in manifest.json.
@@ -93,8 +94,11 @@ rules:
       Developer API exposes no account identity, so a same-account check is
       not possible; the flow instead refuses a key another entry already uses.
   test-coverage:
-    status: todo
-    comment: 80 % overall; the coverage floor enforced by tox and .coveragerc is 75 %.
+    status: done
+    comment: >-
+      99.8 % overall and every module above 96 %; tox and .coveragerc enforce
+      a 95 % floor. The only uncovered lines are import fallbacks for optional
+      libraries and branches unreachable by construction.
 
   # Gold
   devices:
@@ -149,8 +153,12 @@ rules:
   reconfiguration-flow:
     status: done
   repair-issues:
-    status: todo
-    comment: rate_limited and mqtt_disconnected are informational; they should become notifications or fixable flows.
+    status: done
+    comment: >-
+      rate_limited and mqtt_disconnected are fixable: their repair flows raise
+      the polling interval and retry the account sign-in respectively.
+      mqtt_2fa_required and mqtt_token_expired tell the user to reconfigure.
+      Invalid API keys go through Home Assistant's own reauth flow.
   stale-devices:
     status: done
     comment: >-
@@ -166,5 +174,8 @@ rules:
     status: done
     comment: GoveeApiClient and GoveeAuthClient use the Home Assistant client session; no fallback session is created.
   strict-typing:
-    status: todo
-    comment: mypy --strict passes on the integration, but the library code lives in-tree and is not a PEP 561 package.
+    status: done
+    comment: >-
+      The API client code lives in-tree and ships a py.typed marker; the
+      whole package passes mypy --strict (setup.cfg), and GoveeConfigEntry
+      types the config entry throughout.

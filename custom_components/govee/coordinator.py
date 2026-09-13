@@ -155,10 +155,8 @@ from .models.device import (
 from .models.device import GoveeLeakSensor, GoveeLeakSensorState
 from .scene_cache import SceneCacheManager
 from .repairs import (
-    async_create_auth_issue,
     async_create_mqtt_issue,
     async_create_rate_limit_issue,
-    async_delete_auth_issue,
     async_delete_mqtt_issue,
     async_delete_rate_limit_issue,
 )
@@ -1631,12 +1629,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # Scene cache is populated lazily via async_get_scenes() / async_get_diy_scenes()
             # during entity setup, avoiding rate limit pressure at startup
 
-            # Clear any auth issues on success
-            await async_delete_auth_issue(self.hass, self._config_entry)
-
         except GoveeAuthError as err:
-            # Create repair issue for auth failure
-            await async_create_auth_issue(self.hass, self._config_entry)
+            # Home Assistant starts its own reauth flow for this exception.
             raise ConfigEntryAuthFailed("Invalid API key") from err
         except GoveeApiError as err:
             raise UpdateFailed(f"Failed to discover devices: {err}") from err
@@ -1703,11 +1697,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 # a session is actually up, not when the task is spawned.
             except Exception as err:
                 _LOGGER.warning("MQTT client failed to start: %s", err)
-                await async_create_mqtt_issue(
-                    self.hass,
-                    self._config_entry,
-                    str(err),
-                )
+                async_create_mqtt_issue(self.hass, self._config_entry, str(err))
         else:
             _LOGGER.warning("MQTT library not available")
 
@@ -3334,11 +3324,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     @callback
     def _on_mqtt_connected(self) -> None:
         """A session is up and subscribed: clear the disconnect repair."""
-        self._config_entry.async_create_background_task(
-            self.hass,
-            async_delete_mqtt_issue(self.hass, self._config_entry),
-            name="govee_mqtt_connected_clear_issue",
-        )
+        async_delete_mqtt_issue(self.hass, self._config_entry)
         # The MQTT status sensor and per-device connection-mode sensors read
         # the client; nudge them now rather than on the next poll.
         self.async_set_updated_data(self._states)
@@ -3389,12 +3375,13 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             last_error,
         )
 
+        async_create_mqtt_issue(
+            self.hass,
+            self._config_entry,
+            f"{attempts} reconnect attempts failed: {last_error}",
+        )
+
         async def _surface() -> None:
-            await async_create_mqtt_issue(
-                self.hass,
-                self._config_entry,
-                f"{attempts} reconnect attempts failed: {last_error}",
-            )
             await self._async_refresh_iot_credentials()
 
         self._config_entry.async_create_background_task(self.hass, _surface(), name="govee_mqtt_give_up_issue")
@@ -3446,7 +3433,6 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 self._states[device_id] = result
                 successful_updates += 1
             elif isinstance(result, GoveeAuthError):
-                await async_create_auth_issue(self.hass, self._config_entry)
                 raise ConfigEntryAuthFailed("Invalid API key") from result
             elif isinstance(result, Exception):
                 _LOGGER.debug(
@@ -3475,7 +3461,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 "Rate limit cleared, restoring poll interval to %s",
                 self._original_update_interval,
             )
-            await async_delete_rate_limit_issue(self.hass, self._config_entry)
+            async_delete_rate_limit_issue(self.hass, self._config_entry)
 
         # Refresh transport-health snapshots tied to coordinator cadence.
         self._refresh_mqtt_health()
@@ -3821,15 +3807,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 )
                 if err.retry_after:
                     reset_time = f"{int(err.retry_after)} seconds"
-                self._config_entry.async_create_background_task(
-                    self.hass,
-                    async_create_rate_limit_issue(
-                        self.hass,
-                        self._config_entry,
-                        reset_time,
-                    ),
-                    name="govee_rate_limit_issue",
-                )
+                async_create_rate_limit_issue(self.hass, self._config_entry, reset_time)
             existing = self._states.get(device_id)
             return existing if existing else GoveeDeviceState.create_empty(device_id)
 

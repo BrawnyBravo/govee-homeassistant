@@ -179,6 +179,11 @@ def resolve_fahrenheit_conversion(sku: str, api_unit: str, device_unit_hint: str
 
 # Defaults
 DEFAULT_POLL_INTERVAL: Final = 60  # seconds
+# Bounds for the cloud polling interval (seconds). The lower bound keeps a
+# large install inside Govee's 100/min budget; the upper bound keeps state
+# reasonably fresh for devices without a push channel.
+MIN_POLL_INTERVAL: Final = 30
+MAX_POLL_INTERVAL: Final = 300
 DEFAULT_ENABLE_GROUPS: Final = False
 DEFAULT_ENABLE_SCENES: Final = True
 DEFAULT_ENABLE_DIY_SCENES: Final = True

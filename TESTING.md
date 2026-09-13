@@ -48,7 +48,7 @@ Required packages (from `requirements_test.txt`):
 [pytest]
 asyncio_mode = auto
 testpaths = tests
-addopts = --cov=custom_components.govee --cov-fail-under=75
+addopts = --cov=custom_components.govee --cov-fail-under=95
 ```
 
 **tox.ini**:
@@ -61,7 +61,7 @@ deps = -r{toxinidir}/requirements_test.txt
 commands =
     flake8 .
     mypy custom_components/govee
-    pytest --cov=custom_components.govee --cov-fail-under=75
+    pytest --cov=custom_components.govee --cov-fail-under=95
 ```
 
 ---
@@ -70,23 +70,30 @@ commands =
 
 ```
 tests/
-├── __init__.py              # Package init
-├── conftest.py              # Shared fixtures
-├── test_models.py           # Domain models (RGBColor, Device, State, Commands)
-├── test_api_client.py       # API client and exceptions
-├── test_coordinator.py      # Coordinator logic and observer pattern
-└── test_config_flow.py      # Config flow, options, reauth, reconfigure, repairs
+├── __init__.py                       # Package init
+├── conftest.py                       # Shared fixtures (devices, states, capabilities)
+├── test_models.py                    # Domain models (RGBColor, Device, State, Commands)
+├── test_api_client.py, test_auth.py  # REST client, account login, 2FA
+├── test_coordinator*.py              # Coordinator logic, outage handling, transports
+├── test_config_flow*.py              # Config flow unit tests and flow-manager tests
+├── test_setup_entry*.py              # Entry setup, unload, cleanup through Home Assistant
+├── test_repairs.py                   # Repair issues and their fix flows
+├── test_<platform>.py                # One file per entity platform
+└── test_cov_<module>.py              # Branch-level tests that close each module's remaining gaps
 ```
 
-### Test Coverage by File
+### Test Coverage by Area
 
-| File | Tests | Focus |
+About 3,200 tests across 91 files; `pytest --co -q | tail -1` prints the current count.
+
+| Area | Files | Focus |
 |------|-------|-------|
-| `test_models.py` | 50 | RGBColor, GoveeDevice, GoveeDeviceState, Commands |
-| `test_config_flow.py` | 41 | Config flow, options, reauth, reconfigure, repairs |
-| `test_coordinator.py` | 32 | Observer pattern, commands, state management |
-| `test_api_client.py` | 28 | Exceptions, client creation, rate limits |
-| **Total** | **151** | |
+| Models and helpers | `test_models.py`, `test_cov_models.py`, `test_cov_helpers.py` | RGBColor, GoveeDevice, GoveeDeviceState, commands, scene cache, transport health |
+| API layer | `test_api_client.py`, `test_auth.py`, `test_cov_client.py`, `test_cov_auth.py`, `test_cov_mqtt.py`, `test_cov_openapi_events.py`, `test_cov_ble_crypto.py` | REST client, login and 2FA, AWS IoT MQTT, event push, BLE crypto |
+| Coordinator | `test_coordinator*.py`, `test_cov_coordinator_*.py` | Discovery, polling, MQTT/LAN/BLE dispatch, control tiers, outage handling |
+| Config flow | `test_config_flow.py`, `test_config_flow_manager*.py` | User, account, 2FA, reauth, reconfigure, and options steps |
+| Entry lifecycle | `test_setup_entry*.py`, `test_cov_init.py`, `test_repairs.py`, `test_services.py` | Setup, unload, orphan cleanup, device removal, repairs, service actions |
+| Platforms | `test_<platform>.py`, `test_cov_<platform>.py` | Every entity platform, including segment lights |
 
 ---
 
@@ -138,7 +145,7 @@ pytest --cov=custom_components.govee --cov-report=html
 open htmlcov/index.html
 
 # Fail if below threshold
-pytest --cov=custom_components.govee --cov-fail-under=75
+pytest --cov=custom_components.govee --cov-fail-under=95
 ```
 
 ### Linting and Type Checking
@@ -242,9 +249,9 @@ async def test_api_error(mock_api_client):
 
 | Component | Minimum |
 |-----------|---------|
-| Overall | 75% (enforced); 80% measured |
-| Critical (coordinator, API) | 100% |
-| Per-file | 90% |
+| Overall | 95% (enforced by tox and .coveragerc); 99.8% measured |
+| Critical (coordinator, API) | 100% (coordinator, api/client, and api/auth measure 100%) |
+| Per-file | 95% (every module measures above 96%) |
 
 ### Excluded from Coverage
 

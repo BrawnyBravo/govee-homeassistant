@@ -688,24 +688,22 @@ class TestRepairsFramework:
     def test_issue_ids(self):
         """Test issue ID constants."""
         from custom_components.govee.repairs import (
-            ISSUE_AUTH_FAILED,
             ISSUE_MQTT_DISCONNECTED,
             ISSUE_RATE_LIMITED,
         )
 
-        assert ISSUE_AUTH_FAILED == "auth_failed"
         assert ISSUE_RATE_LIMITED == "rate_limited"
         assert ISSUE_MQTT_DISCONNECTED == "mqtt_disconnected"
 
     def test_issue_id_format(self):
         """Test issue ID format with entry ID."""
-        from custom_components.govee.repairs import ISSUE_AUTH_FAILED
+        from custom_components.govee.repairs import ISSUE_RATE_LIMITED
 
         entry_id = "test_entry_123"
-        issue_id = f"{ISSUE_AUTH_FAILED}_{entry_id}"
+        issue_id = f"{ISSUE_RATE_LIMITED}_{entry_id}"
 
-        assert issue_id == "auth_failed_test_entry_123"
-        assert issue_id.startswith(ISSUE_AUTH_FAILED)
+        assert issue_id == "rate_limited_test_entry_123"
+        assert issue_id.startswith(ISSUE_RATE_LIMITED)
 
     def test_rate_limit_reset_time_format(self):
         """Test rate limit reset time formatting."""
@@ -718,26 +716,22 @@ class TestRepairsFramework:
         """Test issue severity levels."""
         # These would be ir.IssueSeverity values in actual code
         severity_mapping = {
-            "auth_failed": "ERROR",
             "rate_limited": "WARNING",
             "mqtt_disconnected": "WARNING",
         }
 
-        assert severity_mapping["auth_failed"] == "ERROR"
         assert severity_mapping["rate_limited"] == "WARNING"
         assert severity_mapping["mqtt_disconnected"] == "WARNING"
 
     def test_fixable_issues(self):
         """Test which issues are fixable."""
         fixable_issues = {
-            "auth_failed": True,
-            "rate_limited": False,
-            "mqtt_disconnected": False,
+            "rate_limited": True,
+            "mqtt_disconnected": True,
         }
 
-        assert fixable_issues["auth_failed"] is True
-        assert fixable_issues["rate_limited"] is False
-        assert fixable_issues["mqtt_disconnected"] is False
+        assert fixable_issues["rate_limited"] is True
+        assert fixable_issues["mqtt_disconnected"] is True
 
 
 class TestPerDeviceSegmentMode:
@@ -1075,7 +1069,7 @@ class TestVerificationCodeFlow:
         # Verify async_update_reload_and_abort was called with correct data
         call_args = flow.async_update_reload_and_abort.call_args
         assert call_args[0][0] is mock_entry
-        data_updates = call_args[1]["data_updates"]
+        data_updates = call_args[1]["data"]
         assert data_updates[CONF_EMAIL] == "new@example.com"
         assert data_updates[CONF_PASSWORD] == "newpass"
         assert data_updates[CONF_API_KEY] == "new-api-key-xxxx-xxxx-xxxx-xxxx-long"

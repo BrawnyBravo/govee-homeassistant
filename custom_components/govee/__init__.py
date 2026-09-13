@@ -216,11 +216,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: GoveeConfigEntry) -> boo
                 _persist_iot_credentials(hass, entry, None, str(err))
                 # Without this the install looks identical to one that never
                 # configured account login: no push, no entity, no issue.
-                await async_create_mqtt_issue(hass, entry, f"account sign-in failed: {err}")
+                async_create_mqtt_issue(hass, entry, f"account sign-in failed: {err}")
             except Exception as err:  # noqa: BLE001 - account login must never block setup
                 _LOGGER.warning("MQTT setup failed: %s", err)
                 _persist_iot_credentials(hass, entry, None, str(err))
-                await async_create_mqtt_issue(hass, entry, f"account sign-in failed: {err}")
+                async_create_mqtt_issue(hass, entry, f"account sign-in failed: {err}")
 
     # Get options
     options = entry.options

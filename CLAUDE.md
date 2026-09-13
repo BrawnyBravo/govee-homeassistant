@@ -141,7 +141,7 @@ MQTT client for real-time updates:
 
 ## Testing
 
-About 2,200 tests across 69 files (`pytest --co -q | tail -1` for the current count). Most are unit tests on entities and the coordinator built with `MagicMock`; `tests/test_setup_entry.py` and `tests/test_config_flow_manager.py` drive the real config entry and flow manager with `MockConfigEntry`. Prefer the latter style for anything that touches registries, setup, or flow steps.
+About 3,200 tests across 91 files (`pytest --co -q | tail -1` for the current count). Most are unit tests on entities and the coordinator built with `MagicMock`; the `tests/test_cov_<module>.py` files close each module's remaining branches. `tests/test_setup_entry*.py`, `tests/test_config_flow_manager*.py`, and `tests/test_repairs.py` drive the real config entry, flow manager, and repair flows with `MockConfigEntry`. Prefer that style for anything that touches registries, setup, or flow steps.
 
 ## Code Style
 
@@ -149,7 +149,7 @@ About 2,200 tests across 69 files (`pytest --co -q | tail -1` for the current co
 - **Linting**: Flake8 (configured in setup.cfg)
 - **Types**: mypy strict mode; use `GoveeConfigEntry` for the config entry type
 - **Docstrings**: Google style
-- **Coverage**: 75% floor (tox and .coveragerc); 80% measured
+- **Coverage**: 95% floor (tox and .coveragerc); 99.8% measured, every module above 96%
 - **Logging**: `%s` formatting, no trailing period, no usernames/emails/tokens; info level only for things the user must act on
 - **Names and icons**: every entity has `_attr_translation_key`; names live in `strings.json` and icons in `icons.json`, never `_attr_name`/`_attr_icon`
 

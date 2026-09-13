@@ -145,7 +145,7 @@ def process_state(self, data: dict[str, Any]) -> GoveeDeviceState:
 
 | Requirement | Standard |
 |-------------|----------|
-| Coverage | 75% floor enforced by tox and .coveragerc |
+| Coverage | 95% floor enforced by tox and .coveragerc |
 | Python versions | 3.12 and 3.13 |
 | Async tests | Plain `async def`; `asyncio_mode = auto` is configured |
 | Mocking | Mock all external dependencies |
