@@ -199,6 +199,9 @@
       "govee_nebula_light": {
         "name": "Llum nebulosa"
       },
+      "govee_ripple_light": {
+        "name": "Llum ondulant"
+      },
       "govee_side_light": {
         "name": "Llum lateral"
       },

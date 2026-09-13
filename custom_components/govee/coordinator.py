@@ -100,6 +100,8 @@ from .const import (
     MIN_PROBE_POLL_INTERVAL,
     MIN_WATER_DETECTOR_POLL_INTERVAL,
     MQTT_STATUS_POLL_OFF,
+    MQTT_STATUS_QUERY_QUARANTINE_STRIKES,
+    MQTT_STATUS_QUERY_SPACING,
     OPTIMISTIC_GRACE_CAP_SECONDS,
     resolve_fahrenheit_conversion,
 )
@@ -465,6 +467,18 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # docstring) — devices don't reliably push spontaneously; this is what the
         # Govee app itself does while its device list is on screen.
         self._status_poll_unsub: CALLBACK_TYPE | None = None
+        # One sweep at a time: the connect-time sweep and the timer's must not
+        # interleave, or the blame below could land on the wrong device.
+        self._status_sweep_running = False
+        # Device whose status query is the last thing published, held for
+        # MQTT_STATUS_QUERY_SPACING after the publish. A session that drops
+        # while this is set is blamed on that device (issue #195).
+        self._status_query_in_flight: str | None = None
+        # Per-device count of sessions AWS closed right after its query; at
+        # MQTT_STATUS_QUERY_QUARANTINE_STRIKES the device joins the quarantine
+        # and is left out of every later sweep until the entry reloads.
+        self._status_query_strikes: dict[str, int] = {}
+        self._status_query_quarantine: set[str] = set()
         # Last seen lastTime per detector — warnMessage is only called when the
         # device has freshly reported (or is currently wet), keeping the account
         # API request count low.
@@ -3017,13 +3031,37 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         Any device with a known device-specific MQTT topic — anything the
         coordinator could also publish a command to. Groups have no topic of
-        their own and are excluded.
+        their own and are excluded, as is any device quarantined because AWS
+        IoT closed the session right after querying it (issue #195).
         """
         return [
             device_id
             for device_id, device in self._devices.items()
-            if not device.is_group and device_id in self._device_topics
+            if not device.is_group
+            and device_id in self._device_topics
+            and device_id not in self._status_query_quarantine
         ]
+
+    @property
+    def mqtt_status_query_strikes(self) -> list[dict[str, Any]]:
+        """Devices blamed for an AWS IoT session drop, for diagnostics (#195).
+
+        One entry per device the session dropped right after querying: its
+        id (redacted by diagnostics), SKU, strike count, and whether it has
+        reached the quarantine. Empty when every sweep has been clean.
+        """
+        census: list[dict[str, Any]] = []
+        for device_id, strikes in self._status_query_strikes.items():
+            device = self._devices.get(device_id)
+            census.append(
+                {
+                    "device_id": device_id,
+                    "sku": device.sku if device else None,
+                    "strikes": strikes,
+                    "quarantined": device_id in self._status_query_quarantine,
+                }
+            )
+        return census
 
     def _schedule_status_poll(self) -> None:
         """Schedule the next MQTT status re-query, replacing any pending timer.
@@ -3051,24 +3089,44 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         See ``GoveeAwsIotClient.async_publish_status_query`` for why this
         exists — without it, devices that don't autonomously push (most of
         them, per the Android app reverse-engineering) go stale the moment
-        nobody has asked in a while. Queries go out sequentially, one device
-        at a time, rather than in parallel: the interval already trades update
-        latency for request volume, so there is no reason to burst all of them
-        at once. They are fire-and-forget (QoS 0), so the loop never waits on
-        a broker acknowledgement between devices. A no-op when the option is
-        0 (off).
+        nobody has asked in a while. Queries go out one device at a time,
+        MQTT_STATUS_QUERY_SPACING apart, rather than in a burst: AWS IoT
+        answers a publish it refuses by closing the whole session, and with
+        the queries spaced out a drop lands inside one device's window, so
+        ``_on_mqtt_disconnected`` can blame — and eventually quarantine — that
+        device instead of the sweep taking push state down for every device
+        on every reconnect (issue #195). They are fire-and-forget (QoS 0), so
+        the loop never waits on a broker acknowledgement. The sweep stops as
+        soon as the session is gone: the reconnect runs its own. A no-op when
+        the option is 0 (off) or another sweep is still in progress.
         """
         if not self._mqtt_status_poll_enabled:
             return
         client = self._mqtt_client
         if client is None or not client.connected:
             return
+        if self._status_sweep_running:
+            _LOGGER.debug("MQTT status sweep still in progress; not starting another")
+            return
 
-        for device_id in self._mqtt_status_poll_targets:
-            topic = self._device_topics.get(device_id)
-            if not topic:
-                continue
-            await client.async_publish_status_query(topic)
+        self._status_sweep_running = True
+        try:
+            for device_id in self._mqtt_status_poll_targets:
+                # mypy narrowed ``connected`` to True at the guard above and
+                # does not see the awaits in between invalidating that.
+                if not client.connected:
+                    break  # type: ignore[unreachable]
+                topic = self._device_topics.get(device_id)
+                if not topic:
+                    continue
+                self._status_query_in_flight = device_id
+                try:
+                    await client.async_publish_status_query(topic)
+                    await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
+                finally:
+                    self._status_query_in_flight = None
+        finally:
+            self._status_sweep_running = False
 
     async def async_set_probe_limits(
         self,
@@ -3346,7 +3404,45 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     @callback
     def _on_mqtt_disconnected(self) -> None:
         """A live session dropped: let status entities show it immediately."""
+        self._blame_status_query_for_drop()
         self.async_set_updated_data(self._states)
+
+    def _blame_status_query_for_drop(self) -> None:
+        """Charge a session drop to the device whose status query is in flight.
+
+        AWS IoT closes the session, rather than answering, when it refuses a
+        publish — so a drop within MQTT_STATUS_QUERY_SPACING of a query is
+        that device's doing. The first strike is only logged: a network drop
+        can coincide with a sweep. At MQTT_STATUS_QUERY_QUARANTINE_STRIKES the
+        device is quarantined from every later sweep (until the entry
+        reloads), so the account subscription and the other devices' queries
+        survive it (issue #195).
+        """
+        device_id = self._status_query_in_flight
+        if device_id is None:
+            return
+        self._status_query_in_flight = None
+        strikes = self._status_query_strikes.get(device_id, 0) + 1
+        self._status_query_strikes[device_id] = strikes
+        device = self._devices.get(device_id)
+        label = f"{device.name} ({device.sku})" if device else device_id
+        if strikes < MQTT_STATUS_QUERY_QUARANTINE_STRIKES:
+            _LOGGER.debug(
+                "AWS IoT session dropped right after the status query to %s (strike %d of %d)",
+                label,
+                strikes,
+                MQTT_STATUS_QUERY_QUARANTINE_STRIKES,
+            )
+            return
+        self._status_query_quarantine.add(device_id)
+        _LOGGER.warning(
+            "AWS IoT closed the MQTT session right after a status query to %s %d times; "
+            "leaving that device out of the status re-query until the integration reloads. "
+            "Other devices keep being queried and real-time updates stay up; please report "
+            "the model at https://github.com/lasswellt/govee-homeassistant/issues/195",
+            label,
+            strikes,
+        )
 
     def _schedule_bff_leak_poll(self) -> None:
         """Run one BFF leak-state poll, coalescing bursts.

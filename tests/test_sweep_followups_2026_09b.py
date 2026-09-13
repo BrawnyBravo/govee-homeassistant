@@ -237,6 +237,7 @@ class TestDisconnectHook:
         # real coordinator (with no devices/client set up) run it.
         coord._config_entry.async_create_background_task = lambda hass, coro, name=None: coro.close()
         coord._states = {}
+        coord._status_query_in_flight = None  # no sweep in progress (#195 blame hook)
         coord.async_set_updated_data = MagicMock()
 
         coord._on_mqtt_disconnected()

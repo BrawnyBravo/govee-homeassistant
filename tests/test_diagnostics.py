@@ -69,6 +69,7 @@ def _coordinator_stub(**overrides):
     coordinator.diy_scene_cache_count = 0
     coordinator.lan_active_count = 0
     coordinator.lan_unmatched_count = 0
+    coordinator.mqtt_status_query_strikes = []
     for key, value in overrides.items():
         setattr(coordinator, key, value)
     return coordinator
@@ -911,3 +912,28 @@ class TestLanRealityProbe:
         await async_get_config_entry_diagnostics(MagicMock(), _entry_stub(_coordinator_stub()))
 
         probe.assert_awaited_once_with(["192.168.1.23", "192.168.1.24"], interface_ips=["192.168.1.50"])
+
+
+@pytest.mark.asyncio
+async def test_mqtt_status_query_strikes_ride_along_with_the_id_redacted() -> None:
+    """#195: the sweep's blame census is in the mqtt block, MAC redacted."""
+    mqtt_client = MagicMock()
+    mqtt_client.available = True
+    mqtt_client.connected = True
+    mqtt_client.last_messages = {}
+    mqtt_client.recent_multisync = []
+    mqtt_client.recent_probe_frames = []
+    coordinator = _coordinator_stub(
+        mqtt_client=mqtt_client,
+        mqtt_status_query_strikes=[
+            {"device_id": "AA:BB:CC:DD:EE:FF:60:B0", "sku": "H60B0", "strikes": 2, "quarantined": True}
+        ],
+    )
+
+    out = await async_get_config_entry_diagnostics(MagicMock(), _entry_stub(coordinator))
+
+    (entry,) = out["mqtt"]["status_query_strikes"]
+    assert entry["sku"] == "H60B0"
+    assert entry["strikes"] == 2
+    assert entry["quarantined"] is True
+    assert entry["device_id"] == "**REDACTED**"

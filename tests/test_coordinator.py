@@ -2260,7 +2260,13 @@ class TestMqttStatusPollInterval:
         assert coord._mqtt_status_poll_targets == ["A"]
 
     @pytest.mark.asyncio
-    async def test_poll_queries_every_eligible_device(self):
+    async def test_poll_queries_every_eligible_device(self, monkeypatch):
+        import custom_components.govee.coordinator as coord_mod
+
+        async def _no_sleep(_delay):
+            return None
+
+        monkeypatch.setattr(coord_mod.asyncio, "sleep", _no_sleep)  # pacing is covered in test_issue_195
         coord = self._coord_with_options({})
         coord._devices = {
             "A": self._device("A"),

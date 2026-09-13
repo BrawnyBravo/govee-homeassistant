@@ -106,7 +106,7 @@
           "api_temperature_unit": "Auto (default) first uses the temperature unit your Govee account reports for the device, then falls back to converting the thermometers known to report Fahrenheit (for example H5179, H5109, H5110, H5111, H5053, H5075, H5100), and trusts the rest. Choose Fahrenheit if a reading still looks about 1.8 times too high (for example 74 instead of 23), or Celsius to force no conversion. Govee's API omits unit metadata, so the value cannot always be auto-detected.",
           "water_detector_poll_interval": "How often standalone Govee water and leak detectors (for example H5054) are checked for a leak. These RF-only sensors have no push channel, so a leak surfaces with up to this much delay. Lower reacts faster but makes more account API calls; raise it if you have many detectors. Range 60 to 3600 seconds, default 120. Requires email and password login; ignored if you have no such detectors.",
           "probe_poll_interval": "How often an armed probe (cooking) thermometer such as the H5192 is read over AWS IoT while its Live polling switch is on. These devices never volunteer a reading, so this interval is the update rate. Costs battery rather than API quota. Range 10 to 600 seconds, default 30. Requires email and password login.",
-          "mqtt_status_interval": "How often every MQTT-connected device is asked for its current status over AWS IoT. Devices are largely poll-triggered responders, not autonomous pushers; this mirrors what the Govee app itself does while its device list is on screen, so state keeps updating without the app open. Lower reacts faster but publishes more per device; raise it if you have many devices. Range 60 to 3600 seconds, default 300. Set 0 to turn the re-query off and rely on what devices push on their own. Requires email and password login (MQTT credentials); ignored when MQTT is unavailable.",
+          "mqtt_status_interval": "How often every MQTT-connected device is asked for its current status over AWS IoT. Devices are largely poll-triggered responders, not autonomous pushers; this mirrors what the Govee app itself does while its device list is on screen, so state keeps updating without the app open. Lower reacts faster but publishes more per device; raise it if you have many devices. Range 60 to 3600 seconds, default 300. Set 0 to turn the re-query off and rely on what devices push on their own. Queries go out one device per second; a device whose query makes AWS IoT close the session twice is left out until the next reload (a warning names it). Requires email and password login (MQTT credentials); ignored when MQTT is unavailable.",
           "enable_groups": "Surfaces the device groups you created in the Govee app as single light entities. A command to a group is sent once and synced to all members by Govee's cloud, so it syncs better than grouping the lights with Home Assistant helpers. State is best-effort (groups cannot be polled), and group lights only support power, brightness, and color.",
           "enable_scenes": "Creates a scene dropdown per device that has scenes, and exposes the scenes as light effects. Turn off to save one API request per device at startup.",
           "enable_diy_scenes": "Creates a DIY scene dropdown per device that has DIY scenes created in the Govee app.",
@@ -258,6 +258,9 @@
       },
       "govee_nebula_light": {
         "name": "Nebula light"
+      },
+      "govee_ripple_light": {
+        "name": "Ripple light"
       },
       "govee_side_light": {
         "name": "Side light"

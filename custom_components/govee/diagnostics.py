@@ -265,6 +265,9 @@ def _runtime_diag(coordinator: GoveeCoordinator) -> dict[str, Any]:
             "consecutive_failures": getattr(mqtt_client, "consecutive_failures", None),
             "last_error": getattr(mqtt_client, "last_error", None),
             "connected_since": _iso(getattr(mqtt_client, "connected_since", None)),
+            # Devices the session dropped right after a status query to, and
+            # which of them the sweep has quarantined (#195).
+            "status_query_strikes": coordinator.mqtt_status_query_strikes,
         }
         # Recent hub multiSync packets (hex) — lets undecoded leak-sensor
         # packet subtypes be reverse-engineered from a download alone (#87).
