@@ -122,9 +122,7 @@ class TestMqttDispatch:
 def _coordinator(state: GoveeDeviceState | None = None) -> GoveeCoordinator:
     """Build a coordinator with only the attributes the probe path touches."""
     coordinator = GoveeCoordinator.__new__(GoveeCoordinator)
-    device = GoveeDevice.synthetic_probe_thermometer(
-        device_id=DEVICE_ID, sku="H5192", name="Grill"
-    )
+    device = GoveeDevice.synthetic_probe_thermometer(device_id=DEVICE_ID, sku="H5192", name="Grill")
     coordinator._devices = {DEVICE_ID: device}
     coordinator._states = {DEVICE_ID: state or GoveeDeviceState.create_empty(DEVICE_ID)}
     coordinator._sensor_reading_changed_at = {}
@@ -161,9 +159,7 @@ class TestFrameMerge:
         state.probes = {1: ProbeReading(core_max=75.0, ambient_min=5.0)}
         coordinator = _coordinator(state)
 
-        coordinator._handle_probe_frame(
-            DEVICE_ID, {"probes": {1: {"core": 40.0, "ambient": 120.0}}}
-        )
+        coordinator._handle_probe_frame(DEVICE_ID, {"probes": {1: {"core": 40.0, "ambient": 120.0}}})
 
         reading = coordinator._states[DEVICE_ID].probes[1]
         assert reading.core_max == 75.0
@@ -288,9 +284,7 @@ class TestPollingSwitch:
     async def test_poll_is_a_noop_without_mqtt(self, monkeypatch):
         coordinator = _coordinator()
         coordinator._probe_polling_enabled = {DEVICE_ID}
-        monkeypatch.setattr(
-            type(coordinator), "mqtt_client", property(lambda self: None)
-        )
+        monkeypatch.setattr(type(coordinator), "mqtt_client", property(lambda self: None))
 
         await coordinator._poll_probe_thermometers()
 
@@ -329,11 +323,7 @@ class TestLimitsWrite:
     @pytest.mark.asyncio
     async def test_write_carries_the_other_three_values_over(self):
         state = GoveeDeviceState.create_empty(DEVICE_ID)
-        state.probes = {
-            1: ProbeReading(
-                core_max=75.0, core_min=5.0, ambient_max=250.0, ambient_min=5.0
-            )
-        }
+        state.probes = {1: ProbeReading(core_max=75.0, core_min=5.0, ambient_max=250.0, ambient_min=5.0)}
         coordinator = _coordinator(state)
 
         async def _send(*args, **kwargs):
@@ -353,8 +343,6 @@ class TestSyntheticDevice:
     """The synthetic device must not claim a capability it cannot serve."""
 
     def test_has_no_sensor_temperature_capability(self):
-        device = GoveeDevice.synthetic_probe_thermometer(
-            device_id=DEVICE_ID, sku="H5192", name="Grill"
-        )
+        device = GoveeDevice.synthetic_probe_thermometer(device_id=DEVICE_ID, sku="H5192", name="Grill")
         assert device.is_probe_thermometer
         assert not device.supports_temperature_sensor

@@ -2,7 +2,8 @@
 
 - #186: the music-mode switch must send a mode the device advertises. The
   hard-coded default of 1 is rejected by the H6022 (valid: 3/4/5/6) with
-  "Parameter value out of range".
+  "Parameter value out of range". The sensitivity slider re-sends the mode
+  alongside the new value and had the same hard-coded default.
 - #187: DreamView OFF on the BLE-passthrough path has no opcode; the device
   leaves video mode when given another mode, so the coordinator restores the
   last colour and lets the switch settle to off.
@@ -30,6 +31,7 @@ from custom_components.govee.models.device import (
     INSTANCE_MUSIC_MODE,
     INSTANCE_POWER,
 )
+from custom_components.govee.number import GoveeMusicSensitivityNumber
 from custom_components.govee.switch import GoveeMusicModeSwitchEntity
 
 DEV = "AA:BB:CC:DD:EE:FF:60:22"
@@ -116,6 +118,72 @@ class TestMusicModeDefault:
         assert coordinator.async_control_device.call_args[0][1].music_mode == 1
 
 
+def _sensitivity_number(device, state):
+    coordinator = MagicMock()
+    coordinator.get_state = MagicMock(return_value=state)
+    coordinator.async_control_device = AsyncMock(return_value=True)
+    entity = GoveeMusicSensitivityNumber(coordinator, device)
+    entity.async_write_ha_state = MagicMock()
+    return entity, coordinator
+
+
+class TestMusicSensitivityModeDefault:
+    """The sensitivity slider sends a full musicMode STRUCT, so it must pick a
+    mode the device advertises too — it kept the hard-coded 1 after the switch
+    was fixed, which is why sensitivity changes looked ignored on the H6022.
+    """
+
+    H6022_OPTIONS = TestMusicModeDefault.H6022_OPTIONS
+
+    @pytest.mark.asyncio
+    async def test_first_advertised_mode_is_the_default(self):
+        entity, coordinator = _sensitivity_number(_h6022(self.H6022_OPTIONS), GoveeDeviceState.create_empty(DEV))
+
+        await entity.async_set_native_value(80)
+
+        cmd = coordinator.async_control_device.call_args[0][1]
+        assert isinstance(cmd, MusicModeCommand)
+        assert cmd.music_mode == 5
+        assert cmd.sensitivity == 80
+
+    @pytest.mark.asyncio
+    async def test_remembered_mode_is_used_when_valid(self):
+        state = GoveeDeviceState.create_empty(DEV)
+        state.music_mode_value = 6
+        entity, coordinator = _sensitivity_number(_h6022(self.H6022_OPTIONS), state)
+
+        await entity.async_set_native_value(30)
+
+        assert coordinator.async_control_device.call_args[0][1].music_mode == 6
+
+    @pytest.mark.asyncio
+    async def test_remembered_mode_outside_the_advertised_set_is_ignored(self):
+        state = GoveeDeviceState.create_empty(DEV)
+        state.music_mode_value = 1  # what the old default left behind
+        entity, coordinator = _sensitivity_number(_h6022(self.H6022_OPTIONS), state)
+
+        await entity.async_set_native_value(30)
+
+        assert coordinator.async_control_device.call_args[0][1].music_mode == 5
+
+    @pytest.mark.asyncio
+    async def test_device_without_options_keeps_the_old_default(self):
+        entity, coordinator = _sensitivity_number(_h6022([]), GoveeDeviceState.create_empty(DEV))
+
+        await entity.async_set_native_value(30)
+
+        assert coordinator.async_control_device.call_args[0][1].music_mode == 1
+
+    @pytest.mark.asyncio
+    async def test_state_is_written_after_a_successful_send(self):
+        entity, coordinator = _sensitivity_number(_h6022(self.H6022_OPTIONS), GoveeDeviceState.create_empty(DEV))
+
+        await entity.async_set_native_value(80)
+
+        assert entity.native_value == 80.0
+        entity.async_write_ha_state.assert_called_once()
+
+
 class TestDreamviewOffOnPassthrough:
     def _coordinator(self, state):
         coordinator = GoveeCoordinator.__new__(GoveeCoordinator)
@@ -155,9 +223,7 @@ class TestDreamviewOffOnPassthrough:
         state = GoveeDeviceState.create_empty(DEV)
         state.color = None
         coordinator = self._coordinator(state)
-        coordinator.async_control_device = AsyncMock(
-            side_effect=lambda _d, cmd: isinstance(cmd, ColorCommand)
-        )
+        coordinator.async_control_device = AsyncMock(side_effect=lambda _d, cmd: isinstance(cmd, ColorCommand))
 
         assert await coordinator.async_send_dreamview(DEV, False) is True
 

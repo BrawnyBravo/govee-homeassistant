@@ -33,8 +33,7 @@ def _plug(sku="H5160", with_socket_toggles=False) -> GoveeDevice:
     caps = [GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={})]
     if with_socket_toggles:
         caps += [
-            GoveeCapability(type=CAPABILITY_TOGGLE, instance=f"socketToggle{i}", parameters={})
-            for i in (1, 2, 3)
+            GoveeCapability(type=CAPABILITY_TOGGLE, instance=f"socketToggle{i}", parameters={}) for i in (1, 2, 3)
         ]
     return GoveeDevice(
         device_id=PLUG, sku=sku, name="Strip", device_type="devices.types.socket", capabilities=tuple(caps)
@@ -156,7 +155,10 @@ class TestPushChangeDetection:
     def _coordinator(self):
         coord = GoveeCoordinator.__new__(GoveeCoordinator)
         lamp = GoveeDevice(
-            device_id=PLUG, sku="H6054", name="Lamp", device_type="devices.types.light",
+            device_id=PLUG,
+            sku="H6054",
+            name="Lamp",
+            device_type="devices.types.light",
             capabilities=(GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),),
         )
         coord._devices = {PLUG: lamp}
@@ -228,6 +230,12 @@ class TestDisconnectHook:
         coord = GoveeCoordinator.__new__(GoveeCoordinator)
         coord.hass = MagicMock()
         coord._config_entry = MagicMock()
+        # _on_mqtt_connected also schedules a background status-poll query;
+        # a bare MagicMock never awaits the coroutine it's handed, which
+        # leaks it and trips "coroutine was never awaited" under this
+        # project's filterwarnings=error. Close it instead of letting a
+        # real coordinator (with no devices/client set up) run it.
+        coord._config_entry.async_create_background_task = lambda hass, coro, name=None: coro.close()
         coord._states = {}
         coord.async_set_updated_data = MagicMock()
 

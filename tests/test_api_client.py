@@ -524,9 +524,7 @@ class TestRecordLocalCommand:
 
     def test_delivered_command_is_recorded(self):
         client = self._client()
-        client.record_local_command(
-            "AA:BB", "H6159", "lan", {"instance": "colorRgb"}, delivered=True
-        )
+        client.record_local_command("AA:BB", "H6159", "lan", {"instance": "colorRgb"}, delivered=True)
         record = client.recent_commands[-1]
         assert record["transport"] == "lan"
         assert record["device"] == "AA:BB"
@@ -549,12 +547,8 @@ class TestRecordLocalCommand:
 
     def test_local_records_share_the_buffer_with_cloud_records(self):
         client = self._client()
-        client.record_local_command(
-            "AA:BB", "H6159", "mqtt", {"instance": "colorRgb"}, delivered=True
-        )
-        client.record_local_command(
-            "AA:BB", "H6159", "lan", {"instance": "brightness"}, delivered=True
-        )
+        client.record_local_command("AA:BB", "H6159", "mqtt", {"instance": "colorRgb"}, delivered=True)
+        client.record_local_command("AA:BB", "H6159", "lan", {"instance": "brightness"}, delivered=True)
         assert [r["capability"]["instance"] for r in client.recent_commands] == [
             "colorRgb",
             "brightness",

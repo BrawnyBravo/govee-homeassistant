@@ -20,8 +20,14 @@ from custom_components.govee.api.mqtt import GoveeAwsIotClient, _subscription_re
 
 def _creds(**over) -> GoveeIotCredentials:
     base = dict(
-        token="t", refresh_token="r", account_topic="GA/account", iot_cert="cert",
-        iot_key="key", iot_ca=None, client_id="cid", endpoint="endpoint",
+        token="t",
+        refresh_token="r",
+        account_topic="GA/account",
+        iot_cert="cert",
+        iot_key="key",
+        iot_ca=None,
+        client_id="cid",
+        endpoint="endpoint",
     )
     base.update(over)
     return GoveeIotCredentials(**base)
@@ -224,6 +230,69 @@ class TestPublish:
         client._client.publish = AsyncMock(side_effect=asyncio.TimeoutError())
 
         assert await client.async_publish_command("GD/topic", "turn", {"val": 1}) is False
+
+
+class TestPublishStatusQuery:
+    """The periodic per-device status re-query (mirrors the Govee app's own
+    Cmd4Status / Iot.A() request) — distinct envelope from async_publish_command:
+    type 0, no data key.
+    """
+
+    @pytest.mark.asyncio
+    async def test_builds_type_0_query_with_no_data_key(self):
+        client = GoveeAwsIotClient(_creds(), on_state_update=MagicMock())
+        client._connected = True
+        client._client = MagicMock()
+        client._client.publish = AsyncMock()
+
+        assert await client.async_publish_status_query("GD/topic") is True
+
+        args, kwargs = client._client.publish.call_args
+        assert args[0] == "GD/topic"
+        msg = json.loads(args[1])["msg"]
+        assert msg["cmd"] == "status"
+        assert msg["type"] == 0
+        assert msg["cmdVersion"] == 2
+        assert "data" not in msg
+        # Fire-and-forget: a status query must never block on a PUBACK.
+        assert kwargs == {"qos": 0, "timeout": mqtt_mod.ACK_TIMEOUT}
+
+    @pytest.mark.asyncio
+    async def test_cmd_version_override(self):
+        client = GoveeAwsIotClient(_creds(), on_state_update=MagicMock())
+        client._connected = True
+        client._client = MagicMock()
+        client._client.publish = AsyncMock()
+
+        await client.async_publish_status_query("GD/topic", cmd_version=0)
+
+        args, _ = client._client.publish.call_args
+        assert json.loads(args[1])["msg"]["cmdVersion"] == 0
+
+    @pytest.mark.asyncio
+    async def test_not_connected_returns_false(self):
+        client = GoveeAwsIotClient(_creds(), on_state_update=MagicMock())
+        client._connected = False
+
+        assert await client.async_publish_status_query("GD/topic") is False
+
+    @pytest.mark.asyncio
+    async def test_no_topic_returns_false(self):
+        client = GoveeAwsIotClient(_creds(), on_state_update=MagicMock())
+        client._connected = True
+        client._client = MagicMock()
+
+        assert await client.async_publish_status_query(None) is False
+        assert await client.async_publish_status_query("") is False
+
+    @pytest.mark.asyncio
+    async def test_publish_failure_returns_false(self):
+        client = GoveeAwsIotClient(_creds(), on_state_update=MagicMock())
+        client._connected = True
+        client._client = MagicMock()
+        client._client.publish = AsyncMock(side_effect=asyncio.TimeoutError())
+
+        assert await client.async_publish_status_query("GD/topic") is False
 
 
 class TestRestart:

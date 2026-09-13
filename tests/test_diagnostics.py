@@ -67,6 +67,8 @@ def _coordinator_stub(**overrides):
     coordinator.api_rate_limit_reset = 0
     coordinator.scene_cache_count = 0
     coordinator.diy_scene_cache_count = 0
+    coordinator.lan_active_count = 0
+    coordinator.lan_unmatched_count = 0
     for key, value in overrides.items():
         setattr(coordinator, key, value)
     return coordinator
@@ -713,10 +715,7 @@ class TestLanDiscoveryDiag:
         # PII-free LAN census (#57): the entry diagnostics surface how many
         # devices are LAN-active vs. unmatched as plain integer counts, so
         # MAC-format drift is observable from a download without any address.
-        coordinator = _coordinator_stub(
-            _lan_devices={"dev1": object(), "dev2": object()},
-            _lan_unmatched=[{"device": "AA:BB"}],
-        )
+        coordinator = _coordinator_stub(lan_active_count=2, lan_unmatched_count=1)
         out = await async_get_config_entry_diagnostics(MagicMock(), _entry_stub(coordinator))
 
         assert out["lan_active_count"] == 2

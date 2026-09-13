@@ -387,9 +387,7 @@ class TestBuildDreamviewPacket:
         ``33 05 04 01 00...00 33`` is the documented Sunset scene frame, so
         enabling DreamView used to leave the device on a static orange scene.
         """
-        assert (
-            build_dreamview_packet().hex() != "3305040100000000000000000000000000000033"
-        )
+        assert build_dreamview_packet().hex() != "3305040100000000000000000000000000000033"
 
     def test_valid_checksum(self):
         """Test packet has valid checksum."""

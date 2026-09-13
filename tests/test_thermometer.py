@@ -355,28 +355,18 @@ class TestTemperatureSensorFahrenheitConversion:
     def test_account_fahrenheit_hint_converts_unknown_sku(self):
         # A device outside the allowlist still converts when Govee tells us the
         # account reports in °F (issue #157).
-        result = self._make_sensor_stub(
-            70.0, "auto", sku="H6072", account_unit="fahrenheit"
-        )
+        result = self._make_sensor_stub(70.0, "auto", sku="H6072", account_unit="fahrenheit")
         assert abs(result - 21.111111) < 1e-4
 
     def test_account_celsius_hint_beats_sku_allowlist(self):
         # The protection for °C accounts: an H5310 on a Celsius account reports
         # °C, and the fahOpen=false hint must stop the allowlist from mangling
         # it (issue #157 vs #151).
-        assert (
-            self._make_sensor_stub(29.4, "auto", sku="H5310", account_unit="celsius")
-            == 29.4
-        )
+        assert self._make_sensor_stub(29.4, "auto", sku="H5310", account_unit="celsius") == 29.4
 
     def test_explicit_option_still_beats_account_hint(self):
         # "celsius"/"fahrenheit" are user overrides — they outrank any hint.
-        assert (
-            self._make_sensor_stub(
-                88.34, "celsius", sku="H5310", account_unit="fahrenheit"
-            )
-            == 88.34
-        )
+        assert self._make_sensor_stub(88.34, "celsius", sku="H5310", account_unit="fahrenheit") == 88.34
 
 
 class TestAccountTemperatureUnit:
@@ -416,9 +406,7 @@ class TestSyntheticThermometer:
     """GoveeDevice.synthetic_thermometer backs BFF-only H5301 discovery (#86)."""
 
     def test_synthesizes_thermometer_with_sensor_capabilities(self):
-        device = GoveeDevice.synthetic_thermometer(
-            device_id="AA:BB:CC:DD:EE:FF:00:11", sku="H5301", name="Office"
-        )
+        device = GoveeDevice.synthetic_thermometer(device_id="AA:BB:CC:DD:EE:FF:00:11", sku="H5301", name="Office")
         assert device.device_id == "AA:BB:CC:DD:EE:FF:00:11"
         assert device.sku == "H5301"
         assert device.name == "Office"
@@ -430,16 +418,12 @@ class TestSyntheticThermometer:
 
     def test_temp_only_sku_omits_humidity_capability(self):
         # H5310 pool thermometer has no hygrometer -> no humidity entity (#97).
-        device = GoveeDevice.synthetic_thermometer(
-            device_id="03:55:01:25:00:00:00:0D", sku="H5310", name="Pool"
-        )
+        device = GoveeDevice.synthetic_thermometer(device_id="03:55:01:25:00:00:00:0D", sku="H5310", name="Pool")
         assert device.supports_temperature_sensor
         assert not device.supports_humidity_sensor
 
     def test_hub_device_id_default_empty(self):
-        device = GoveeDevice.synthetic_thermometer(
-            device_id="AA:BB:CC:DD:EE:FF:00:11", sku="H5301", name="Office"
-        )
+        device = GoveeDevice.synthetic_thermometer(device_id="AA:BB:CC:DD:EE:FF:00:11", sku="H5301", name="Office")
         assert device.hub_device_id == ""
 
     def test_hub_device_id_propagates(self):
@@ -488,11 +472,7 @@ class TestBffThermometerAvailability:
 
         from custom_components.govee.sensor import GoveeTemperatureSensor
 
-        state = (
-            SimpleNamespace(online=online, sensor_temperature=26.4)
-            if has_reading
-            else None
-        )
+        state = SimpleNamespace(online=online, sensor_temperature=26.4) if has_reading else None
         coordinator = SimpleNamespace(
             last_update_success=update_success,
             is_bff_thermometer=lambda _id: is_bff,
@@ -512,12 +492,7 @@ class TestBffThermometerAvailability:
         assert self._available(is_bff=True, online=False, has_reading=False) is False
 
     def test_unavailable_when_coordinator_failed(self):
-        assert (
-            self._available(
-                is_bff=True, online=True, has_reading=True, update_success=False
-            )
-            is False
-        )
+        assert self._available(is_bff=True, online=True, has_reading=True, update_success=False) is False
 
 
 class TestThermoBatterySensor:
@@ -528,9 +503,7 @@ class TestThermoBatterySensor:
 
         from custom_components.govee.sensor import GoveeThermoBatterySensor
 
-        state = (
-            SimpleNamespace(battery=battery) if battery is not None else None
-        )
+        state = SimpleNamespace(battery=battery) if battery is not None else None
         stub = SimpleNamespace(device_state=state)
         return GoveeThermoBatterySensor.native_value.fget(stub)
 
@@ -546,9 +519,7 @@ class TestThermoBatterySensor:
             _BffThermometerAvailabilityMixin,
         )
 
-        assert issubclass(
-            GoveeThermoBatterySensor, _BffThermometerAvailabilityMixin
-        )
+        assert issubclass(GoveeThermoBatterySensor, _BffThermometerAvailabilityMixin)
 
 
 class TestThermoDeviceInfoViaDevice:
@@ -565,10 +536,7 @@ class TestThermoDeviceInfoViaDevice:
             name="Pool",
             hub_device_id=hub_device_id,
         )
-        stub = SimpleNamespace(
-            _device=device,
-            _infer_area_from_name=GoveeEntity._infer_area_from_name,
-        )
+        stub = SimpleNamespace(_device=device)
         return GoveeEntity.device_info.fget(stub)
 
     def test_via_device_set_when_bridged(self):
@@ -616,12 +584,8 @@ class TestDeveloperThermometerBattery:
 
         did = "AA:BB:CC:DD:EE:FF:51:10"
         state = GoveeDeviceState(device_id=did)
-        fake = SimpleNamespace(
-            _states={did: state}, _devices={did: self._thermo_device(did)}
-        )
-        GoveeCoordinator._apply_bff_thermo_battery(
-            fake, {did: {"tem": 2200, "hum": 500, "battery": 87}}
-        )
+        fake = SimpleNamespace(_states={did: state}, _devices={did: self._thermo_device(did)})
+        GoveeCoordinator._apply_bff_thermo_battery(fake, {did: {"tem": 2200, "hum": 500, "battery": 87}})
         assert state.battery == 87
 
     def test_apply_bff_thermo_battery_skips_when_absent(self):
@@ -632,12 +596,8 @@ class TestDeveloperThermometerBattery:
 
         did = "AA:BB:CC:DD:EE:FF:51:10"
         state = GoveeDeviceState(device_id=did)
-        fake = SimpleNamespace(
-            _states={did: state}, _devices={did: self._thermo_device(did)}
-        )
-        GoveeCoordinator._apply_bff_thermo_battery(
-            fake, {did: {"tem": 2200, "hum": 500, "battery": None}}
-        )
+        fake = SimpleNamespace(_states={did: state}, _devices={did: self._thermo_device(did)})
+        GoveeCoordinator._apply_bff_thermo_battery(fake, {did: {"tem": 2200, "hum": 500, "battery": None}})
         assert state.battery is None
 
     def test_apply_bff_thermo_battery_skips_mains_powered(self):
@@ -675,9 +635,7 @@ class TestDeveloperThermometerBattery:
 
         did = "AA:BB:CC:DD:EE:FF:51:10"
         state = GoveeDeviceState(device_id=did)
-        fake = SimpleNamespace(
-            _states={did: state}, _devices={did: self._thermo_device(did)}
-        )
+        fake = SimpleNamespace(_states={did: state}, _devices={did: self._thermo_device(did)})
         GoveeCoordinator._apply_bff_thermo_battery(fake, {did: {"battery": 87}})
         assert state.battery == 87
 
@@ -702,9 +660,7 @@ class TestDeveloperThermometerBattery:
             _config_entry=SimpleNamespace(entry_id="test_entry"),
         )
 
-        GoveeCoordinator._apply_bff_thermo_battery(
-            fake, {did: {"battery": 87}}, allow_reload=True
-        )
+        GoveeCoordinator._apply_bff_thermo_battery(fake, {did: {"battery": 87}}, allow_reload=True)
 
         assert state.battery == 87
         assert fake._battery_reload_scheduled is True
@@ -730,9 +686,7 @@ class TestDeveloperThermometerBattery:
             _config_entry=SimpleNamespace(entry_id="test_entry"),
         )
 
-        GoveeCoordinator._apply_bff_thermo_battery(
-            fake, {did: {"battery": 88}}, allow_reload=True
-        )
+        GoveeCoordinator._apply_bff_thermo_battery(fake, {did: {"battery": 88}}, allow_reload=True)
 
         assert state.battery == 88
         assert fake._battery_reload_scheduled is False
@@ -758,9 +712,7 @@ class TestDeveloperThermometerBattery:
             _config_entry=SimpleNamespace(entry_id="test_entry"),
         )
 
-        GoveeCoordinator._apply_bff_thermo_battery(
-            fake, {did: {"battery": 87}}, allow_reload=True
-        )
+        GoveeCoordinator._apply_bff_thermo_battery(fake, {did: {"battery": 87}}, allow_reload=True)
 
         assert state.battery == 87
         config_entries.async_schedule_reload.assert_not_called()
@@ -953,9 +905,7 @@ class TestBffThermoHandover:
         ctx.__aenter__ = AsyncMock(return_value=auth_client)
         ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "custom_components.govee.coordinator.GoveeAuthClient", return_value=ctx
-        ):
+        with patch("custom_components.govee.coordinator.GoveeAuthClient", return_value=ctx):
             await coordinator._discover_bff_thermometers()
 
     async def _refresh(self, coordinator, sensors):
@@ -972,9 +922,7 @@ class TestBffThermoHandover:
         ctx.__aenter__ = AsyncMock(return_value=auth_client)
         ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "custom_components.govee.coordinator.GoveeAuthClient", return_value=ctx
-        ):
+        with patch("custom_components.govee.coordinator.GoveeAuthClient", return_value=ctx):
             await coordinator._refresh_bff_thermometers()
 
     @pytest.mark.asyncio
@@ -1069,9 +1017,7 @@ class TestBatteryCandidateDevices:
         device = self._thermometer()
         state = GoveeDeviceState.create_empty(device.device_id)
         state.battery = 88
-        coordinator = self._coordinator(
-            {device.device_id: device}, {device.device_id: state}
-        )
+        coordinator = self._coordinator({device.device_id: device}, {device.device_id: state})
         assert coordinator._battery_candidate_devices() == set()
 
     def test_mains_powered_sku_is_never_a_candidate(self):
@@ -1091,11 +1037,7 @@ class TestBatteryCandidateDevices:
             sku="H6072",
             name="Lamp",
             device_type="devices.types.light",
-            capabilities=(
-                GoveeCapability(
-                    type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-                ),
-            ),
+            capabilities=(GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),),
             is_group=False,
         )
         coordinator = self._coordinator({light.device_id: light})

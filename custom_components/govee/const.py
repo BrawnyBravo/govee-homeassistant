@@ -25,6 +25,16 @@ CONF_ENABLE_MQTT_CONTROL: Final = "enable_mqtt_control"
 CONF_WATER_DETECTOR_POLL_INTERVAL: Final = "water_detector_poll_interval"
 CONF_PROBE_POLL_INTERVAL: Final = "probe_poll_interval"
 
+# Interval (seconds) for re-querying every MQTT-controlled device's own status
+# over AWS IoT. Reverse-engineering the Govee Android app found that
+# account-topic "status" pushes are overwhelmingly *replies* to an explicit
+# per-device status query the app's device-list screen sends every ~30-60s
+# while it is on screen (`AbsOnlyIotModel.checkIotOnline()`/`Iot.A()`) —
+# devices are not reliably autonomous pushers. Without ever asking, this
+# integration could go quiet the moment the Govee app was closed. Configurable
+# so accounts with many devices can back off from the app's own cadence.
+CONF_MQTT_STATUS_INTERVAL: Final = "mqtt_status_interval"
+
 # Extra LAN discovery targets for devices the local multicast scan can't reach —
 # e.g. Govee devices on a different VLAN/subnet than Home Assistant (issue #57).
 # Free-text list (comma / newline / space separated) of device IPs, broadcast
@@ -145,9 +155,7 @@ SKU_SEGMENT_OVERRIDES: Final = {
 }
 
 
-def resolve_fahrenheit_conversion(
-    sku: str, api_unit: str, device_unit_hint: str | None = None
-) -> bool:
+def resolve_fahrenheit_conversion(sku: str, api_unit: str, device_unit_hint: str | None = None) -> bool:
     """Whether a Developer-API ``sensor_temperature`` should be treated as °F.
 
     Shared by the sensor entity (which converts °F→°C for display) and the
@@ -171,6 +179,11 @@ def resolve_fahrenheit_conversion(
 
 # Defaults
 DEFAULT_POLL_INTERVAL: Final = 60  # seconds
+# Bounds for the cloud polling interval (seconds). The lower bound keeps a
+# large install inside Govee's 100/min budget; the upper bound keeps state
+# reasonably fresh for devices without a push channel.
+MIN_POLL_INTERVAL: Final = 30
+MAX_POLL_INTERVAL: Final = 300
 DEFAULT_ENABLE_GROUPS: Final = False
 DEFAULT_ENABLE_SCENES: Final = True
 DEFAULT_ENABLE_DIY_SCENES: Final = True
@@ -184,6 +197,11 @@ DEFAULT_WATER_DETECTOR_POLL_INTERVAL: Final = 120  # seconds (2 minutes)
 # update rate while cooking. 30 s keeps a roast legible without hammering
 # the device; the poll only runs while its live-polling switch is on.
 DEFAULT_PROBE_POLL_INTERVAL: Final = 30  # seconds
+# Slower than the Govee app's own ~30-60s cadence on purpose: this integration
+# queries every eligible device on every tick (the app only queries whatever
+# is currently on screen), so a lower default would multiply request volume
+# with device count. 5 minutes keeps most devices fresh without that.
+DEFAULT_MQTT_STATUS_INTERVAL: Final = 300  # seconds (5 minutes)
 
 # Bounds for the configurable water-detector poll interval (seconds). The lower
 # bound keeps the unverified account-API rate limit at arm's length; the upper
@@ -197,6 +215,14 @@ MAX_PROBE_POLL_INTERVAL: Final = 600
 # in response headers; the daily one never does, so it is carried here so
 # the rate-limit sensor can say how much of it an install has spent.
 GOVEE_DAILY_REQUEST_LIMIT: Final = 10000
+# Bounds for the configurable MQTT status-poll interval (seconds). The lower
+# bound matches the fastest cadence observed from the Govee app itself, so
+# this integration can never out-poll what the app already does routinely.
+MIN_MQTT_STATUS_INTERVAL: Final = 60
+MAX_MQTT_STATUS_INTERVAL: Final = 3600
+# Setting the option to this turns the re-query off entirely: no timer, no
+# connect-time sweep, state comes only from what devices push on their own.
+MQTT_STATUS_POLL_OFF: Final = 0
 
 # Optimistic state handling
 # Grace window (seconds) during which API polls do NOT overwrite optimistic
@@ -279,6 +305,13 @@ MAIN_LIGHT_TOGGLE_SKUS: Final = frozenset({"H1270"})
 # remain unverified and are omitted until observed in the wild.
 GOVEE_BLE_MANUFACTURER_IDS: Final = (0x8803,)  # 34819
 
+# Options key holding the per-device segment mode map ({device_id: mode}).
+CONF_SEGMENT_MODE_BY_DEVICE: Final = "segment_mode_by_device"
+
+# Identifier of the integration-level "Govee Integration" device that carries
+# the hub-wide diagnostics (rate limit, MQTT status).
+HUB_DEVICE_IDENTIFIER: Final = "hub"
+
 # Segment mode options
 SEGMENT_MODE_DISABLED: Final = "disabled"
 SEGMENT_MODE_GROUPED: Final = "grouped"
@@ -294,7 +327,6 @@ SEGMENT_MODE_BOTH: Final = "both"
 # moved from hass.data[DOMAIN] to entry.data (see async_migrate_entry).
 CONFIG_VERSION: Final = 2
 
-# Keys for storing cached data in hass.data[DOMAIN]
 # Minimum gap between account re-login attempts after the BFF rejects the
 # stored token (issue #132). Repeated logins are what trips Govee's own 2FA
 # hardening, so a persistently failing account must back off rather than retry

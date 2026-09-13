@@ -165,10 +165,7 @@ def decode_status_frame(raw: bytes) -> dict[int, dict[str, float | None]] | None
 
     result: dict[int, dict[str, float | None]] = {}
     for probe, base in _STATUS_PROBE_OFFSETS.items():
-        result[probe] = {
-            field: _read_temperature(raw, base + 2 * index)
-            for index, field in enumerate(_STATUS_FIELDS)
-        }
+        result[probe] = {field: _read_temperature(raw, base + 2 * index) for index, field in enumerate(_STATUS_FIELDS)}
     return result
 
 
@@ -201,10 +198,7 @@ def decode_limits(raw: bytes) -> tuple[int, ProbeLimits] | None:
     if probe not in PROBES:
         return None
 
-    values = {
-        field: _read_temperature(raw, _LIMITS_FIRST + 2 * index)
-        for index, field in enumerate(_LIMITS_FIELDS)
-    }
+    values = {field: _read_temperature(raw, _LIMITS_FIRST + 2 * index) for index, field in enumerate(_LIMITS_FIELDS)}
     return probe, ProbeLimits(**values)
 
 
