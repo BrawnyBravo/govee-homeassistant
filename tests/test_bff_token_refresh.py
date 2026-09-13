@@ -59,9 +59,7 @@ def _coordinator(*, email="a@b.c", password="pw", credentials=STALE):
         data["email"] = email
     if password:
         data["password"] = password
-    coordinator._config_entry = SimpleNamespace(
-        data=data, options={}, entry_id="e1", title="Govee"
-    )
+    coordinator._config_entry = SimpleNamespace(data=data, options={}, entry_id="e1", title="Govee")
     coordinator.hass = MagicMock()
     coordinator._iot_credentials = credentials
     coordinator._last_iot_relogin = -IOT_RELOGIN_MIN_INTERVAL * 10
@@ -77,9 +75,7 @@ def _patched_client(auth_client):
     ctx = MagicMock()
     ctx.__aenter__ = AsyncMock(return_value=auth_client)
     ctx.__aexit__ = AsyncMock(return_value=False)
-    return patch(
-        "custom_components.govee.coordinator.GoveeAuthClient", return_value=ctx
-    )
+    return patch("custom_components.govee.coordinator.GoveeAuthClient", return_value=ctx)
 
 
 class TestBffCallRetry:
@@ -100,9 +96,7 @@ class TestBffCallRetry:
         auth_client = MagicMock()
         auth_client.login = AsyncMock(return_value=fresh)
 
-        with _patched_client(auth_client), patch(
-            "custom_components.govee.coordinator.ir"
-        ):
+        with _patched_client(auth_client), patch("custom_components.govee.coordinator.ir"):
             result = await coordinator._async_bff_call(_op, "test call")
 
         # First attempt on the stale token, second on the refreshed one.
@@ -151,9 +145,11 @@ class TestBffCallRetry:
         auth_client = MagicMock()
         auth_client.login = AsyncMock(return_value=fresh)
 
-        with _patched_client(auth_client), patch(
-            "custom_components.govee.coordinator.ir"
-        ), pytest.raises(GoveeAuthError):
+        with (
+            _patched_client(auth_client),
+            patch("custom_components.govee.coordinator.ir"),
+            pytest.raises(GoveeAuthError),
+        ):
             await coordinator._async_bff_call(_op, "test call")
 
 
@@ -183,9 +179,7 @@ class TestRelogin:
         auth_client = MagicMock()
         auth_client.login = AsyncMock(return_value=fresh)
 
-        with _patched_client(auth_client), patch(
-            "custom_components.govee.coordinator.ir"
-        ):
+        with _patched_client(auth_client), patch("custom_components.govee.coordinator.ir"):
             assert await coordinator._async_refresh_iot_credentials() is True
             assert await coordinator._async_refresh_iot_credentials() is False
 
@@ -198,16 +192,11 @@ class TestRelogin:
         auth_client = MagicMock()
         auth_client.login = AsyncMock(side_effect=Govee2FARequiredError())
 
-        with _patched_client(auth_client), patch(
-            "custom_components.govee.coordinator.ir"
-        ) as ir_mod:
+        with _patched_client(auth_client), patch("custom_components.govee.coordinator.ir") as ir_mod:
             assert await coordinator._async_refresh_iot_credentials() is False
 
         ir_mod.async_create_issue.assert_called_once()
-        assert (
-            ir_mod.async_create_issue.call_args.kwargs["translation_key"]
-            == "mqtt_2fa_required"
-        )
+        assert ir_mod.async_create_issue.call_args.kwargs["translation_key"] == "mqtt_2fa_required"
 
     @pytest.mark.asyncio
     async def test_rejected_password_raises_its_own_repair(self):
@@ -215,15 +204,10 @@ class TestRelogin:
         auth_client = MagicMock()
         auth_client.login = AsyncMock(side_effect=GoveeAuthError("bad password"))
 
-        with _patched_client(auth_client), patch(
-            "custom_components.govee.coordinator.ir"
-        ) as ir_mod:
+        with _patched_client(auth_client), patch("custom_components.govee.coordinator.ir") as ir_mod:
             assert await coordinator._async_refresh_iot_credentials() is False
 
-        assert (
-            ir_mod.async_create_issue.call_args.kwargs["translation_key"]
-            == "mqtt_token_expired"
-        )
+        assert ir_mod.async_create_issue.call_args.kwargs["translation_key"] == "mqtt_token_expired"
 
     @pytest.mark.asyncio
     async def test_success_clears_the_expiry_repair(self):
@@ -232,9 +216,7 @@ class TestRelogin:
         auth_client = MagicMock()
         auth_client.login = AsyncMock(return_value=fresh)
 
-        with _patched_client(auth_client), patch(
-            "custom_components.govee.coordinator.ir"
-        ) as ir_mod:
+        with _patched_client(auth_client), patch("custom_components.govee.coordinator.ir") as ir_mod:
             assert await coordinator._async_refresh_iot_credentials() is True
 
         ir_mod.async_delete_issue.assert_called_once()
@@ -246,9 +228,7 @@ class TestRelogin:
         auth_client = MagicMock()
         auth_client.login = AsyncMock(side_effect=OSError("connection reset"))
 
-        with _patched_client(auth_client), patch(
-            "custom_components.govee.coordinator.ir"
-        ):
+        with _patched_client(auth_client), patch("custom_components.govee.coordinator.ir"):
             assert await coordinator._async_refresh_iot_credentials() is False
 
 

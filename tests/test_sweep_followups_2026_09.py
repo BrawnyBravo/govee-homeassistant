@@ -223,9 +223,7 @@ class TestDreamviewOffOnPassthrough:
         state = GoveeDeviceState.create_empty(DEV)
         state.color = None
         coordinator = self._coordinator(state)
-        coordinator.async_control_device = AsyncMock(
-            side_effect=lambda _d, cmd: isinstance(cmd, ColorCommand)
-        )
+        coordinator.async_control_device = AsyncMock(side_effect=lambda _d, cmd: isinstance(cmd, ColorCommand))
 
         assert await coordinator.async_send_dreamview(DEV, False) is True
 

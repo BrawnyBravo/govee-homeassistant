@@ -33,8 +33,7 @@ def _plug(sku="H5160", with_socket_toggles=False) -> GoveeDevice:
     caps = [GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={})]
     if with_socket_toggles:
         caps += [
-            GoveeCapability(type=CAPABILITY_TOGGLE, instance=f"socketToggle{i}", parameters={})
-            for i in (1, 2, 3)
+            GoveeCapability(type=CAPABILITY_TOGGLE, instance=f"socketToggle{i}", parameters={}) for i in (1, 2, 3)
         ]
     return GoveeDevice(
         device_id=PLUG, sku=sku, name="Strip", device_type="devices.types.socket", capabilities=tuple(caps)
@@ -156,7 +155,10 @@ class TestPushChangeDetection:
     def _coordinator(self):
         coord = GoveeCoordinator.__new__(GoveeCoordinator)
         lamp = GoveeDevice(
-            device_id=PLUG, sku="H6054", name="Lamp", device_type="devices.types.light",
+            device_id=PLUG,
+            sku="H6054",
+            name="Lamp",
+            device_type="devices.types.light",
             capabilities=(GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),),
         )
         coord._devices = {PLUG: lamp}

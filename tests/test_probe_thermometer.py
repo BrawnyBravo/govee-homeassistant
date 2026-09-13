@@ -149,9 +149,7 @@ def test_status_frame_rejects_other_register() -> None:
         (PROBE_READ_REPLY, (1, 36.0, 26.0)),
     ],
 )
-def test_probe_reading_decodes_both_byte_zero_variants(
-    blocks: list[str], expected: tuple[int, float, float]
-) -> None:
+def test_probe_reading_decodes_both_byte_zero_variants(blocks: list[str], expected: tuple[int, float, float]) -> None:
     """0x33 (device speaks) and 0xAA (device answers) carry the same payload."""
     assert decode_probe_reading(_frame(blocks)) == expected
 
@@ -178,9 +176,7 @@ def test_limits_reply_matches_written_values() -> None:
     assert decoded is not None
     probe, limits = decoded
     assert probe == 1
-    assert limits == ProbeLimits(
-        core_max=99.0, core_min=7.0, ambient_max=70.0, ambient_min=-10.0
-    )
+    assert limits == ProbeLimits(core_max=99.0, core_min=7.0, ambient_max=70.0, ambient_min=-10.0)
 
 
 def test_sentinel_decodes_to_none_not_minus_hundredth() -> None:
@@ -204,9 +200,7 @@ def test_read_packets_carry_valid_checksum() -> None:
 
 def test_write_packet_layout_round_trips_through_the_decoder() -> None:
     """A written frame differs from the read reply only in byte 0."""
-    limits = ProbeLimits(
-        core_max=99.0, core_min=7.0, ambient_max=70.0, ambient_min=-10.0
-    )
+    limits = ProbeLimits(core_max=99.0, core_min=7.0, ambient_max=70.0, ambient_min=-10.0)
     raw = base64.b64decode(build_limits_write_packet(1, limits))
 
     assert raw[0] == WRITE_PREFIX
@@ -226,9 +220,7 @@ def test_write_packet_matches_what_the_device_stored() -> None:
     the sentinel for the unset value and the byte-11 flag against hardware
     rather than against an expectation invented in this file.
     """
-    limits = ProbeLimits(
-        core_max=75.0, core_min=5.0, ambient_max=250.0, ambient_min=None
-    )
+    limits = ProbeLimits(core_max=75.0, core_min=5.0, ambient_max=250.0, ambient_min=None)
     raw = base64.b64decode(build_limits_write_packet(1, limits))
     stored = _frame(LIMITS_PARTIAL)
 
@@ -238,9 +230,7 @@ def test_write_packet_matches_what_the_device_stored() -> None:
 
 def test_write_packet_clears_a_limit_with_the_sentinel() -> None:
     """None means "no limit" — the device reports and accepts 0xFFFF for it."""
-    limits = ProbeLimits(
-        core_max=75.0, core_min=None, ambient_max=None, ambient_min=None
-    )
+    limits = ProbeLimits(core_max=75.0, core_min=None, ambient_max=None, ambient_min=None)
     raw = base64.b64decode(build_limits_write_packet(1, limits))
 
     assert raw[5:11] == bytes([SENTINEL >> 8, SENTINEL & 0xFF]) * 3
@@ -254,17 +244,13 @@ def test_write_packet_marks_a_fully_empty_corridor() -> None:
     LIMITS_EMPTY is the factory/cleared state, captured from a probe whose
     alarms had all been switched off in the Govee app.
     """
-    raw = base64.b64decode(
-        build_limits_write_packet(1, ProbeLimits(None, None, None, None))
-    )
+    raw = base64.b64decode(build_limits_write_packet(1, ProbeLimits(None, None, None, None)))
     assert raw[1:19] == _frame(LIMITS_EMPTY)[1:19]
     assert raw[11] == 0xFF
 
 
 def test_write_packet_encodes_negative_values() -> None:
-    limits = ProbeLimits(
-        core_max=99.0, core_min=7.0, ambient_max=70.0, ambient_min=-10.0
-    )
+    limits = ProbeLimits(core_max=99.0, core_min=7.0, ambient_max=70.0, ambient_min=-10.0)
     raw = base64.b64decode(build_limits_write_packet(1, limits))
     assert raw[9:11] == b"\xfc\x18"
 

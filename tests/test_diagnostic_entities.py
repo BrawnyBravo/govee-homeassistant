@@ -44,9 +44,7 @@ class TestLastCommandSentSensor:
         coordinator = MagicMock()
         coordinator.device_last_command_sent.return_value = ts
         device = _device()
-        with patch.object(
-            GoveeLastCommandSentSensor, "__init__", lambda self, *a, **k: None
-        ):
+        with patch.object(GoveeLastCommandSentSensor, "__init__", lambda self, *a, **k: None):
             entity = GoveeLastCommandSentSensor.__new__(GoveeLastCommandSentSensor)
         entity.coordinator = coordinator
         entity._device = device
@@ -70,9 +68,7 @@ class TestMqttLastReceivedPerDeviceSensor:
             "__init__",
             lambda self, *a, **k: None,
         ):
-            entity = GoveeMqttLastReceivedPerDeviceSensor.__new__(
-                GoveeMqttLastReceivedPerDeviceSensor
-            )
+            entity = GoveeMqttLastReceivedPerDeviceSensor.__new__(GoveeMqttLastReceivedPerDeviceSensor)
         entity.coordinator = coordinator
         entity._device = device
         assert entity.native_value == ts
@@ -87,9 +83,7 @@ class TestMqttLastReceivedPerDeviceSensor:
             "__init__",
             lambda self, *a, **k: None,
         ):
-            entity = GoveeMqttLastReceivedPerDeviceSensor.__new__(
-                GoveeMqttLastReceivedPerDeviceSensor
-            )
+            entity = GoveeMqttLastReceivedPerDeviceSensor.__new__(GoveeMqttLastReceivedPerDeviceSensor)
         entity.coordinator = coordinator
         entity._device = device
         assert entity.native_value is None
@@ -153,9 +147,7 @@ class TestDeviceConnectivity:
     def test_mqtt_per_device_receive_preferred(self):
         hub_recv = datetime(2026, 6, 5, 12, 0, tzinfo=timezone.utc)
         per_device = datetime(2026, 6, 5, 12, 5, tzinfo=timezone.utc)
-        mqtt = TransportHealth(
-            transport="mqtt", is_available=True, last_success_ts=hub_recv
-        )
+        mqtt = TransportHealth(transport="mqtt", is_available=True, last_success_ts=hub_recv)
 
         def _health(did, kind):
             return mqtt if kind == "mqtt" else None

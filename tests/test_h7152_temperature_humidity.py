@@ -61,11 +61,7 @@ def _h7152() -> GoveeDevice:
         sku="H7152",
         name="Smart Dehumidifier Max",
         device_type="devices.types.dehumidifier",
-        capabilities=(
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
-        ),
+        capabilities=(GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),),
     )
 
 
@@ -76,11 +72,7 @@ def _h7150() -> GoveeDevice:
         sku="H7150",
         name="Smart Dehumidifier",
         device_type="devices.types.dehumidifier",
-        capabilities=(
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
-        ),
+        capabilities=(GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),),
     )
 
 
@@ -90,11 +82,7 @@ def _lamp() -> GoveeDevice:
         sku="H6054",
         name="Lamp",
         device_type="devices.types.light",
-        capabilities=(
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
-        ),
+        capabilities=(GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),),
     )
 
 
@@ -129,9 +117,7 @@ class TestUpdateTemperatureFromFrames:
 
     def test_short_frame_is_ignored(self):
         state = GoveeDeviceState.create_empty(DEVICE_ID)
-        short = bytes(
-            [0xAA, 0x10, 0x81, 0x03, 0x32]
-        )  # one byte short of the packed value
+        short = bytes([0xAA, 0x10, 0x81, 0x03, 0x32])  # one byte short of the packed value
         assert state.update_temperature_from_frames([short]) is False
         assert state.sensor_temperature is None
 
@@ -162,9 +148,7 @@ class TestUpdateTemperatureFromFrames:
             (FRAME_TEMP_30_0C_ABOVE_BAND, 30.0, 55.0),
         ],
     )
-    def test_decodes_outside_the_captured_temperature_band(
-        self, frame, expected_celsius, expected_humidity
-    ):
+    def test_decodes_outside_the_captured_temperature_band(self, frame, expected_celsius, expected_humidity):
         """Regression test: the frame match must key on the 3-byte
         ``aa 10 81`` prefix only. Every captured real frame happens to fall
         in a band where the packed value's high byte (frame[3]) reads

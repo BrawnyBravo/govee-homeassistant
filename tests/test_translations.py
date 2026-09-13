@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 # Languages shipped alongside the integration. Add a new file under
 # ``custom_components/govee/translations/<code>.json`` and append its code
 # here to make every structural and placeholder test cover it.
@@ -119,9 +118,7 @@ def test_translation_has_no_extra_keys(lang: str, strings_keys: set[str]) -> Non
     assert path.exists(), f"Missing translation file: {path}"
 
     extra = _get_keys(_load_json(path)) - strings_keys
-    assert (
-        not extra
-    ), f"Keys in translations/{lang}.json not in strings.json:\n  {sorted(extra)}"
+    assert not extra, f"Keys in translations/{lang}.json not in strings.json:\n  {sorted(extra)}"
 
 
 def test_en_translation_has_every_key(strings_keys: set[str]) -> None:
@@ -137,9 +134,7 @@ def test_en_translation_has_every_key(strings_keys: set[str]) -> None:
     translation_keys = _get_keys(_load_json(_base_dir() / "translations" / "en.json"))
 
     missing = strings_keys - translation_keys
-    assert (
-        not missing
-    ), f"Keys in strings.json missing from translations/en.json:\n  {sorted(missing)}"
+    assert not missing, f"Keys in strings.json missing from translations/en.json:\n  {sorted(missing)}"
 
 
 @pytest.mark.parametrize("lang", LANGUAGES)
@@ -155,10 +150,7 @@ def test_translation_values_are_non_empty(lang: str) -> None:
     assert path.exists(), f"Missing translation file: {path}"
 
     empty_keys: list[str] = _find_empty_leaf_paths(_load_json(path))
-    assert not empty_keys, (
-        f"Empty/whitespace-only translated strings in translations/{lang}.json: "
-        f"{empty_keys}"
-    )
+    assert not empty_keys, f"Empty/whitespace-only translated strings in translations/{lang}.json: " f"{empty_keys}"
 
 
 @pytest.mark.parametrize("lang", LANGUAGES)

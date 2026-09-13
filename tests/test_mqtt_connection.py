@@ -20,8 +20,14 @@ from custom_components.govee.api.mqtt import GoveeAwsIotClient, _subscription_re
 
 def _creds(**over) -> GoveeIotCredentials:
     base = dict(
-        token="t", refresh_token="r", account_topic="GA/account", iot_cert="cert",
-        iot_key="key", iot_ca=None, client_id="cid", endpoint="endpoint",
+        token="t",
+        refresh_token="r",
+        account_topic="GA/account",
+        iot_cert="cert",
+        iot_key="key",
+        iot_ca=None,
+        client_id="cid",
+        endpoint="endpoint",
     )
     base.update(over)
     return GoveeIotCredentials(**base)

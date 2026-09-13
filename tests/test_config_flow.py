@@ -274,17 +274,13 @@ class TestLanTargetsOption:
     @pytest.mark.asyncio
     async def test_blank_lan_targets_ok(self):
         flow, entry = _options_flow()
-        result = await _run_init(
-            flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: ""}
-        )
+        result = await _run_init(flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: ""})
         assert result["type"] == "create_entry"
 
     @pytest.mark.asyncio
     async def test_invalid_lan_targets_rejected(self):
         flow, entry = _options_flow()
-        result = await _run_init(
-            flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: "not-an-ip"}
-        )
+        result = await _run_init(flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: "not-an-ip"})
         # Re-shows the form with a field-level error; nothing is saved.
         assert result["type"] == "form"
         assert result["errors"] == {CONF_LAN_TARGETS: "invalid_lan_targets"}
@@ -292,9 +288,7 @@ class TestLanTargetsOption:
     @pytest.mark.asyncio
     async def test_oversized_subnet_rejected(self):
         flow, entry = _options_flow()
-        result = await _run_init(
-            flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: "10.0.0.0/8"}
-        )
+        result = await _run_init(flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: "10.0.0.0/8"})
         assert result["type"] == "form"
         assert result["errors"] == {CONF_LAN_TARGETS: "invalid_lan_targets"}
 
@@ -314,9 +308,7 @@ class TestLanDeviceOverrideOption:
     async def test_valid_override_saved(self):
         flow, entry = _options_flow(devices={self.DEVICE: MagicMock(segment_count=0)})
         raw = f"{self.DEVICE}=10.20.0.51"
-        result = await _run_init(
-            flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw}
-        )
+        result = await _run_init(flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw})
         assert result["type"] == "create_entry"
         assert result["data"][CONF_LAN_TARGETS] == raw
 
@@ -324,9 +316,7 @@ class TestLanDeviceOverrideOption:
     async def test_valid_write_only_override_saved(self):
         flow, entry = _options_flow(devices={self.DEVICE: MagicMock(segment_count=0)})
         raw = f"{self.DEVICE}=10.20.0.51!"
-        result = await _run_init(
-            flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw}
-        )
+        result = await _run_init(flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw})
         assert result["type"] == "create_entry"
         assert result["data"][CONF_LAN_TARGETS] == raw
 
@@ -342,9 +332,7 @@ class TestLanDeviceOverrideOption:
     )
     async def test_malformed_override_rejected(self, raw):
         flow, entry = _options_flow(devices={self.DEVICE: MagicMock(segment_count=0)})
-        result = await _run_init(
-            flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw}
-        )
+        result = await _run_init(flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw})
         assert result["type"] == "form"
         assert result["errors"] == {CONF_LAN_TARGETS: "invalid_lan_targets"}
 
@@ -379,9 +367,7 @@ class TestLanDeviceOverrideOption:
     async def test_override_mixed_with_plain_targets(self):
         flow, entry = _options_flow(devices={self.DEVICE: MagicMock(segment_count=0)})
         raw = f"10.20.0.0/24, {self.DEVICE}=10.20.0.51!"
-        result = await _run_init(
-            flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw}
-        )
+        result = await _run_init(flow, entry, {CONF_POLL_INTERVAL: 60, CONF_LAN_TARGETS: raw})
         assert result["type"] == "create_entry"
         assert result["data"][CONF_LAN_TARGETS] == raw
 
@@ -393,11 +379,7 @@ class TestWaterDetectorPollIntervalOption:
     async def test_field_defaults_to_constant(self):
         flow, entry = _options_flow()
         result = await _run_init(flow, entry, None)
-        key = next(
-            k
-            for k in result["data_schema"].schema
-            if k == CONF_WATER_DETECTOR_POLL_INTERVAL
-        )
+        key = next(k for k in result["data_schema"].schema if k == CONF_WATER_DETECTOR_POLL_INTERVAL)
         assert key.default() == DEFAULT_WATER_DETECTOR_POLL_INTERVAL
 
     @pytest.mark.asyncio
@@ -405,11 +387,7 @@ class TestWaterDetectorPollIntervalOption:
         flow, entry = _options_flow()
         entry.options = {CONF_WATER_DETECTOR_POLL_INTERVAL: 900}
         result = await _run_init(flow, entry, None)
-        key = next(
-            k
-            for k in result["data_schema"].schema
-            if k == CONF_WATER_DETECTOR_POLL_INTERVAL
-        )
+        key = next(k for k in result["data_schema"].schema if k == CONF_WATER_DETECTOR_POLL_INTERVAL)
         assert key.default() == 900
 
     @pytest.mark.asyncio
@@ -432,9 +410,7 @@ class TestWaterDetectorPollIntervalOption:
         flow, entry = _options_flow()
         result = await _run_init(flow, entry, None)
         with pytest.raises(vol.Invalid):
-            result["data_schema"](
-                {CONF_POLL_INTERVAL: 60, CONF_WATER_DETECTOR_POLL_INTERVAL: value}
-            )
+            result["data_schema"]({CONF_POLL_INTERVAL: 60, CONF_WATER_DETECTOR_POLL_INTERVAL: value})
 
 
 class TestMqttStatusIntervalOption:
@@ -446,9 +422,7 @@ class TestMqttStatusIntervalOption:
     async def test_field_defaults_to_constant(self):
         flow, entry = _options_flow()
         result = await _run_init(flow, entry, None)
-        key = next(
-            k for k in result["data_schema"].schema if k == CONF_MQTT_STATUS_INTERVAL
-        )
+        key = next(k for k in result["data_schema"].schema if k == CONF_MQTT_STATUS_INTERVAL)
         assert key.default() == DEFAULT_MQTT_STATUS_INTERVAL
 
     @pytest.mark.asyncio
@@ -456,9 +430,7 @@ class TestMqttStatusIntervalOption:
         flow, entry = _options_flow()
         entry.options = {CONF_MQTT_STATUS_INTERVAL: 900}
         result = await _run_init(flow, entry, None)
-        key = next(
-            k for k in result["data_schema"].schema if k == CONF_MQTT_STATUS_INTERVAL
-        )
+        key = next(k for k in result["data_schema"].schema if k == CONF_MQTT_STATUS_INTERVAL)
         assert key.default() == 900
 
     @pytest.mark.asyncio
@@ -481,18 +453,14 @@ class TestMqttStatusIntervalOption:
         flow, entry = _options_flow()
         result = await _run_init(flow, entry, None)
         with pytest.raises(vol.Invalid):
-            result["data_schema"](
-                {CONF_POLL_INTERVAL: 60, CONF_MQTT_STATUS_INTERVAL: value}
-            )
+            result["data_schema"]({CONF_POLL_INTERVAL: 60, CONF_MQTT_STATUS_INTERVAL: value})
 
     @pytest.mark.asyncio
     async def test_zero_is_accepted_as_off(self):
         """0 is the documented off switch, below the range but valid."""
         flow, entry = _options_flow()
         result = await _run_init(flow, entry, None)
-        validated = result["data_schema"](
-            {CONF_POLL_INTERVAL: 60, CONF_MQTT_STATUS_INTERVAL: 0}
-        )
+        validated = result["data_schema"]({CONF_POLL_INTERVAL: 60, CONF_MQTT_STATUS_INTERVAL: 0})
         assert validated[CONF_MQTT_STATUS_INTERVAL] == 0
 
 
@@ -922,9 +890,7 @@ class TestPerDeviceSegmentMode:
         assert device_mode == SEGMENT_MODE_INDIVIDUAL
 
         # Unknown device should use default (individual)
-        unknown_mode = device_modes.get(
-            "AA:BB:CC:DD:EE:FF:00:99", SEGMENT_MODE_INDIVIDUAL
-        )
+        unknown_mode = device_modes.get("AA:BB:CC:DD:EE:FF:00:99", SEGMENT_MODE_INDIVIDUAL)
         assert unknown_mode == SEGMENT_MODE_INDIVIDUAL
 
 
@@ -960,9 +926,7 @@ class TestVerificationCodeFlow:
                 return_value=mock_auth_instance,
             ),
         ):
-            result = await flow.async_step_account(
-                {CONF_EMAIL: "test@example.com", CONF_PASSWORD: "secret"}
-            )
+            result = await flow.async_step_account({CONF_EMAIL: "test@example.com", CONF_PASSWORD: "secret"})
 
         # Should redirect to the verification_code form
         assert result["type"] == "form"
@@ -992,9 +956,7 @@ class TestVerificationCodeFlow:
             "custom_components.govee.config_flow.validate_govee_credentials",
             return_value=mock_creds,
         ):
-            result = await flow.async_step_verification_code(
-                {"verification_code": "123456"}
-            )
+            result = await flow.async_step_verification_code({"verification_code": "123456"})
 
         assert result["type"] == "create_entry"
         assert result["title"] == "Govee"
@@ -1018,9 +980,7 @@ class TestVerificationCodeFlow:
             "custom_components.govee.config_flow.validate_govee_credentials",
             side_effect=Govee2FACodeInvalidError(),
         ):
-            result = await flow.async_step_verification_code(
-                {"verification_code": "000000"}
-            )
+            result = await flow.async_step_verification_code({"verification_code": "000000"})
 
         assert result["type"] == "form"
         assert result["step_id"] == "verification_code"
@@ -1109,9 +1069,7 @@ class TestVerificationCodeFlow:
             "custom_components.govee.config_flow.validate_govee_credentials",
             return_value=mock_creds,
         ):
-            result = await flow.async_step_verification_code(
-                {"verification_code": "123456"}
-            )
+            result = await flow.async_step_verification_code({"verification_code": "123456"})
 
         assert result is mock_update_result
         # Verify async_update_reload_and_abort was called with correct data
