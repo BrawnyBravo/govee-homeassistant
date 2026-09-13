@@ -7,6 +7,12 @@ name: Sync with upstream
 # own "-house.N" version in manifest.json, and republishing upstream's release
 # tags from here would make the fork's version indistinguishable from upstream's.
 #
+# EXPECTED CONFLICT: custom_components/govee/manifest.json conflicts on every
+# sync where upstream bumps its version, because both sides edit the same line.
+# That is by design, not a problem. Resolve it by taking upstream's new version
+# and keeping the fork suffix, e.g. upstream 2026.9.7 -> "2026.9.7-house.1".
+# See FORK-NOTES.md. A conflict is resolved, never left to drift.
+#
 # Do NOT create GitHub Releases on this fork without reading the install notes in
 # PLAN.md first: for the Govee fork a release silently switches HACS from tracking
 # the default branch to tracking releases.
@@ -164,6 +170,10 @@ jobs:
             if [ -n "${CONFLICTS}" ]; then
               printf '**Conflicting files:**\n\n'
               printf '```\n%s\n```\n\n' "${CONFLICTS}"
+              if printf '%s' "${CONFLICTS}" | grep -qx 'custom_components/govee/manifest.json'; then
+                printf '`manifest.json` is an expected conflict: take upstream'"'"'s new\n'
+                printf 'version and keep the `-house.N` suffix. See FORK-NOTES.md.\n\n'
+              fi
             else
               printf '**No file-level conflicts were reported.** The merge failed for\n'
               printf 'some other reason - unrelated histories, an unclean index, or\n'
