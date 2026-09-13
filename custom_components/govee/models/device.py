@@ -672,7 +672,13 @@ class GoveeDevice:
     @property
     def supports_temperature_sensor(self) -> bool:
         """Check if device exposes a sensorTemperature property (e.g. H5109,
-        H5179). The capability is read-only — surfaced as an HA sensor."""
+        H5179), or is a pump-model dehumidifier (H7152) whose AWS IoT push
+        frames carry a reverse-engineered live temperature reading — no
+        capability exists for that one at all, see
+        GoveeDeviceState.update_temperature_from_frames. The capability path
+        is read-only — surfaced as an HA sensor either way."""
+        if self.sku.upper() in PUMP_DEHUMIDIFIER_SKUS:
+            return True
         return any(
             cap.type == CAPABILITY_PROPERTY
             and cap.instance == INSTANCE_SENSOR_TEMPERATURE
@@ -681,7 +687,13 @@ class GoveeDevice:
 
     @property
     def supports_humidity_sensor(self) -> bool:
-        """Check if device exposes a sensorHumidity property."""
+        """Check if device exposes a sensorHumidity property, or is a
+        pump-model dehumidifier (H7152) whose AWS IoT push frames carry a
+        reverse-engineered live humidity reading alongside temperature — no
+        capability exists for that one at all, see
+        GoveeDeviceState.update_temperature_from_frames."""
+        if self.sku.upper() in PUMP_DEHUMIDIFIER_SKUS:
+            return True
         return any(
             cap.type == CAPABILITY_PROPERTY and cap.instance == INSTANCE_SENSOR_HUMIDITY
             for cap in self.capabilities
