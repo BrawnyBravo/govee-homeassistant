@@ -100,6 +100,7 @@ from .const import (
     MIN_MQTT_STATUS_INTERVAL,
     MIN_PROBE_POLL_INTERVAL,
     MIN_WATER_DETECTOR_POLL_INTERVAL,
+    MQTT_STATUS_POLL_OFF,
     OPTIMISTIC_GRACE_CAP_SECONDS,
     resolve_fahrenheit_conversion,
 )
@@ -3102,8 +3103,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Configured MQTT status-poll interval (seconds), clamped to bounds.
 
         Read per tick so the value is picked up on the reload that follows an
-        options change. Out-of-range or non-numeric values (e.g. hand-edited
-        options) fall back to the default rather than arming a bad timer.
+        options change. ``MQTT_STATUS_POLL_OFF`` (0) is the documented way to
+        turn the re-query off and is returned as-is; any other out-of-range or
+        non-numeric value (e.g. hand-edited options) falls back to the default
+        rather than arming a bad timer.
         """
         raw = self._config_entry.options.get(
             CONF_MQTT_STATUS_INTERVAL, DEFAULT_MQTT_STATUS_INTERVAL
@@ -3112,9 +3115,16 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             interval = int(raw)
         except (TypeError, ValueError):
             return DEFAULT_MQTT_STATUS_INTERVAL
+        if interval == MQTT_STATUS_POLL_OFF:
+            return MQTT_STATUS_POLL_OFF
         if not (MIN_MQTT_STATUS_INTERVAL <= interval <= MAX_MQTT_STATUS_INTERVAL):
             return DEFAULT_MQTT_STATUS_INTERVAL
         return interval
+
+    @property
+    def _mqtt_status_poll_enabled(self) -> bool:
+        """False when the user set the re-query interval to 0 (off)."""
+        return self._mqtt_status_poll_interval != MQTT_STATUS_POLL_OFF
 
     @property
     def _mqtt_status_poll_targets(self) -> list[str]:
@@ -3131,9 +3141,16 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         ]
 
     def _schedule_status_poll(self) -> None:
-        """Schedule the next MQTT status re-query, replacing any pending timer."""
+        """Schedule the next MQTT status re-query, replacing any pending timer.
+
+        Arms nothing when the option is 0 (off); a pending timer is still
+        cancelled so a reload that turned the feature off leaves no tick behind.
+        """
         if self._status_poll_unsub:
             self._status_poll_unsub()
+            self._status_poll_unsub = None
+        if not self._mqtt_status_poll_enabled:
+            return
         self._status_poll_unsub = async_call_later(
             self.hass, self._mqtt_status_poll_interval, self._status_poll_callback
         )
@@ -3152,8 +3169,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         nobody has asked in a while. Queries go out sequentially, one device
         at a time, rather than in parallel: the interval already trades update
         latency for request volume, so there is no reason to burst all of them
-        at once.
+        at once. They are fire-and-forget (QoS 0), so the loop never waits on
+        a broker acknowledgement between devices. A no-op when the option is
+        0 (off).
         """
+        if not self._mqtt_status_poll_enabled:
+            return
         client = self._mqtt_client
         if client is None or not client.connected:
             return
@@ -3452,11 +3473,13 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # _async_setup would race the handshake and lose — see the comment
         # there) and also covers every later reconnect, so a drop-and-recover
         # doesn't leave state stale for up to the full interval either.
-        self._config_entry.async_create_background_task(
-            self.hass,
-            self._poll_mqtt_status(),
-            name="govee_mqtt_connected_status_poll",
-        )
+        # Skipped entirely when the user turned the re-query off (0).
+        if self._mqtt_status_poll_enabled:
+            self._config_entry.async_create_background_task(
+                self.hass,
+                self._poll_mqtt_status(),
+                name="govee_mqtt_connected_status_poll",
+            )
 
     @callback
     def _on_mqtt_disconnected(self) -> None:

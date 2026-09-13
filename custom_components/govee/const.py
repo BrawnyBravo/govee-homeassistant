@@ -217,6 +217,9 @@ GOVEE_DAILY_REQUEST_LIMIT: Final = 10000
 # this integration can never out-poll what the app already does routinely.
 MIN_MQTT_STATUS_INTERVAL: Final = 60
 MAX_MQTT_STATUS_INTERVAL: Final = 3600
+# Setting the option to this turns the re-query off entirely: no timer, no
+# connect-time sweep, state comes only from what devices push on their own.
+MQTT_STATUS_POLL_OFF: Final = 0
 
 # Optimistic state handling
 # Grace window (seconds) during which API polls do NOT overwrite optimistic

@@ -1260,8 +1260,11 @@ class GoveeAwsIotClient:
         }
 
         try:
+            # QoS 0, like govee2mqtt: a status query is a periodic nudge, so a
+            # lost one costs a single interval and nothing more, and the caller
+            # never sits on a PUBACK wait between devices.
             await self._client.publish(
-                device_topic, json.dumps(payload), qos=1, timeout=ACK_TIMEOUT
+                device_topic, json.dumps(payload), qos=0, timeout=ACK_TIMEOUT
             )
             _LOGGER.debug("Published status query to %s...", device_topic[:30])
             return True

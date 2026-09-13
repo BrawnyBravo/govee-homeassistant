@@ -485,6 +485,16 @@ class TestMqttStatusIntervalOption:
                 {CONF_POLL_INTERVAL: 60, CONF_MQTT_STATUS_INTERVAL: value}
             )
 
+    @pytest.mark.asyncio
+    async def test_zero_is_accepted_as_off(self):
+        """0 is the documented off switch, below the range but valid."""
+        flow, entry = _options_flow()
+        result = await _run_init(flow, entry, None)
+        validated = result["data_schema"](
+            {CONF_POLL_INTERVAL: 60, CONF_MQTT_STATUS_INTERVAL: 0}
+        )
+        assert validated[CONF_MQTT_STATUS_INTERVAL] == 0
+
 
 class TestConfigFlowSteps:
     """Test config flow step transitions."""

@@ -248,7 +248,8 @@ class TestPublishStatusQuery:
         assert msg["type"] == 0
         assert msg["cmdVersion"] == 2
         assert "data" not in msg
-        assert kwargs == {"qos": 1, "timeout": mqtt_mod.ACK_TIMEOUT}
+        # Fire-and-forget: a status query must never block on a PUBACK.
+        assert kwargs == {"qos": 0, "timeout": mqtt_mod.ACK_TIMEOUT}
 
     @pytest.mark.asyncio
     async def test_cmd_version_override(self):

@@ -2199,6 +2199,58 @@ class TestMqttStatusPollInterval:
         coord = self._coord_with_options({const.CONF_MQTT_STATUS_INTERVAL: value})
         assert coord._mqtt_status_poll_interval == const.DEFAULT_MQTT_STATUS_INTERVAL
 
+    def test_zero_means_off(self):
+        """0 is the documented off switch, not an out-of-range value."""
+        coord = self._coord_with_options({const.CONF_MQTT_STATUS_INTERVAL: 0})
+        assert coord._mqtt_status_poll_interval == const.MQTT_STATUS_POLL_OFF
+        assert coord._mqtt_status_poll_enabled is False
+
+    def test_off_arms_no_timer_and_cancels_a_pending_one(self, monkeypatch):
+        """Turning the option off on reload must leave no tick behind."""
+        import custom_components.govee.coordinator as coord_mod
+
+        coord = self._coord_with_options({const.CONF_MQTT_STATUS_INTERVAL: 0})
+        armed = []
+        monkeypatch.setattr(coord_mod, "async_call_later", lambda *a, **k: armed.append(a) or MagicMock())
+        pending = MagicMock()
+        coord._status_poll_unsub = pending
+
+        coord._schedule_status_poll()
+
+        pending.assert_called_once()
+        assert coord._status_poll_unsub is None
+        assert armed == []
+
+    @pytest.mark.asyncio
+    async def test_off_publishes_nothing(self):
+        coord = self._coord_with_options({const.CONF_MQTT_STATUS_INTERVAL: 0})
+        coord._devices = {"A": self._device("A")}
+        coord._device_topics = {"A": "GD/a"}
+        mqtt_client = MagicMock()
+        mqtt_client.connected = True
+        mqtt_client.async_publish_status_query = AsyncMock(return_value=True)
+        coord._mqtt_client = mqtt_client
+
+        await coord._poll_mqtt_status()
+
+        mqtt_client.async_publish_status_query.assert_not_awaited()
+
+    def test_off_skips_the_connect_time_sweep(self):
+        coord = self._coord_with_options({const.CONF_MQTT_STATUS_INTERVAL: 0})
+        coord._config_entry = MagicMock()
+        coord._config_entry.options = {const.CONF_MQTT_STATUS_INTERVAL: 0}
+        seen: dict[str, Any] = {}
+
+        def _capture(hass, coro, name=None):
+            seen[name] = coro
+            coro.close()
+
+        coord._config_entry.async_create_background_task = _capture
+
+        coord._on_mqtt_connected()
+
+        assert "govee_mqtt_connected_status_poll" not in seen
+
     def test_schedule_uses_configured_interval(self, monkeypatch):
         import custom_components.govee.coordinator as coord_mod
 

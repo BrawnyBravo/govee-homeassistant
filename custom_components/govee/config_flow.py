@@ -69,6 +69,7 @@ from .const import (
     MIN_MQTT_STATUS_INTERVAL,
     MIN_PROBE_POLL_INTERVAL,
     MIN_WATER_DETECTOR_POLL_INTERVAL,
+    MQTT_STATUS_POLL_OFF,
     SEGMENT_MODE_BOTH,
     SEGMENT_MODE_DISABLED,
     SEGMENT_MODE_GROUPED,
@@ -806,9 +807,14 @@ class GoveeOptionsFlow(OptionsFlow):
                         ),
                     ): vol.All(
                         vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_MQTT_STATUS_INTERVAL,
-                            max=MAX_MQTT_STATUS_INTERVAL,
+                        # 0 is the documented "off" value; anything else must
+                        # sit inside the bounds.
+                        vol.Any(
+                            MQTT_STATUS_POLL_OFF,
+                            vol.Range(
+                                min=MIN_MQTT_STATUS_INTERVAL,
+                                max=MAX_MQTT_STATUS_INTERVAL,
+                            ),
                         ),
                     ),
                     vol.Optional(
