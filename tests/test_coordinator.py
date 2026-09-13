@@ -226,9 +226,7 @@ class TestSceneCaching:
 
     def test_cache_returns_existing(self):
         """Test cached scenes are returned."""
-        cache: dict[str, list[dict[str, Any]]] = {
-            "device_id": [{"name": "Sunset", "value": {"id": 2}}]
-        }
+        cache: dict[str, list[dict[str, Any]]] = {"device_id": [{"name": "Sunset", "value": {"id": 2}}]}
 
         device_id = "device_id"
         refresh = False
@@ -243,9 +241,7 @@ class TestSceneCaching:
 
     def test_cache_refresh_bypasses(self):
         """Test refresh bypasses cache."""
-        cache: dict[str, list[dict[str, Any]]] = {
-            "device_id": [{"name": "Old", "value": {"id": 1}}]
-        }
+        cache: dict[str, list[dict[str, Any]]] = {"device_id": [{"name": "Old", "value": {"id": 1}}]}
 
         device_id = "device_id"
         refresh = True
@@ -346,9 +342,7 @@ class TestErrorHandling:
         """Test device not found is expected for groups."""
         err = GoveeDeviceNotFoundError("GROUP:ID")
 
-        is_group_error = (
-            "not exist" in str(err).lower() or "not found" in str(err).lower()
-        )
+        is_group_error = "not exist" in str(err).lower() or "not found" in str(err).lower()
 
         assert is_group_error or err.code == 400
 
@@ -918,9 +912,7 @@ class TestClearSceneLogic:
     def _make_device(self, supports_rgb: bool, supports_color_temp: bool):
         """Create a device with specified color capabilities."""
         caps = [
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
+            GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),
             GoveeCapability(
                 type=CAPABILITY_RANGE,
                 instance=INSTANCE_BRIGHTNESS,
@@ -1206,10 +1198,7 @@ class TestStatePreservationAcrossApiPoll:
         assert new_state.sensor_humidity is None
 
         # Mimic coordinator preservation logic
-        if (
-            existing.sensor_temperature is not None
-            and new_state.sensor_temperature is None
-        ):
+        if existing.sensor_temperature is not None and new_state.sensor_temperature is None:
             new_state.sensor_temperature = existing.sensor_temperature
         if existing.sensor_humidity is not None and new_state.sensor_humidity is None:
             new_state.sensor_humidity = existing.sensor_humidity
@@ -1228,10 +1217,7 @@ class TestStatePreservationAcrossApiPoll:
         new_state.sensor_humidity = 50.0
 
         # Preservation only kicks in when new value is None
-        if (
-            existing.sensor_temperature is not None
-            and new_state.sensor_temperature is None
-        ):
+        if existing.sensor_temperature is not None and new_state.sensor_temperature is None:
             new_state.sensor_temperature = existing.sensor_temperature
         if existing.sensor_humidity is not None and new_state.sensor_humidity is None:
             new_state.sensor_humidity = existing.sensor_humidity
@@ -1312,9 +1298,7 @@ class TestBleAdvertisementHandling:
         # Broad allowlist so the enrollment-path tests exercise real logic
         # regardless of the production-default allowlist content. The
         # enforcement path is covered by its own dedicated test.
-        ble_mod.BLE_COMMAND_SUPPORTED_MODELS = frozenset(
-            {"H6053", "H6072", "H6102", "H6199", "H6076", "H6126"}
-        )
+        ble_mod.BLE_COMMAND_SUPPORTED_MODELS = frozenset({"H6053", "H6072", "H6102", "H6199", "H6076", "H6126"})
 
         coord = object.__new__(coord_mod.GoveeCoordinator)
         coord._devices = devices
@@ -1367,9 +1351,7 @@ class TestBleAdvertisementHandling:
 
     def test_single_sku_match_creates_ble_device(self, sample_device):
         """BLE advertisement matching a single cloud device by SKU creates a GoveeBLEDevice."""
-        coord = self._make_coordinator_with_devices(
-            {"AA:BB:CC:DD:EE:FF:00:11": sample_device}
-        )
+        coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
 
         coord._handle_ble_advertisement(info)
@@ -1378,9 +1360,7 @@ class TestBleAdvertisementHandling:
 
     def test_no_sku_match_skips(self, sample_device):
         """BLE advertisement with non-matching SKU is ignored."""
-        coord = self._make_coordinator_with_devices(
-            {"AA:BB:CC:DD:EE:FF:00:11": sample_device}  # SKU=H6072
-        )
+        coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})  # SKU=H6072
         info = self._make_service_info("Govee_H6199_ABCD", "11:22:33:44:55:66")
 
         coord._handle_ble_advertisement(info)
@@ -1414,9 +1394,9 @@ class TestBleAdvertisementHandling:
         assert len(coord._ble_devices) == 0
 
     def test_multiple_same_sku_uses_mac_tiebreaker(self, sample_capabilities):
-        """Multiple cloud devices with same SKU: MAC-prefix tiebreaker."""
+        """Multiple cloud devices with same SKU: the cloud ID's last six octets are the MAC."""
         dev1 = GoveeDevice(
-            device_id="AA:BB:CC:DD:EE:FF:00:11",
+            device_id="11:66:AA:BB:CC:DD:EE:FF",
             sku="H6072",
             name="Living Room",
             device_type="devices.types.light",
@@ -1431,7 +1411,7 @@ class TestBleAdvertisementHandling:
         )
         coord = self._make_coordinator_with_devices(
             {
-                "AA:BB:CC:DD:EE:FF:00:11": dev1,
+                "11:66:AA:BB:CC:DD:EE:FF": dev1,
                 "11:22:33:44:55:66:00:22": dev2,
             }
         )
@@ -1439,8 +1419,8 @@ class TestBleAdvertisementHandling:
 
         coord._handle_ble_advertisement(info)
 
-        # Should match dev1 (MAC prefix matches)
-        assert "AA:BB:CC:DD:EE:FF:00:11" in coord._ble_devices
+        # Should match dev1: its cloud ID ends with the advertised MAC.
+        assert "11:66:AA:BB:CC:DD:EE:FF" in coord._ble_devices
         assert "11:22:33:44:55:66:00:22" not in coord._ble_devices
 
     def test_multiple_same_sku_no_mac_match_skips(self, sample_capabilities):
@@ -1474,9 +1454,7 @@ class TestBleAdvertisementHandling:
 
     def test_repeated_advertisement_refreshes_existing(self, sample_device):
         """Second advertisement for same device refreshes the BLEDevice reference."""
-        coord = self._make_coordinator_with_devices(
-            {"AA:BB:CC:DD:EE:FF:00:11": sample_device}
-        )
+        coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         info1 = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
         info2 = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
 
@@ -1498,9 +1476,7 @@ class TestBleAdvertisementHandling:
         bt.async_scanner_count = MagicMock(return_value=0)
         ble_mod.bt_component = bt
 
-        coord = self._make_coordinator_with_devices(
-            {"AA:BB:CC:DD:EE:FF:00:11": sample_device}
-        )
+        coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         coord.hass = MagicMock()
         info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
 
@@ -1520,9 +1496,7 @@ class TestBleAdvertisementHandling:
         bt.async_scanner_count = MagicMock(return_value=1)
         ble_mod.bt_component = bt
 
-        coord = self._make_coordinator_with_devices(
-            {"AA:BB:CC:DD:EE:FF:00:11": sample_device}
-        )
+        coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         coord.hass = MagicMock()
         info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
 
@@ -1543,9 +1517,7 @@ class TestBleAdvertisementHandling:
         """
         from custom_components.govee.models import GoveeDeviceState
 
-        coord = self._make_coordinator_with_devices(
-            {"AA:BB:CC:DD:EE:FF:00:11": sample_device}
-        )
+        coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         # Stale "offline" state cached from the cloud.
         offline_state = GoveeDeviceState.create_empty("AA:BB:CC:DD:EE:FF:00:11")
         offline_state.online = False
@@ -1568,9 +1540,7 @@ class TestBleAdvertisementHandling:
         """
         from custom_components.govee.models import GoveeDeviceState
 
-        coord = self._make_coordinator_with_devices(
-            {"AA:BB:CC:DD:EE:FF:00:11": sample_device}
-        )
+        coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         offline_state = GoveeDeviceState.create_empty("AA:BB:CC:DD:EE:FF:00:11")
         offline_state.online = False
         coord._states["AA:BB:CC:DD:EE:FF:00:11"] = offline_state
@@ -1614,27 +1584,21 @@ class TestTryBleCommand:
     @pytest.mark.asyncio
     async def test_power_on_via_ble(self):
         coord, ble = self._make_coordinator_with_mock_ble()
-        result = await coord._try_ble_command(
-            "AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=True)
-        )
+        result = await coord._try_ble_command("AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=True))
         assert result is True
         ble.turn_on.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_power_off_via_ble(self):
         coord, ble = self._make_coordinator_with_mock_ble()
-        result = await coord._try_ble_command(
-            "AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=False)
-        )
+        result = await coord._try_ble_command("AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=False))
         assert result is True
         ble.turn_off.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_brightness_via_ble(self):
         coord, ble = self._make_coordinator_with_mock_ble()
-        result = await coord._try_ble_command(
-            "AA:BB:CC:DD:EE:FF:00:11", BrightnessCommand(brightness=128)
-        )
+        result = await coord._try_ble_command("AA:BB:CC:DD:EE:FF:00:11", BrightnessCommand(brightness=128))
         assert result is True
         ble.set_brightness.assert_awaited_once_with(128)
 
@@ -1664,9 +1628,7 @@ class TestTryBleCommand:
         from unittest.mock import AsyncMock
 
         ble.turn_on = AsyncMock(side_effect=Exception("BLE link lost"))
-        result = await coord._try_ble_command(
-            "AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=True)
-        )
+        result = await coord._try_ble_command("AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=True))
         assert result is False
 
     @pytest.mark.asyncio
@@ -1676,9 +1638,7 @@ class TestTryBleCommand:
 
         coord = object.__new__(GoveeCoordinator)
         coord._ble_devices = {}
-        result = await coord._try_ble_command(
-            "AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=True)
-        )
+        result = await coord._try_ble_command("AA:BB:CC:DD:EE:FF:00:11", PowerCommand(power_on=True))
         assert result is False
 
 
@@ -1704,9 +1664,7 @@ class TestClearSceneOnHdmiSyncBox:
                 {"name": "HDMI 4", "value": 4},
             ]
         caps = (
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
+            GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),
             GoveeCapability(
                 type=CAPABILITY_RANGE,
                 instance=INSTANCE_BRIGHTNESS,
@@ -1866,9 +1824,7 @@ class TestSensorReadingChangeTracking:
 
         coord = self._coord()
         # Seed an old timestamp so the restamp is unambiguously newer.
-        coord._sensor_reading_changed_at["x"] = datetime(
-            2020, 1, 1, tzinfo=timezone.utc
-        )
+        coord._sensor_reading_changed_at["x"] = datetime(2020, 1, 1, tzinfo=timezone.utc)
         prev = GoveeDeviceState.create_empty("x")
         prev.sensor_temperature = 21.0
         new = GoveeDeviceState.create_empty("x")
@@ -1963,9 +1919,7 @@ class TestWaterDetectorPoll:
             is_group=False,
         )
         coord._devices[device.device_id] = device
-        coord._states[device.device_id] = GoveeDeviceState.create_empty(
-            device.device_id
-        )
+        coord._states[device.device_id] = GoveeDeviceState.create_empty(device.device_id)
         coord.async_update_listeners = MagicMock()
         return coord, device.device_id
 
@@ -2102,9 +2056,7 @@ class TestWaterDetectorPollInterval:
 
     def test_default_when_option_unset(self):
         coord = self._coord_with_options({})
-        assert coord._water_detector_poll_interval == (
-            const.DEFAULT_WATER_DETECTOR_POLL_INTERVAL
-        )
+        assert coord._water_detector_poll_interval == (const.DEFAULT_WATER_DETECTOR_POLL_INTERVAL)
 
     def test_configured_value_is_used(self):
         coord = self._coord_with_options({const.CONF_WATER_DETECTOR_POLL_INTERVAL: 600})
@@ -2121,12 +2073,8 @@ class TestWaterDetectorPollInterval:
     )
     def test_out_of_range_or_bad_value_falls_back(self, value):
         """Hand-edited options must not arm a bad timer."""
-        coord = self._coord_with_options(
-            {const.CONF_WATER_DETECTOR_POLL_INTERVAL: value}
-        )
-        assert coord._water_detector_poll_interval == (
-            const.DEFAULT_WATER_DETECTOR_POLL_INTERVAL
-        )
+        coord = self._coord_with_options({const.CONF_WATER_DETECTOR_POLL_INTERVAL: value})
+        assert coord._water_detector_poll_interval == (const.DEFAULT_WATER_DETECTOR_POLL_INTERVAL)
 
     def test_schedule_uses_configured_interval(self, monkeypatch):
         import custom_components.govee.coordinator as coord_mod
@@ -2567,9 +2515,7 @@ class TestBffThermometerDiscovery:
         assert state.sensor_humidity == 47.1
         assert state.battery == 88
         assert coord._devices[did].hub_device_id == "11:22:33:44:55:66:77:88"
-        assert coord._bff_thermo_hubs == {
-            "11:22:33:44:55:66:77:88": {"sku": "H5044"}
-        }
+        assert coord._bff_thermo_hubs == {"11:22:33:44:55:66:77:88": {"sku": "H5044"}}
         coord._schedule_bff_poll.assert_called_once()
 
     @pytest.mark.asyncio
@@ -2726,26 +2672,20 @@ class TestBffThermometerDiscovery:
         coord, coord_mod = self._coord()
         coord._bff_thermo_hubs = {"11:22:33:44:55:66:77:88": {"sku": "H5044"}}
         device_reg = MagicMock()
-        monkeypatch.setattr(
-            coord_mod.dr, "async_get", lambda _hass: device_reg
-        )
+        monkeypatch.setattr(coord_mod.dr, "async_get", lambda _hass: device_reg)
 
         coord.register_thermo_hubs()
 
         device_reg.async_get_or_create.assert_called_once()
         kwargs = device_reg.async_get_or_create.call_args.kwargs
-        assert kwargs["identifiers"] == {
-            (coord_mod.DOMAIN, "11:22:33:44:55:66:77:88")
-        }
+        assert kwargs["identifiers"] == {(coord_mod.DOMAIN, "11:22:33:44:55:66:77:88")}
         assert kwargs["model"] == "H5044"
 
     def test_register_thermo_hubs_noop_when_empty(self, monkeypatch):
         coord, coord_mod = self._coord()
         coord._bff_thermo_hubs = {}
         device_reg = MagicMock()
-        monkeypatch.setattr(
-            coord_mod.dr, "async_get", lambda _hass: device_reg
-        )
+        monkeypatch.setattr(coord_mod.dr, "async_get", lambda _hass: device_reg)
 
         coord.register_thermo_hubs()
 
@@ -2794,9 +2734,7 @@ class TestBffThermoTickleOnly:
 
         inner = MagicMock()
         # raw hum=8300 (hundredths) -> the old /10 bug surfaced 830.0.
-        inner.fetch_bff_leak_sensors = _make_async(
-            ([], {}, {did: {"tem": 7502, "hum": 8300}})
-        )
+        inner.fetch_bff_leak_sensors = _make_async(([], {}, {did: {"tem": 7502, "hum": 8300}}))
         monkeypatch.setattr(coord_mod, "GoveeAuthClient", lambda **kw: _AsyncCM(inner))
         monkeypatch.setattr(coord_mod, "async_dispatcher_send", MagicMock())
 
@@ -2816,9 +2754,7 @@ class TestBffThermoTickleOnly:
         coord._states[did] = GoveeDeviceState.create_empty(did)
 
         inner = MagicMock()
-        inner.fetch_bff_leak_sensors = _make_async(
-            ([], {}, {did: {"tem": 7502, "hum": 8300}})
-        )
+        inner.fetch_bff_leak_sensors = _make_async(([], {}, {did: {"tem": 7502, "hum": 8300}}))
         inner.bff_device_census = MagicMock(return_value=[])
         inner.bff_response_skeleton = MagicMock(return_value=None)
         monkeypatch.setattr(coord_mod, "GoveeAuthClient", lambda **kw: _AsyncCM(inner))
@@ -2893,15 +2829,11 @@ class TestPeriodicRediscovery:
         dev_a = self._device("A")
         coord._devices = {"A": dev_a}
         coord._last_rediscovery_check = time.monotonic() - 10_000  # force elapsed
-        coord._api_client.get_devices = AsyncMock(
-            return_value=[dev_a, self._device("B")]
-        )
+        coord._api_client.get_devices = AsyncMock(return_value=[dev_a, self._device("B")])
 
         await coord._async_maybe_rediscover_devices()
 
-        coord.hass.config_entries.async_schedule_reload.assert_called_once_with(
-            "test_entry"
-        )
+        coord.hass.config_entries.async_schedule_reload.assert_called_once_with("test_entry")
 
     @pytest.mark.asyncio
     async def test_no_reload_when_device_set_unchanged(self):
@@ -2959,9 +2891,7 @@ class TestPeriodicRediscovery:
         coord._enable_groups = False
         coord._last_rediscovery_check = time.monotonic() - 10_000
         # A new group device, but groups are disabled -> not "new", no reload.
-        coord._api_client.get_devices = AsyncMock(
-            return_value=[dev_a, self._device("11825917", is_group=True)]
-        )
+        coord._api_client.get_devices = AsyncMock(return_value=[dev_a, self._device("11825917", is_group=True)])
 
         await coord._async_maybe_rediscover_devices()
 
@@ -3084,9 +3014,7 @@ class TestLanLifecycle:
         coord, coord_mod = self._coord(options={"lan_targets": "  OFF  "})
         probe: dict[str, Any] = {}
         client = _FakeLanClient(available=True)
-        self._patch_lan(
-            monkeypatch, coord_mod, scan=self._matching_scan(), client=client, probe=probe
-        )
+        self._patch_lan(monkeypatch, coord_mod, scan=self._matching_scan(), client=client, probe=probe)
 
         await coord._async_setup_lan()
 
@@ -3140,9 +3068,7 @@ class TestLanLifecycle:
         """Scan answered but nothing correlated -> stop+None (no held sockets)."""
         coord, coord_mod = self._coord()
         client = _FakeLanClient(available=True)
-        unmatched_scan = [
-            {"device": "99:99:99:99:99:99:99:99", "ip": "10.0.0.9", "sku": "H6072"}
-        ]
+        unmatched_scan = [{"device": "99:99:99:99:99:99:99:99", "ip": "10.0.0.9", "sku": "H6072"}]
         self._patch_lan(monkeypatch, coord_mod, scan=unmatched_scan, client=client)
 
         await coord._async_setup_lan()
@@ -3293,9 +3219,7 @@ class TestLanLifecycle:
         before = GoveeDeviceState.create_empty(self.DEVICE_ID)
         from custom_components.govee.api.lan_client import LanDevStatus
 
-        status = LanDevStatus(
-            on=True, brightness_0_100=50, color=None, color_temp_kelvin=None
-        )
+        status = LanDevStatus(on=True, brightness_0_100=50, color=None, color_temp_kelvin=None)
         # No _lan_devices entry maps to this IP -> unknown source, skip + rescan.
         assert coord._on_lan_dev_status("10.0.0.5", status) is None
         assert coord._states[self.DEVICE_ID] == before  # untouched
@@ -3314,9 +3238,7 @@ class _FakeReadClient:
         self.batch = batch or {}
         self.read_calls: list[list[str]] = []
 
-    async def async_read_batch(
-        self, ips: list[str], window: float = 1.0
-    ) -> dict[str, Any]:
+    async def async_read_batch(self, ips: list[str], window: float = 1.0) -> dict[str, Any]:
         self.read_calls.append(list(ips))
         return {ip: self.batch[ip] for ip in ips if ip in self.batch}
 
@@ -3330,9 +3252,7 @@ class TestLanReadPath:
     def _status(self, **kw):
         from custom_components.govee.api.lan_client import LanDevStatus
 
-        defaults = dict(
-            on=True, brightness_0_100=80, color=RGBColor(255, 0, 0), color_temp_kelvin=None
-        )
+        defaults = dict(on=True, brightness_0_100=80, color=RGBColor(255, 0, 0), color_temp_kelvin=None)
         defaults.update(kw)
         return LanDevStatus(**defaults)
 
@@ -3531,9 +3451,7 @@ class TestLanReadPath:
         coord, _ = self._coord()
         before = GoveeDeviceState.create_empty(self.DEVICE_ID)
         coord._states[self.DEVICE_ID] = GoveeDeviceState.create_empty(self.DEVICE_ID)
-        coord._lan_devices[self.DEVICE_ID] = self._info(
-            ts=time.monotonic() - (LAN_CORRELATION_TTL_SECONDS + 10)
-        )
+        coord._lan_devices[self.DEVICE_ID] = self._info(ts=time.monotonic() - (LAN_CORRELATION_TTL_SECONDS + 10))
         coord._last_lan_rescan = 999.0
 
         coord._on_lan_dev_status(self.IP, self._status(on=True))
@@ -3747,9 +3665,7 @@ class TestLanReadPath:
         coord, _ = self._coord()
         coord._states[self.DEVICE_ID] = GoveeDeviceState.create_empty(self.DEVICE_ID)
         coord._lan_devices[self.DEVICE_ID] = self._info()
-        coord._lan_client = _FakeReadClient(
-            batch={self.IP: self._status(on=True, brightness_0_100=80)}
-        )
+        coord._lan_client = _FakeReadClient(batch={self.IP: self._status(on=True, brightness_0_100=80)})
 
         async def _fetch(device_id, device):
             # Fresh cloud object every poll: power off, dim.
@@ -3786,9 +3702,7 @@ class _FakeWriteClient:
         self.send_calls: list[tuple[str, str, dict[str, Any]]] = []
         self.read_calls: list[tuple[str, float]] = []
 
-    async def async_send_command(
-        self, ip: str, cmd: str, data: dict[str, Any]
-    ) -> bool:
+    async def async_send_command(self, ip: str, cmd: str, data: dict[str, Any]) -> bool:
         self.send_calls.append((ip, cmd, data))
         return self.send_result
 
@@ -3853,9 +3767,7 @@ class TestTryLanCommand:
             poll_interval=60,
         )
         caps = (
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
+            GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),
             GoveeCapability(
                 type=CAPABILITY_RANGE,
                 instance=INSTANCE_BRIGHTNESS,
@@ -4193,9 +4105,7 @@ class TestTryLanCommand:
         coord, _ = self._ready_coord(device_id=numeric_id)
         client = _FakeWriteClient(read_reply=self._status())
         coord._lan_client = client
-        result = await coord._try_lan_command(
-            numeric_id, coord._devices[numeric_id], PowerCommand(power_on=True)
-        )
+        result = await coord._try_lan_command(numeric_id, coord._devices[numeric_id], PowerCommand(power_on=True))
         assert result is False
         assert client.send_calls == []
 
@@ -4312,9 +4222,7 @@ class TestTryLanCommand:
         coord._try_ble_command = AsyncMock(return_value=True)
         coord._try_lan_command = AsyncMock(return_value=True)
 
-        result = await coord.async_control_device(
-            self.DEVICE_ID, PowerCommand(power_on=True)
-        )
+        result = await coord.async_control_device(self.DEVICE_ID, PowerCommand(power_on=True))
 
         assert result is True
         coord._try_ble_command.assert_awaited_once()
@@ -4329,9 +4237,7 @@ class TestTryLanCommand:
         coord._try_lan_command = AsyncMock(return_value=True)
         coord._try_mqtt_command = AsyncMock(return_value=True)
 
-        result = await coord.async_control_device(
-            self.DEVICE_ID, PowerCommand(power_on=True)
-        )
+        result = await coord.async_control_device(self.DEVICE_ID, PowerCommand(power_on=True))
 
         assert result is True
         coord._try_lan_command.assert_awaited_once()
@@ -4351,9 +4257,7 @@ class TestTryLanCommand:
         coord._try_mqtt_command = AsyncMock(return_value=False)
         coord._api_client.control_device = AsyncMock(return_value=True)
 
-        result = await coord.async_control_device(
-            self.DEVICE_ID, PowerCommand(power_on=True)
-        )
+        result = await coord.async_control_device(self.DEVICE_ID, PowerCommand(power_on=True))
 
         assert result is True  # REST delivered it
         coord._try_mqtt_command.assert_awaited_once()  # fell through LAN -> MQTT
@@ -4429,9 +4333,7 @@ class TestHumidityVerificationPoll:
             )
         )
 
-        await coord.async_control_device(
-            self.DEVICE_ID, WorkModeCommand(work_mode=3, mode_value=45)
-        )
+        await coord.async_control_device(self.DEVICE_ID, WorkModeCommand(work_mode=3, mode_value=45))
 
         coro = self._scheduled_coro(coord)
         assert coro is not None
@@ -4442,18 +4344,14 @@ class TestHumidityVerificationPoll:
         assert record["verification_poll"]["configured_humidity"] == 45
         assert record["verification_poll"]["delay_seconds"] == 0
         assert "polled_at" in record["verification_poll"]
-        coord._api_client.get_device_state.assert_awaited_once_with(
-            self.DEVICE_ID, "H7150"
-        )
+        coord._api_client.get_device_state.assert_awaited_once_with(self.DEVICE_ID, "H7150")
 
     @pytest.mark.asyncio
     async def test_range_humidity_schedules_verification(self):
         coord = self._coord()
         record = {"capability": {"instance": "humidity"}}
         coord._api_client.peek_last_command_record = MagicMock(return_value=record)
-        coord._api_client.get_device_state = AsyncMock(
-            return_value=GoveeDeviceState.create_empty(self.DEVICE_ID)
-        )
+        coord._api_client.get_device_state = AsyncMock(return_value=GoveeDeviceState.create_empty(self.DEVICE_ID))
 
         await coord.async_control_device(
             self.DEVICE_ID,
@@ -4470,9 +4368,7 @@ class TestHumidityVerificationPoll:
         coord = self._coord(device_type="devices.types.fan")
         coord._api_client.peek_last_command_record = MagicMock()
 
-        await coord.async_control_device(
-            self.DEVICE_ID, WorkModeCommand(work_mode=1, mode_value=2)
-        )
+        await coord.async_control_device(self.DEVICE_ID, WorkModeCommand(work_mode=1, mode_value=2))
 
         assert self._scheduled_coro(coord) is None
         coord._api_client.peek_last_command_record.assert_not_called()
@@ -4493,9 +4389,7 @@ class TestHumidityVerificationPoll:
         coord = self._coord()
         coord._api_client.peek_last_command_record = MagicMock(return_value=None)
 
-        await coord.async_control_device(
-            self.DEVICE_ID, WorkModeCommand(work_mode=3, mode_value=45)
-        )
+        await coord.async_control_device(self.DEVICE_ID, WorkModeCommand(work_mode=3, mode_value=45))
 
         assert self._scheduled_coro(coord) is None
 
@@ -4508,13 +4402,9 @@ class TestHumidityVerificationPoll:
         coord = self._coord()
         record = {"capability": {"instance": "workMode"}}
         coord._api_client.peek_last_command_record = MagicMock(return_value=record)
-        coord._api_client.get_device_state = AsyncMock(
-            side_effect=RuntimeError("boom")
-        )
+        coord._api_client.get_device_state = AsyncMock(side_effect=RuntimeError("boom"))
 
-        await coord.async_control_device(
-            self.DEVICE_ID, WorkModeCommand(work_mode=3, mode_value=45)
-        )
+        await coord.async_control_device(self.DEVICE_ID, WorkModeCommand(work_mode=3, mode_value=45))
         await self._scheduled_coro(coord)
 
         assert record["verification_poll"] == {"error": "boom"}
@@ -4547,11 +4437,7 @@ class TestPerDeviceFetchIsolation:
             iot_credentials=None,
             poll_interval=60,
         )
-        caps = (
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
-        )
+        caps = (GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),)
         for dev_id in device_ids:
             coord._devices[dev_id] = GoveeDevice(
                 device_id=dev_id,
@@ -4577,9 +4463,7 @@ class TestPerDeviceFetchIsolation:
         monkeypatch.setattr(coord._ble_handler, "enroll_from_cache", lambda: None)
 
     @pytest.mark.asyncio
-    async def test_bounded_fetch_returns_timeout_instead_of_raising(
-        self, monkeypatch
-    ):
+    async def test_bounded_fetch_returns_timeout_instead_of_raising(self, monkeypatch):
         """A device that never answers yields a TimeoutError as a value."""
         coord, coord_mod = self._coord([self.DEVICE_A])
         monkeypatch.setattr(coord_mod, "STATE_FETCH_TIMEOUT", 0.01)
@@ -4589,9 +4473,7 @@ class TestPerDeviceFetchIsolation:
 
         monkeypatch.setattr(coord, "_fetch_device_state", _hang)
 
-        result = await coord._fetch_device_state_bounded(
-            self.DEVICE_A, coord._devices[self.DEVICE_A]
-        )
+        result = await coord._fetch_device_state_bounded(self.DEVICE_A, coord._devices[self.DEVICE_A])
 
         assert isinstance(result, TimeoutError)
 
@@ -4607,9 +4489,7 @@ class TestPerDeviceFetchIsolation:
 
         monkeypatch.setattr(coord, "_fetch_device_state", _ok)
 
-        result = await coord._fetch_device_state_bounded(
-            self.DEVICE_A, coord._devices[self.DEVICE_A]
-        )
+        result = await coord._fetch_device_state_bounded(self.DEVICE_A, coord._devices[self.DEVICE_A])
 
         assert result is fresh
 
@@ -4692,11 +4572,7 @@ class TestSkipFullyDisabledDevices:
             iot_credentials=None,
             poll_interval=60,
         )
-        caps = (
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
-        )
+        caps = (GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),)
         for dev_id in device_ids:
             coord._devices[dev_id] = GoveeDevice(
                 device_id=dev_id,
@@ -4867,11 +4743,7 @@ class TestDeviceIdPrefixCollisions:
             iot_credentials=None,
             poll_interval=60,
         )
-        caps = (
-            GoveeCapability(
-                type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}
-            ),
-        )
+        caps = (GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),)
         for dev_id in device_ids:
             coord._devices[dev_id] = GoveeDevice(
                 device_id=dev_id,
@@ -4909,9 +4781,7 @@ class TestDeviceIdPrefixCollisions:
 
         assert coord._owning_device_id("test_entry_rate_limit") is None
 
-    def test_longer_devices_entities_do_not_rescue_the_shorter_one(
-        self, monkeypatch
-    ):
+    def test_longer_devices_entities_do_not_rescue_the_shorter_one(self, monkeypatch):
         """The regression: SHORT is disabled, LONG is live, SHORT must skip."""
         coord, coord_mod = self._coord([self.SHORT, self.LONG])
         self._with_registry(
@@ -4930,9 +4800,7 @@ class TestDeviceIdPrefixCollisions:
         assert self.SHORT in fully_disabled
         assert self.LONG not in fully_disabled
 
-    def test_registry_is_walked_once_per_poll_not_once_per_device(
-        self, monkeypatch
-    ):
+    def test_registry_is_walked_once_per_poll_not_once_per_device(self, monkeypatch):
         """Asking per device makes the poll quadratic in entity count."""
         coord, coord_mod = self._coord([self.SHORT, self.LONG, "998877"])
         calls = {"n": 0}

@@ -43,12 +43,12 @@ Required packages (from `requirements_test.txt`):
 
 ### Configuration
 
-**pytest.ini**:
+**setup.cfg** (`[tool:pytest]`):
 ```ini
 [pytest]
 asyncio_mode = auto
 testpaths = tests
-addopts = --cov=custom_components.govee --cov-fail-under=95
+addopts = --cov=custom_components.govee --cov-fail-under=75
 ```
 
 **tox.ini**:
@@ -61,7 +61,7 @@ deps = -r{toxinidir}/requirements_test.txt
 commands =
     flake8 .
     mypy custom_components/govee
-    pytest --cov=custom_components.govee --cov-fail-under=95
+    pytest --cov=custom_components.govee --cov-fail-under=75
 ```
 
 ---
@@ -138,7 +138,7 @@ pytest --cov=custom_components.govee --cov-report=html
 open htmlcov/index.html
 
 # Fail if below threshold
-pytest --cov=custom_components.govee --cov-fail-under=95
+pytest --cov=custom_components.govee --cov-fail-under=75
 ```
 
 ### Linting and Type Checking
@@ -172,8 +172,8 @@ class TestRGBColor:
     def test_valid_color(self):
         """Test creating valid RGB color."""
         color = RGBColor(255, 128, 0)
-        assert color.red == 255
-        assert color.green == 128
+        assert color.r == 255
+        assert color.g == 128
         assert color.blue == 0
 
     def test_invalid_color_raises(self):
@@ -205,11 +205,11 @@ Fixtures are defined in `conftest.py`:
 @pytest.fixture
 def mock_device_light():
     """Factory fixture for light devices."""
-    def _create(device_id="test_id", device_name="Test Light"):
+    def _create(device_id="test_id", name="Test Light"):
         return GoveeDevice(
             device_id=device_id,
-            device_name=device_name,
-            model="H6XXX",
+            name=name,
+            sku="H6XXX",
             # ... other properties
         )
     return _create
@@ -242,7 +242,7 @@ async def test_api_error(mock_api_client):
 
 | Component | Minimum |
 |-----------|---------|
-| Overall | 95% |
+| Overall | 75% (enforced); 80% measured |
 | Critical (coordinator, API) | 100% |
 | Per-file | 90% |
 
@@ -264,7 +264,7 @@ def __repr__(self) -> str:  # pragma: no cover
 ### GitHub Actions
 
 Tests run automatically on:
-- Push to `master` or `develop`
+- Push to `main`
 - Pull requests
 
 Workflow (`.github/workflows/tox.yaml`):

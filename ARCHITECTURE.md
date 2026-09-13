@@ -29,11 +29,16 @@ custom_components/govee/
 ├── config_flow.py           # Config flow (user, account, reauth, reconfigure)
 ├── coordinator.py           # DataUpdateCoordinator with MQTT integration
 ├── entity.py                # Base entity class (GoveeEntity)
-├── light.py                 # Light platform
-├── scene.py                 # Scene platform
-├── switch.py                # Switch platform (plugs, night light)
-├── sensor.py                # Sensor platform (rate limit, MQTT status)
-├── button.py                # Button platform (refresh scenes)
+├── light.py                 # Light platform (main light, nightlight, main panel)
+├── select.py                # Scene, DIY scene, HDMI, music, purifier, fan-speed selects
+├── switch.py                # Switch platform (plugs, toggles, music mode, DreamView)
+├── fan.py                   # Fan platform (tower and ceiling fans)
+├── humidifier.py            # Humidifier / dehumidifier platform
+├── number.py                # Music sensitivity, heater target, probe limits
+├── sensor.py                # Sensor platform (readings, diagnostics)
+├── binary_sensor.py         # Connectivity, leak, occupancy, water-tank sensors
+├── event.py                 # Leak sensor button presses
+├── button.py                # Button platform (refresh scenes, clear water alert)
 ├── services.py              # Custom services
 ├── repairs.py               # Repairs framework integration
 ├── diagnostics.py           # Diagnostics for troubleshooting
@@ -44,18 +49,15 @@ custom_components/govee/
 ├── quality_scale.yaml       # Quality scale tracking
 ├── translations/
 │   └── en.json              # English translations
-├── models/                  # Domain models (frozen dataclasses)
+├── models/                  # Domain models (frozen devices/commands, mutable state)
 │   ├── __init__.py
 │   ├── device.py            # GoveeDevice, GoveeCapability
 │   ├── state.py             # GoveeDeviceState, RGBColor
 │   └── commands.py          # Command pattern implementations
 ├── platforms/
 │   ├── __init__.py
-│   └── segment.py           # Segment light entities (RGBIC)
-├── protocols/               # Protocol interfaces
-│   ├── __init__.py
-│   ├── api.py               # IApiClient, IAuthProvider
-│   └── state.py             # IStateProvider, IStateObserver
+│   ├── segment.py           # Segment light entities (RGBIC)
+│   └── grouped_segment.py   # "All segments" light entity
 └── api/                     # API layer
     ├── __init__.py
     ├── client.py            # GoveeApiClient (REST)
@@ -100,21 +102,13 @@ UI-based configuration:
 
 ### Models (`models/`)
 
-Frozen dataclasses for immutability:
+Devices, capabilities, colors, and commands are frozen dataclasses; state
+objects are mutable because the coordinator updates them in place:
 
-- **GoveeDevice**: Device metadata and capabilities
+- **GoveeDevice**: Device metadata and capabilities (frozen)
 - **GoveeDeviceState**: Current device state (mutable for updates)
 - **RGBColor**: Immutable RGB color value
 - **Commands**: PowerCommand, BrightnessCommand, ColorCommand, etc.
-
-### Protocols (`protocols/`)
-
-Clean Architecture interfaces:
-
-- **IApiClient**: Contract for API operations
-- **IAuthProvider**: Contract for authentication
-- **IStateProvider**: Contract for state access
-- **IStateObserver**: Contract for state change notifications
 
 ### API Layer (`api/`)
 
@@ -229,10 +223,18 @@ Actionable repair notifications:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `poll_interval` | 60s | State refresh frequency |
+| `poll_interval` | 60 s | State refresh frequency (30 to 300) |
+| `water_detector_poll_interval` | 120 s | Leak poll for standalone RF detectors |
+| `probe_poll_interval` | 30 s | Read rate for armed probe thermometers |
+| `mqtt_status_interval` | 300 s | MQTT status re-query interval (0 = off) |
+| `api_temperature_unit` | auto | Fahrenheit handling for thermometer readings |
 | `enable_groups` | false | Include Govee app groups |
-| `enable_scenes` | true | Create scene entities |
-| `enable_segments` | true | Create segment entities for RGBIC |
+| `enable_scenes` | true | Create scene selects and light effects |
+| `enable_diy_scenes` | true | Create DIY scene selects |
+| `expose_transport_entities` | false | Per-transport connectivity sensors |
+| `enable_mqtt_control` | false | Route power/brightness/color over MQTT |
+| `lan_targets` | empty | Extra LAN scan targets and overrides |
+| `segment_mode_by_device` | individual | Per-device segment entity mode |
 
 ---
 

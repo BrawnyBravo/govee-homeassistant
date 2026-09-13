@@ -516,8 +516,8 @@ async def async_get_config_entry_diagnostics(
         # drift). Counts only — no address and no scan->device_id join is exposed,
         # so the auto-enabled LAN transport stays observable from a download
         # alone, without hardware and without leaking any address.
-        "lan_active_count": len(coordinator._lan_devices),
-        "lan_unmatched_count": len(coordinator._lan_unmatched),
+        "lan_active_count": coordinator.lan_active_count,
+        "lan_unmatched_count": coordinator.lan_unmatched_count,
         **_runtime_diag(coordinator),
     }
     return _redact(diagnostics_data)

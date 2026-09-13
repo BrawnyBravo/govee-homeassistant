@@ -118,9 +118,6 @@
   },
   "entity": {
     "light": {
-      "govee_light": {
-        "name": "{device_name}"
-      },
       "govee_nightlight": {
         "name": "Luz nocturna"
       },
@@ -145,9 +142,6 @@
       },
       "govee_diy_scene_select": {
         "name": "Escena DIY"
-      },
-      "govee_diy_style_select": {
-        "name": "Estilo DIY"
       },
       "govee_hdmi_source_select": {
         "name": "Fuente HDMI"

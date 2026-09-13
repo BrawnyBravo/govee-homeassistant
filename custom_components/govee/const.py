@@ -155,9 +155,7 @@ SKU_SEGMENT_OVERRIDES: Final = {
 }
 
 
-def resolve_fahrenheit_conversion(
-    sku: str, api_unit: str, device_unit_hint: str | None = None
-) -> bool:
+def resolve_fahrenheit_conversion(sku: str, api_unit: str, device_unit_hint: str | None = None) -> bool:
     """Whether a Developer-API ``sensor_temperature`` should be treated as °F.
 
     Shared by the sensor entity (which converts °F→°C for display) and the
@@ -301,6 +299,13 @@ MAIN_LIGHT_TOGGLE_SKUS: Final = frozenset({"H1270"})
 # Bluetooth-Devices/govee-ble (used by H5127 and related). Additional IDs
 # remain unverified and are omitted until observed in the wild.
 GOVEE_BLE_MANUFACTURER_IDS: Final = (0x8803,)  # 34819
+
+# Options key holding the per-device segment mode map ({device_id: mode}).
+CONF_SEGMENT_MODE_BY_DEVICE: Final = "segment_mode_by_device"
+
+# Identifier of the integration-level "Govee Integration" device that carries
+# the hub-wide diagnostics (rate limit, MQTT status).
+HUB_DEVICE_IDENTIFIER: Final = "hub"
 
 # Segment mode options
 SEGMENT_MODE_DISABLED: Final = "disabled"

@@ -117,7 +117,7 @@ In the **Govee Home** app: **Profile → Settings (gear) → Apply for API Key**
 
 ### 2. Add the integration
 
-**Settings → Devices & Services → Add Integration → Govee Cloud Integration**, then paste your API key.
+**Settings** > **Devices & services** > **Add integration** > **Govee Cloud Integration**, then paste your API key. Each Govee API key can be added once; adding the same key again is refused.
 
 The API key alone gives you device control and **polling** for state.
 
@@ -142,7 +142,7 @@ Since 2026 Govee requires email verification for account login. If your account 
 
 ## Configuration options
 
-After setup, open **Settings → Devices & Services → Govee Cloud Integration → ⚙️ Configure**:
+After setup, open **Settings** > **Devices & services** > **Govee Cloud Integration** > **Configure**:
 
 | Option | Default | What it does |
 |---|---|---|
@@ -188,10 +188,10 @@ For RGBIC strips/bars you can control individual lighting segments. After saving
 
 Segment colors aren't reliably returned by the API, so segment entities keep optimistic state and restore it across restarts.
 
-There's also a service for automations:
+There's also an action for automations. `device_id` accepts the Home Assistant device (what the device picker produces) or the Govee device ID:
 
 ```yaml
-service: govee.set_segment_color
+action: govee.set_segment_color
 data:
   device_id: "AA:BB:CC:DD:EE:FF:00:11"
   segments: [0, 1, 2]
@@ -240,12 +240,102 @@ Some gateway‑bridged sensors are listed by Govee with no reading attached. Whe
 
 ---
 
+## Known limitations
+
+- Everything runs through Govee's cloud unless a device supports the LAN API or is within Bluetooth range; there is no fully local mode.
+- The developer API allows 100 requests per minute and 10,000 per day per key. Every state poll costs one request per device, so large installs should raise the polling interval and let MQTT push carry the updates.
+- Govee does not report the active scene, per-segment colors, or several appliance settings, so those entities keep the last value the integration sent (optimistic state) and restore it across restarts.
+- Thermometer readings refresh on Govee's schedule, typically every 10 minutes for Wi-Fi sensors and up to an hour for Bluetooth sensors behind a gateway; see [Thermometers & sensors](#thermometers--sensors).
+- Account login, real-time MQTT, LAN control, and Bluetooth passthrough use undocumented interfaces that can stop working when Govee changes them. The developer API path is the stable one.
+- Bluetooth-only devices are not supported here; use Home Assistant's built-in `govee_ble` integration for those.
+
+---
+
 ## Services
 
-| Service | Purpose |
-|---|---|
-| `govee.refresh_scenes` | Re‑fetch the scene catalog from Govee (optional `device_id`). |
-| `govee.set_segment_color` | Set RGB color on specific segments of an RGBIC device. |
+Actions raise an error when a device is unknown or Govee rejects the command, so a failed step shows up in automation traces instead of passing silently.
+
+- `govee.refresh_scenes` re-fetches the scene catalog from Govee, for one device or for every device when `device_id` is omitted.
+- `govee.set_segment_color` sets the RGB color of specific segments on an RGBIC device.
+
+`device_id` accepts the Home Assistant device or the Govee device ID for both actions.
+
+```yaml
+action: govee.refresh_scenes
+data:
+  device_id: "AA:BB:CC:DD:EE:FF:00:11"
+```
+
+---
+
+## Use cases
+
+- Sync a room: put every RGBIC strip in an area on one scene from a single automation, then let the per-segment entities paint accents.
+- React to sensors: a Govee leak sensor or thermometer feeds a notification or a heater automation without the Govee app.
+- Cheap local control: strips with Govee's LAN API turned on are controlled locally with the cloud as fallback, so lights keep working during an internet outage.
+- Appliances in the dashboard: fans, humidifiers, purifiers, and heaters show up as native Home Assistant entities with their modes and targets.
+
+---
+
+## Example automations
+
+Warm-white evening scene with a red accent on the first two segments:
+
+```yaml
+alias: Evening strip
+triggers:
+  - trigger: sun
+    event: sunset
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room_strip
+    data:
+      color_temp_kelvin: 2700
+      brightness_pct: 60
+  - action: govee.set_segment_color
+    data:
+      device_id: "AA:BB:CC:DD:EE:FF:00:11"
+      segments: [0, 1]
+      rgb_color: [255, 0, 0]
+```
+
+Notify when a leak sensor trips and clear the water-tank alert after a dehumidifier is emptied:
+
+```yaml
+alias: Leak alert
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.kitchen_sink_moisture
+    to: "on"
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      message: "Water detected under the kitchen sink"
+```
+
+```yaml
+alias: Dehumidifier emptied
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.basement_dehumidifier_water_tank_full
+    to: "off"
+    for: "00:05:00"
+actions:
+  - action: button.press
+    target:
+      entity_id: button.basement_dehumidifier_clear_water_alert
+```
+
+---
+
+## Removing the integration
+
+1. Open **Settings** > **Devices & services** > **Govee Cloud Integration**.
+2. Select the three-dot menu of the entry and choose **Delete**.
+3. To uninstall the files as well, remove the integration in HACS (or delete `custom_components/govee/`) and restart Home Assistant.
+
+Removing the entry deletes its devices and entities. Your Govee API key and account credentials are stored only in that entry, so nothing else needs cleaning up. A device that Govee no longer reports can be deleted individually from its device page.
 
 ---
 
