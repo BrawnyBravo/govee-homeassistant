@@ -223,6 +223,17 @@ MAX_MQTT_STATUS_INTERVAL: Final = 3600
 # Setting the option to this turns the re-query off entirely: no timer, no
 # connect-time sweep, state comes only from what devices push on their own.
 MQTT_STATUS_POLL_OFF: Final = 0
+# Gap (seconds) between two devices' status queries in one sweep. AWS IoT
+# answers a publish it refuses (an unauthorised topic, for instance) by closing
+# the whole session, so a burst of queries to every device could not say which
+# one caused it (issue #195). Paced one per second, a session that drops inside
+# this gap is attributable to the device just queried; a typical round-trip is
+# well under a fifth of that.
+MQTT_STATUS_QUERY_SPACING: Final = 1.0
+# How many times the session has to drop right after querying the same device
+# before that device is quarantined from the sweep. Two, so a coincidental
+# network drop during a sweep does not cost a device its status queries.
+MQTT_STATUS_QUERY_QUARANTINE_STRIKES: Final = 2
 
 # Optimistic state handling
 # Grace window (seconds) during which API polls do NOT overwrite optimistic
