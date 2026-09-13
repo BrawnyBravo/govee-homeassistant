@@ -26,6 +26,7 @@ from .const import (
     SUFFIX_MUSIC_MODE,
     SUFFIX_NEBULA_LIGHT,
     SUFFIX_NIGHT_LIGHT,
+    SUFFIX_RIPPLE_LIGHT,
     SUFFIX_SIDE_LIGHT,
     SUFFIX_MQTT_OUTLET,
     SUFFIX_SOCKET,
@@ -50,16 +51,18 @@ _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
-# Named per-part light toggles (issues #114, #126): capability instance ->
-# (translation_key, unique_id suffix). Icons live in icons.json under the
+# Named per-part light toggles (issues #114, #126, #196): capability instance
+# -> (translation_key, unique_id suffix). Icons live in icons.json under the
 # translation key. Devices covered so far: ceiling-fan lights (H1310/H1370:
-# main/background) and the H60B3 uplighter floor lamp (nebula/side/bottom).
-# Unknown ``<name>LightToggle`` instances are logged and skipped so a new SKU
-# surfaces in debug logs instead of silently missing.
+# main/background) and the uplighter floor lamps — the H60B3 calls its upper
+# effect ``nebulaLightToggle``, the H60B0 ``rippleLightToggle`` (side/bottom
+# are shared). Unknown ``<name>LightToggle`` instances are logged and skipped
+# so a new SKU surfaces in debug logs instead of silently missing.
 NAMED_LIGHT_TOGGLE_SPECS: dict[str, tuple[str, str]] = {
     INSTANCE_MAIN_LIGHT_TOGGLE: ("govee_main_light", SUFFIX_MAIN_LIGHT),
     INSTANCE_BACKGROUND_LIGHT_TOGGLE: ("govee_background_light", SUFFIX_BACKGROUND_LIGHT),
     "nebulaLightToggle": ("govee_nebula_light", SUFFIX_NEBULA_LIGHT),
+    "rippleLightToggle": ("govee_ripple_light", SUFFIX_RIPPLE_LIGHT),
     "sideLightToggle": ("govee_side_light", SUFFIX_SIDE_LIGHT),
     "bottomLightToggle": ("govee_bottom_light", SUFFIX_BOTTOM_LIGHT),
 }
@@ -175,8 +178,9 @@ async def async_setup_entry(
 
             # Named per-part light toggles — main/background on ceiling-fan
             # lights (H1310/H1370, issue #114), nebula/side/bottom on the
-            # H60B3 uplighter (issue #126). Govee returns "" for these on
-            # poll, so they are optimistic + RestoreEntity like the zones.
+            # H60B3 uplighter (issue #126) and ripple/side/bottom on the
+            # H60B0 (issue #196). Govee returns "" for these on poll, so
+            # they are optimistic + RestoreEntity like the zones.
             for instance in device.named_light_toggle_instances:
                 spec = NAMED_LIGHT_TOGGLE_SPECS.get(instance)
                 if spec is None:

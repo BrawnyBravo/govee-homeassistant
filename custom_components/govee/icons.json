@@ -163,6 +163,9 @@
       "govee_nebula_light": {
         "default": "mdi:shimmer"
       },
+      "govee_ripple_light": {
+        "default": "mdi:waves"
+      },
       "govee_side_light": {
         "default": "mdi:wall-sconce"
       },

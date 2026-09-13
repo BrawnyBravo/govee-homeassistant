@@ -259,6 +259,9 @@
       "govee_nebula_light": {
         "name": "Nebula light"
       },
+      "govee_ripple_light": {
+        "name": "Ripple light"
+      },
       "govee_side_light": {
         "name": "Side light"
       },
