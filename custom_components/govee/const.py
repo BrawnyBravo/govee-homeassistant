@@ -89,6 +89,11 @@ CONF_API_TEMPERATURE_UNIT: Final = "api_temperature_unit"
 #     its location. Developer-API path; the SKU is not in the BFF thermo sets,
 #     so the account's fahOpen preference is never recorded for it and this
 #     entry is the only signal (issue #173).
+#   H5171 (WiFi thermo-hygrometer): same shape as the H5053 — the Developer
+#     API returned `sensorTemperature: 71.06` with no unit field and HA showed
+#     158.6°F, i.e. the °F reading converted a second time. Same path, same
+#     gap: not in the BFF thermo sets, so the model list is its only signal
+#     (issue #173 follow-up).
 FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
     {
         "H5179",
@@ -97,6 +102,7 @@ FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
         "H5110",
         "H5111",
         "H5053",
+        "H5171",
         "HS5108",
         "HS5106",
         "H717A",
