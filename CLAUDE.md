@@ -321,16 +321,3 @@ Update both files when changing option labels:
 3. **Push**: `git push origin main`
 4. **Wait for CI**: Check with `gh run list --limit 5`
 5. **Create release**: `gh release create vYYYY.MM.patch --title "vYYYY.MM.patch" --notes "..."`
-
-## Directory Updates
-
-The project structure has evolved:
-```
-custom_components/govee/
-├── select.py            # Scene selector dropdowns (replaced scene.py)
-├── platforms/
-│   └── segment.py       # RGBIC segment light entities
-```
-
-- **select.py**: One dropdown per device for scene selection
-- **segment.py**: Individual light entities for each RGBIC segment

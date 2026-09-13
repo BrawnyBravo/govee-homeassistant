@@ -379,6 +379,14 @@ State readback: `online`=false; returns `""` for `sensorHumidity`, `sensorTemper
 
 Account (BFF) list: yes — `deviceSettings` carries `address`, `battery`, `bleName`, `deviceName`, `fahOpen`, `pactCode`, `pactType`, `versionHard`, `versionSoft`, `wifiFuncList`, `wifiSoftVersion`; `lastDeviceData` keys: `avgDayHum`, `avgDayTem`, `hum`, `lastTime`, `online`, `tem`.
 
+## H5192
+
+Not in the Developer API: `/device/state` answers 404 for the SKU, so the Developer poll skips it. Seen in #174 and #185, from `ptReal` captures and the fixtures in `tests/test_probe_thermometer.py` rather than a diagnostics download.
+
+Account (BFF) list: yes — listed in the thermometer view with `temperature`, `humidity`, and `battery` all absent, so the device is synthesised as a probe thermometer from its SKU (`PROBE_THERMOMETER_BFF_SKUS`).
+
+AWS IoT: a pull device. Readings and alarm limits travel as 20-byte `ptReal` packets with an XOR checksum over bytes 0-18: register `0x08` current core and ambient values, `0x12` the four limits of a probe (one read returns all four, one write sets all four, `0xFFFF` marks an unset limit), `0x24` the probe data with its history buffer, `0x26` the battery voltage. The device only answers reads; the integration polls it on the probe interval while its Live polling switch is on. Register map and evidence: `custom_components/govee/api/probe_thermometer.py`.
+
 ## H5220
 
 Developer API type `devices.types.thermometer`; gateway: `H5044`; seen in #114, #128.

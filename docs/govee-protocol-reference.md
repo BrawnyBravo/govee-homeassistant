@@ -2,7 +2,7 @@
 
 A comprehensive technical reference for Govee device communication protocols, compiled from official documentation, PCAP analysis of the Android app, and community reverse engineering efforts.
 
-**Last Updated:** March 4, 2026
+**Last Updated:** September 11, 2026 (the H7152 push decoding; see the git history for per-section changes)
 **Data Sources:**
 - `docs/PCAPdroid_24_Jan_16_00_31.pcap` - Android app network capture
 - `logs/PCAPdroid_09_Jan_19_27_26.pcap` - Reference capture

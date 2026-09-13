@@ -35,7 +35,7 @@ tox
 black .
 ```
 
-### VS Code DevContainer
+### Running against Home Assistant
 
 Run the integration against a local Home Assistant instance by copying or symlinking `custom_components/govee/` into its `config/custom_components/` directory.
 

@@ -399,3 +399,5 @@ Good: every field has a description, error texts say what to do, and option desc
 3. Add the Bluetooth discovery card, the `both` segment mode, the LAN overrides, scenes as light effects, the rediscovery cadence, and the two repair titles; fix the badge, the duplicate bullet, and the must-pass list.
 4. Update the two in-product option descriptions.
 5. Rewrite ARCHITECTURE.md from the current code or fold it into CLAUDE.md; fix the CONTRIBUTING.md heading; refresh the reference date and add the H5192 catalog entry.
+
+**Applied (2026-09-13, follow-up commit).** Every item in the list above is done: the two false statements are corrected, the Last Changed timestamp is enabled by default again, the README gained a contents line, the discovery card, the `both` mode, the LAN overrides, scenes as effects, the rediscovery cadence, the repair titles, an actions field table, and the Style check in the must-pass list; the two option descriptions are updated in all four language files; ARCHITECTURE.md is rewritten from the current code; the CONTRIBUTING.md heading, the reference date, the H5192 catalog entry, and the duplicated CLAUDE.md section are fixed.

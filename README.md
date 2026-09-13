@@ -7,7 +7,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square)](https://github.com/hacs/integration)
 [![Release](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/lasswellt/govee-homeassistant/badges/release.json)](https://github.com/lasswellt/govee-homeassistant/releases)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.11+-41BDF5?style=flat-square&logo=home-assistant&logoColor=white)
-![Quality scale](https://img.shields.io/badge/quality%20scale-silver-silver?style=flat-square)
+![Quality scale](https://img.shields.io/badge/quality%20scale-platinum-556674?style=flat-square)
 [![License](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/lasswellt/govee-homeassistant/badges/license.json)](LICENSE.txt)
 
 [![Active installs](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/lasswellt/govee-homeassistant/badges/installs.json)](https://analytics.home-assistant.io/)
@@ -17,6 +17,8 @@
 </div>
 
 > **Hub (cloud)** · IoT class `cloud_push` (MQTT + polling) · UI‑only config, no YAML
+
+**Contents:** [What this is](#what-this-is) · [Supported devices](#supported-govee-devices) · [Install](#how-to-install-govee-in-home-assistant) · [Set up](#set-up) · [Options](#configuration-options) · [Real-time & LAN](#real-time-updates--local-lan-control) · [Segments](#rgbic-segment-control) · [Scenes](#scenes-diy-music--dreamview) · [Sensors](#thermometers--sensors) · [Limitations](#known-limitations) · [Services](#services) · [Examples](#example-automations) · [Removal](#removing-the-integration) · [Troubleshooting](#troubleshooting) · [Diagnostics](#diagnostics--debug-logging)
 
 ---
 
@@ -121,6 +123,8 @@ In the **Govee Home** app: **Profile → Settings (gear) → Apply for API Key**
 
 The API key alone gives you device control and **polling** for state.
 
+If a Govee device is advertising over Bluetooth near your Home Assistant host, the integration may also appear under **Settings** > **Devices & services** > **Discovered**. Selecting **Configure** there leads to the same API key step; **Ignore** hides the card if you don't want the integration.
+
 ### 3. (Optional but recommended) Add account login for real‑time updates
 
 In the same setup flow you can enter your **Govee account email and password**. This enables:
@@ -134,7 +138,7 @@ In the same setup flow you can enter your **Govee account email and password**. 
 
 #### Two‑factor (email code)
 
-Since 2026 Govee requires email verification for account login. If your account has it on, the flow will pause, Govee emails you a **code**, and you enter it to finish. The code expires in ~15 minutes. Credentials are stored encrypted in your config entry.
+Since 2026 Govee requires email verification for account login. If your account has it on, the flow will pause, Govee emails you a **code**, and you enter it to finish. The code expires in ~15 minutes. Credentials are stored in Home Assistant's config entry storage (never in YAML), and they are redacted from logs and diagnostics downloads.
 
 > Account login is optional. Without it, the integration runs in polling‑only mode and everything except the features listed above still works. You can add or remove it later via **⋮ → Reconfigure** without losing your devices.
 
@@ -156,15 +160,15 @@ After setup, open **Settings** > **Devices & services** > **Govee Cloud Integrat
 | **Enable DIY scene selector** | `on` | Create a per‑device dropdown for your DIY scenes. |
 | **Expose per‑device transport connectivity sensors** | `off` | Add diagnostic binary sensors showing each device's MQTT/BLE/LAN reachability. |
 | **Send power, brightness, and color over MQTT (faster, experimental)** | `off` | Routes those commands through Govee's MQTT channel instead of the REST API — lower latency, bypasses REST rate limits. Requires account login; falls back to REST automatically. Uses an undocumented channel, so leave off if commands misbehave. |
-| **LAN device addresses / subnets (advanced)** | *(blank)* | Only needed when LAN‑enabled devices sit on a different subnet/VLAN than Home Assistant. Comma‑separated IPs, broadcast addresses, and/or CIDR subnets (/24 or smaller). Leave blank when everything shares HA's network — discovery is automatic. Enter `off` to disable LAN discovery and local control entirely. |
+| **LAN device addresses / subnets (advanced)** | *(blank)* | Only needed when LAN‑enabled devices sit on a different subnet/VLAN than Home Assistant. Comma‑separated IPs, broadcast addresses, and/or CIDR subnets (/24 or smaller). Leave blank when everything shares HA's network — discovery is automatic. Enter `off` to disable LAN discovery and local control entirely. Pin a device with `device_id=ip` (for example `AA:BB:CC:DD:EE:FF:00:11=10.20.0.51`) when its scan reply cannot cross the VLAN; add a trailing `!` only for firmware that accepts LAN commands but never answers a status read, which turns off the LAN health checks for that device. |
 
 RGBIC devices get a second step after submitting, where you choose a **segment mode** for each device individually — see [Segments](#rgbic-segment-control).
 
 ---
 
-## Real‑time updates & local LAN control
+## Real-time updates & local LAN control
 
-With account login configured, the integration maintains an AWS IoT MQTT connection and applies state changes the moment they happen. Without it, state comes from polling on your configured interval. A **"Govee Integration"** device exposes diagnostics for this: API rate‑limit remaining (with `requests_today`, `requests_last_24h`, `requests_per_hour` and `daily_limit` attributes — Govee never reports the daily figure, so it is counted locally as a lower bound), MQTT status, and a **"Last MQTT Received"** timestamp. The rate-limit and timestamp sensors are disabled by default; enable them from the device page when you need them.
+With account login configured, the integration maintains an AWS IoT MQTT connection and applies state changes the moment they happen. Without it, state comes from polling on your configured interval. Devices you add to your Govee account later are picked up without a restart: the device list is re-read every 5 minutes and the integration reloads itself when a new device appears. A **"Govee Integration"** device exposes diagnostics for this: API rate‑limit remaining (with `requests_today`, `requests_last_24h`, `requests_per_hour` and `daily_limit` attributes — Govee never reports the daily figure, so it is counted locally as a lower bound), MQTT status, and a **"Last MQTT Received"** timestamp. The rate-limit and timestamp sensors are disabled by default; enable them from the device page when you need them.
 
 Every device also gets two diagnostic timestamps — **Last Update Received** and **Last Command Sent**, disabled by default — plus a **Connectivity** binary sensor and a **Connection Mode** sensor that names the transport actually carrying the device (`ble`, `lan`, `mqtt`, `cloud_api` or `unavailable`). Turning on **Expose per‑device transport connectivity sensors** adds one reachability sensor per transport (Cloud API, MQTT, Bluetooth, LAN) for pinpointing which path a device is actually using.
 
@@ -172,7 +176,7 @@ Every device also gets two diagnostic timestamps — **Last Update Received** an
 
 This matters beyond speed: Govee's cloud sometimes answers a color command with `success` and never delivers it to the device (the light doesn't change, and nothing reports an error). Sending color locally sidesteps the cloud entirely — see [Colors don't apply](#troubleshooting).
 
-**Command routing.** Each command takes the fastest transport that can carry it *and confirm it*, falling back automatically: **BLE → LAN → MQTT → cloud REST**. LAN carries power, brightness, color and color temperature — exactly the four values a device reports back, which is what makes verify‑by‑read possible. MQTT (opt‑in) carries power, brightness and color. Direct BLE control is deliberately limited to models confirmed to honour it (H6053, H6072, H6102, H6199, H1270), including the encrypted BLE transport newer firmware requires; other models advertise Bluetooth but silently drop writes. Everything else — scenes, segments, music mode, work modes, toggles — always goes over the cloud API, with one exception: Tower Fan 2 (H7105/H7107) oscillation goes over the AWS IoT session when account login is configured, because the cloud toggle is a no-op on those fans.
+**Command routing.** Each command takes the fastest transport that can carry it *and confirm it*, falling back automatically: **BLE → LAN → MQTT → cloud REST**. LAN carries power, brightness, color and color temperature — exactly the four values a device reports back, which is what makes verify‑by‑read possible. MQTT (opt‑in) carries power, brightness and color. Direct BLE control is deliberately limited to the models confirmed to honour it: the H6199, and the H1270 over the encrypted BLE transport its firmware requires. Other models (the H6072 among them) advertise Bluetooth but silently drop writes, so they are never sent BLE commands. Everything else — scenes, segments, music mode, work modes, toggles — always goes over the cloud API, with one exception: Tower Fan 2 (H7105/H7107) oscillation goes over the AWS IoT session when account login is configured, because the cloud toggle is a no-op on those fans.
 
 Commands always use optimistic updates, so the UI reflects your action immediately and reconciles with the next confirmed state. MQTT publishes are acknowledged by the broker (QoS 1); an unacknowledged send falls through to REST rather than being reported as success.
 
@@ -184,6 +188,7 @@ For RGBIC strips/bars you can control individual lighting segments. After saving
 
 - **Individual** (default) — one light entity per segment, for maximum control.
 - **Grouped** — a single "Segments" entity that sets all segments together.
+- **Both** — the grouped entity alongside the individual ones, so you can paint segments and still switch them together.
 - **Disabled** — no segment entities.
 
 Segment colors aren't reliably returned by the API, so segment entities keep optimistic state and restore it across restarts.
@@ -202,10 +207,9 @@ data:
 
 ## Scenes, DIY, music & DreamView
 
-- **Scenes / DIY scenes** — activated through per‑device select dropdowns (toggle in options). The API doesn't reliably report the active scene, so the selection is preserved optimistically and cleared when you switch to another mode (color, color temp, music, etc.).
-- **Music mode** — exposed as a switch on capable lights.
+- **Scenes / DIY scenes** — activated through per‑device select dropdowns (toggle in options); scenes are also offered as **effects** on the light entity, so `light.turn_on` with `effect:` works in automations. The API doesn't reliably report the active scene, so the selection is preserved optimistically and cleared when you switch to another mode (color, color temp, music, etc.).
+- **Music mode** — exposed as a switch on capable lights. Turning it on sends the first mode the device advertises, then remembers the one you last picked from the **Music Mode** select. The available modes are whatever Govee's API lists for the model — app‑only music scenes cannot be selected from HA.
 - **DreamView / video sync** — exposed as a switch on capable backlights. On models whose cloud toggle is rejected (e.g. H605C), the switch engages video mode over the AWS IoT session; turning it off restores your last colour, which is how the device leaves video mode.
-- **Music mode** sends the first mode the device advertises, then remembers the one you last picked from the **Music Mode** select. The available modes are whatever Govee's API lists for the model — app‑only music scenes cannot be selected from HA.
 - Use the **`govee.refresh_scenes`** service to re‑pull the scene catalog (optionally for one `device_id`).
 
 ---
@@ -248,6 +252,7 @@ Some gateway‑bridged sensors are listed by Govee with no reading attached. Whe
 - Thermometer readings refresh on Govee's schedule, typically every 10 minutes for Wi-Fi sensors and up to an hour for Bluetooth sensors behind a gateway; see [Thermometers & sensors](#thermometers--sensors).
 - Account login, real-time MQTT, LAN control, and Bluetooth passthrough use undocumented interfaces that can stop working when Govee changes them. The developer API path is the stable one.
 - Bluetooth-only devices are not supported here; use Home Assistant's built-in `govee_ble` integration for those.
+- One Govee account carries one real-time session: two Home Assistant installs signed in to the same account evict each other from AWS IoT in turn. Use separate accounts.
 
 ---
 
@@ -259,6 +264,13 @@ Actions raise an error when a device is unknown or Govee rejects the command, so
 - `govee.set_segment_color` sets the RGB color of specific segments on an RGBIC device.
 
 `device_id` accepts the Home Assistant device or the Govee device ID for both actions.
+
+| Action | Field | Meaning |
+|---|---|---|
+| `govee.refresh_scenes` | `device_id` (optional) | The device to refresh; omit it to refresh every device. |
+| `govee.set_segment_color` | `device_id` (required) | The RGBIC light. |
+| | `segments` (required) | List of segment indices counted from 0; an index beyond the device's segment count is rejected. |
+| | `rgb_color` (required) | `[R, G, B]`, each 0 to 255. |
 
 ```yaml
 action: govee.refresh_scenes
@@ -344,7 +356,7 @@ Removing the entry deletes its devices and entities. Your Govee API key and acco
 | Symptom | Fix |
 |---|---|
 | Devices not showing up | They must be WiFi/cloud devices. Bluetooth‑only devices need [`govee_ble`](https://www.home-assistant.io/integrations/govee_ble/). |
-| **Color doesn't apply** — on/off and scenes work, color changes nothing | Govee's cloud sometimes accepts a color command and never delivers it. Turn on **LAN Control** for the device in the Govee Home app so color is sent locally; if the device has no LAN API, enable **Send power/brightness/color over MQTT** in ⚙️ Configure (needs account login). If neither works, the device firmware is ignoring the command — attach diagnostics to an issue. |
+| **Color doesn't apply** — on/off and scenes work, color changes nothing | Govee's cloud sometimes accepts a color command and never delivers it. Turn on **LAN Control** for the device in the Govee Home app so color is sent locally; if the device has no LAN API, enable **Send power, brightness, and color over MQTT** in ⚙️ Configure (needs account login). If neither works, the device firmware is ignoring the command — attach diagnostics to an issue. |
 | Thermometer reads ~1.8× too high (e.g. 74 vs 23) | Set **Temperature unit from Govee API → Fahrenheit** in ⚙️ Configure. |
 | Thermometer value looks "frozen" | Expected — Govee's cloud refreshes on its own cadence. See [Thermometers & sensors](#thermometers--sensors). |
 | Sensor shows **Unknown** and never updates | Gateway‑bridged sensors depend on data Govee may not be publishing for your account. Grab a diagnostics download and open an issue — the `bff_device_values` section shows whether the reading exists at all. |
@@ -357,7 +369,7 @@ Removing the entry deletes its devices and entities. Your Govee API key and acco
 | Ceiling fan entity (H1310/H1370) doesn't follow the remote or the app | The cloud never reports fan state. Add account login so the fan's own push frames are read; without it the entity only knows what HA last sent. |
 | Per‑outlet switches on an H5160/H5161 are unavailable | They exist only over the AWS IoT session — add account login. They are optimistic: they show what HA last set, not what the buttons or the app did. |
 | LAN sensor shows Disconnected / device not found locally | Enable **LAN Control** for the device in the Govee Home app. Across subnets/VLANs, add the device's IP or subnet under **LAN device addresses** in ⚙️ Configure. |
-| Re‑prompted for a 2FA code / login fails | Reconfigure the integration and complete the email‑code step; codes expire in ~15 minutes. |
+| A **"Govee account requires verification"** or **"Govee account sign-in expired"** repair appears, or you are re‑prompted for a 2FA code | Reconfigure the integration (⋮ → **Reconfigure**) and complete the email‑code step; codes expire in ~15 minutes. A changed account password lands here too. |
 | Rate‑limit warnings | The Govee API allows 100 requests/min and 10,000/day. Increase the polling interval if you have many devices, and disable the entities of devices you no longer use from the cloud — a device whose entities are all disabled is no longer polled. |
 
 If something's still wrong, grab a diagnostics download (below) and [open an issue](https://github.com/lasswellt/govee-homeassistant/issues).
@@ -437,7 +449,7 @@ Some conventions worth knowing before you open a PR:
 - **Capability-based, not SKU-based.** Entities come from the capabilities Govee reports. Add a SKU allowlist entry only when the API genuinely can't express the difference — and put the evidence in a comment, the way `FAHRENHEIT_REPORTING_SKUS` and `SKU_SEGMENT_OVERRIDES` do.
 - **Explain the *why* in comments.** Most of this codebase works around undocumented Govee behaviour. A comment saying what the code does is redundant; one saying which capture or issue proved it is not.
 - **Tests carry the evidence.** Where a fix comes from a real capture, the test uses the real bytes. `tests/test_mqtt_multisync.py` and `tests/test_dual_probe.py` are the pattern.
-- **CI runs on pull requests, including from forks.** A first-time contributor's first run needs a one-click approval from a maintainer; after that they run automatically. `test (3.12)`, `test (3.13)`, `mypy`, `HACS Action` and `Home Assistant Validation` must pass before a PR can merge — running `pytest` and `flake8` locally first still saves a round trip. Note `mypy` only runs on 3.12: it fails on 3.13 against Home Assistant core's PEP 696 type-parameter defaults, so a local 3.13 run will not catch type errors.
+- **CI runs on pull requests, including from forks.** A first-time contributor's first run needs a one-click approval from a maintainer; after that they run automatically. `test (3.12)`, `test (3.13)`, `mypy`, `Check style formatting` (`black --check`), `HACS Action` and `Home Assistant Validation` must pass before a PR can merge — running `pytest` and `flake8` locally first still saves a round trip. Note `mypy` only runs on 3.12: it fails on 3.13 against Home Assistant core's PEP 696 type-parameter defaults, so a local 3.13 run will not catch type errors.
 
 ---
 
