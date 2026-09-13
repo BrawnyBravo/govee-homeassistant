@@ -22,6 +22,7 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import config_validation as cv, issue_registry as ir
+from homeassistant.helpers.service_info.bluetooth import BluetoothServiceInfo
 from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
@@ -135,6 +136,7 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         self._password: str | None = None
         self._client_id: str | None = None
         self._iot_credentials: GoveeIotCredentials | None = None
+        self._discovered_name: str | None = None
 
     @staticmethod
     @callback
@@ -145,6 +147,37 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         do not pass it to ``__init__`` (deprecated in HA 2025.12).
         """
         return GoveeOptionsFlow()
+
+    async def async_step_bluetooth(self, discovery_info: BluetoothServiceInfo) -> ConfigFlowResult:
+        """Offer the cloud set-up when a Govee device advertises nearby.
+
+        The manifest's Bluetooth matchers make Home Assistant start this flow
+        for any Govee advertisement. Every device belongs to the same cloud
+        account, so one prompt is enough: the flow aborts when an entry
+        already exists (including an ignored one) or another discovery flow is
+        open. Bluetooth is only a transport here; the entry is still created
+        from the API key in the user step.
+        """
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+        self._async_abort_entries_match()
+        self._discovered_name = discovery_info.name or discovery_info.address
+        self.context["title_placeholders"] = {"name": self._discovered_name}
+        return await self.async_step_bluetooth_confirm()
+
+    async def async_step_bluetooth_confirm(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Ask before continuing to the API key step."""
+        if user_input is not None:
+            return await self.async_step_user()
+
+        self._set_confirm_only()
+        return self.async_show_form(
+            step_id="bluetooth_confirm",
+            description_placeholders={"name": self._discovered_name or "Govee device"},
+        )
 
     async def async_step_user(
         self,

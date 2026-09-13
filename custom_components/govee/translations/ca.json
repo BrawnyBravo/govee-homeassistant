@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Clau de l'API de Govee",
@@ -53,6 +54,10 @@
           "email": "Correu de l'aplicació mòbil de Govee (deixa'l buit per desactivar MQTT)",
           "password": "Contrasenya de l'aplicació mòbil de Govee (deixa-la buida per conservar l'actual)"
         }
+      },
+      "bluetooth_confirm": {
+        "title": "S'ha trobat un dispositiu Govee a prop",
+        "description": "S'ha trobat {name} per Bluetooth. Els dispositius Govee es controlen mitjançant el teu compte al núvol de Govee, així que el pas següent demana la clau d'API de Govee."
       }
     },
     "error": {
@@ -69,7 +74,8 @@
     },
     "abort": {
       "reauth_successful": "La reautenticació ha estat correcta",
-      "reconfigure_successful": "La reconfiguració ha estat correcta"
+      "reconfigure_successful": "La reconfiguració ha estat correcta",
+      "already_in_progress": "Ja hi ha una configuració de Govee en curs."
     }
   },
   "options": {
@@ -101,6 +107,9 @@
         "description": "Tria per a quins dispositius RGBIC vols configurar els modes de segment.",
         "data": {
           "devices": "Dispositius a configurar"
+        },
+        "data_description": {
+          "devices": "Dispositius per als quals establir un mode de segments. Els que no seleccionis conserven el mode actual."
         }
       },
       "configure_device_mode": {

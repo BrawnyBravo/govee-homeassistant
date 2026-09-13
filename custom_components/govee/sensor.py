@@ -197,6 +197,7 @@ class GoveeRateLimitSensor(CoordinatorEntity["GoveeCoordinator"], SensorEntity):
     """
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "rate_limit_remaining"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -296,6 +297,7 @@ class GoveeMqttLastReceivedSensor(CoordinatorEntity["GoveeCoordinator"], SensorE
     """
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "mqtt_last_received"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_device_class = SensorDeviceClass.TIMESTAMP
@@ -668,6 +670,7 @@ class GoveeSensorReadingTimestampSensor(GoveeEntity, SensorEntity):
     """
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "sensor_reading_changed"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -694,6 +697,7 @@ class GoveeAllDataLastUpdatedSensor(GoveeEntity, SensorEntity):
     """
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "all_data_last_updated"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -720,6 +724,7 @@ class GoveeLastCommandSentSensor(GoveeEntity, SensorEntity):
     """
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "last_command_sent"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -749,6 +754,7 @@ class GoveeMqttLastReceivedPerDeviceSensor(GoveeEntity, SensorEntity):
     """
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "mqtt_last_received_device"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -954,6 +960,7 @@ class GoveeLeakDeviceAddressSensor(SensorEntity):
     """
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_should_poll = False
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "ieee_address"
@@ -972,6 +979,7 @@ class GoveeLeakHubAddressSensor(SensorEntity):
     """Diagnostic sensor exposing the hub's IEEE EUI-64 address."""
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
     _attr_should_poll = False
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "ieee_address"

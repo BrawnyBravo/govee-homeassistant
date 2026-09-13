@@ -84,11 +84,13 @@ class TestSegmentEntityInit:
         assert entity.brightness == 255
         assert entity.rgb_color == (255, 255, 255)
 
-    def test_available_follows_coordinator_health_only(self, mock_rgbic_device):
+    def test_available_follows_coordinator_health_and_device_state(self, mock_rgbic_device):
         entity = _segment(mock_rgbic_device)
-        # An offline *device* state must not matter — segments are optimistic.
-        entity.coordinator.get_state.return_value.online = False
         assert entity.available is True
+        # Govee reporting the device offline makes the segment unavailable too.
+        entity.coordinator.get_state.return_value.online = False
+        assert entity.available is False
+        entity.coordinator.get_state.return_value.online = True
         entity.coordinator.last_update_success = False
         assert entity.available is False
 

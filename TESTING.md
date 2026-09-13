@@ -84,7 +84,7 @@ tests/
 
 ### Test Coverage by Area
 
-About 3,200 tests across 91 files; `pytest --co -q | tail -1` prints the current count.
+About 3,250 tests across 92 files; `pytest --co -q | tail -1` prints the current count.
 
 | Area | Files | Focus |
 |------|-------|-------|
@@ -249,9 +249,9 @@ async def test_api_error(mock_api_client):
 
 | Component | Minimum |
 |-----------|---------|
-| Overall | 95% (enforced by tox and .coveragerc); 99.8% measured |
+| Overall | 95% (enforced by tox and .coveragerc); 99.9% measured |
 | Critical (coordinator, API) | 100% (coordinator, api/client, and api/auth measure 100%) |
-| Per-file | 95% (every module measures above 96%) |
+| Per-file | 95% (every module measures above 96%); config_flow.py 100% |
 
 ### Excluded from Coverage
 

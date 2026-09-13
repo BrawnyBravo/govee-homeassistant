@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Clave de API de Govee",
@@ -53,6 +54,10 @@
           "email": "Correo de la app móvil de Govee (déjalo vacío para desactivar MQTT)",
           "password": "Contraseña de la app móvil de Govee (déjala vacía para conservar la actual)"
         }
+      },
+      "bluetooth_confirm": {
+        "title": "Dispositivo Govee encontrado cerca",
+        "description": "Se ha encontrado {name} por Bluetooth. Los dispositivos Govee se controlan mediante tu cuenta en la nube de Govee, así que el siguiente paso pide tu clave de API de Govee."
       }
     },
     "error": {
@@ -69,7 +74,8 @@
     },
     "abort": {
       "reauth_successful": "La reautenticación fue correcta",
-      "reconfigure_successful": "La reconfiguración fue correcta"
+      "reconfigure_successful": "La reconfiguración fue correcta",
+      "already_in_progress": "Ya hay una configuración de Govee en curso."
     }
   },
   "options": {
@@ -101,6 +107,9 @@
         "description": "Elige para qué dispositivos RGBIC quieres configurar los modos de segmento.",
         "data": {
           "devices": "Dispositivos a configurar"
+        },
+        "data_description": {
+          "devices": "Dispositivos para los que establecer un modo de segmentos. Los que no selecciones conservan su modo actual."
         }
       },
       "configure_device_mode": {

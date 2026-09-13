@@ -294,6 +294,24 @@ class TestAccessors:
         assert coord.scene_cache_count == 1
         assert coord.diy_scene_cache_count == 2
 
+    def test_rate_limit_accessors_read_the_api_client(self):
+        """The rate-limit sensor is disabled by default, so read the accessors directly."""
+        coord = _coordinator()
+        client = coord._api_client
+        client.rate_limit_remaining = 93
+        client.rate_limit_total = 100
+        client.rate_limit_reset = 42
+        client.requests_last_24h = 1200
+        client.requests_today = 340
+        client.requests_per_hour = 50.5
+
+        assert coord.api_rate_limit_remaining == 93
+        assert coord.api_rate_limit_total == 100
+        assert coord.api_rate_limit_reset == 42
+        assert coord.api_requests_last_24h == 1200
+        assert coord.api_requests_today == 340
+        assert coord.api_requests_per_hour == 50.5
+
     def test_mqtt_last_message_ts_follows_the_client(self):
         coord = _coordinator()
         assert coord.mqtt_last_message_ts is None

@@ -16,7 +16,7 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/lasswellt/govee-homeassistant/issues",
   "loggers": ["aiomqtt"],
-  "quality_scale": "silver",
+  "quality_scale": "platinum",
   "requirements": [
     "aiohttp-retry>=2.8.3",
     "aiomqtt>=2.0.0",

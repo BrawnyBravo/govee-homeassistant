@@ -164,6 +164,7 @@ class GoveeMusicSensitivityNumber(GoveeEntity, RestoreEntity, NumberEntity):
     """
 
     _attr_translation_key = "govee_music_sensitivity"
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = NumberMode.SLIDER
 
     def __init__(

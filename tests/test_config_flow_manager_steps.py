@@ -7,6 +7,7 @@ than by calling the flow class with a mocked ``hass``.
 
 from __future__ import annotations
 
+from dataclasses import asdict, replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,6 +25,7 @@ from custom_components.govee.api import (
     GoveeIotCredentials,
     GoveeLoginRejectedError,
 )
+from custom_components.govee.config_flow import GoveeConfigFlow
 from custom_components.govee.const import (
     CONF_API_KEY,
     CONF_API_TEMPERATURE_UNIT,
@@ -37,6 +39,7 @@ from custom_components.govee.const import (
     KEY_IOT_CREDENTIALS,
     KEY_IOT_LOGIN_FAILED,
     SEGMENT_MODE_GROUPED,
+    SEGMENT_MODE_INDIVIDUAL,
 )
 
 API_KEY = "12345678-1234-1234-1234-123456789abc"
@@ -509,3 +512,77 @@ async def test_options_flow_no_device_selected_saves_global_options(hass: HomeAs
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_POLL_INTERVAL] == 90
     assert CONF_SEGMENT_MODE_BY_DEVICE not in entry.options
+
+
+async def test_verification_step_without_account_state_aborts(hass: HomeAssistant) -> None:
+    """The code step cannot run before the account step stored an email and password.
+
+    The flow manager never routes a flow here without them, so the guard is
+    exercised on the flow class directly.
+    """
+    flow = GoveeConfigFlow()
+    flow.hass = hass
+
+    result = await flow.async_step_verification_code({"verification_code": "1234"})
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "missing_credentials"
+
+
+async def test_cache_iot_credentials_skips_a_vanished_entry(hass: HomeAssistant) -> None:
+    """Caching credentials for an entry removed mid-flow is a no-op, not an error."""
+    flow = GoveeConfigFlow()
+    flow.hass = hass
+    flow._iot_credentials = CREDS
+
+    flow._cache_iot_credentials("entry-that-no-longer-exists")
+
+
+async def test_reconfigure_removing_account_drops_stored_iot_credentials(hass: HomeAssistant) -> None:
+    """Clearing the account also discards the IoT material obtained with it."""
+    entry = _entry(hass, **{CONF_EMAIL: EMAIL, CONF_PASSWORD: PASSWORD, KEY_IOT_CREDENTIALS: asdict(CREDS)})
+    flow_id = await _start_reconfigure(hass, entry)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_API_KEY: API_KEY, CONF_EMAIL: "", CONF_PASSWORD: ""}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert KEY_IOT_CREDENTIALS not in entry.data
+    assert CONF_EMAIL not in entry.data
+    assert CONF_PASSWORD not in entry.data
+
+
+async def test_options_flow_walks_every_selected_device(hass: HomeAssistant, mock_rgbic_device) -> None:
+    """Selecting two RGBIC devices asks for a segment mode for each in turn."""
+    second = replace(mock_rgbic_device, device_id="AA:BB:CC:DD:EE:FF:00:99", name="Second strip")
+    entry = _entry(hass)
+    entry.runtime_data = SimpleNamespace(
+        devices={mock_rgbic_device.device_id: mock_rgbic_device, second.device_id: second}
+    )
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_POLL_INTERVAL: 60})
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"devices": [mock_rgbic_device.device_id, second.device_id]}
+    )
+    assert result["step_id"] == "configure_device_mode"
+    assert result["description_placeholders"]["device_name"] == mock_rgbic_device.name
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"segment_mode": SEGMENT_MODE_GROUPED}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "configure_device_mode"
+    assert result["description_placeholders"]["device_name"] == "Second strip"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"segment_mode": SEGMENT_MODE_INDIVIDUAL}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SEGMENT_MODE_BY_DEVICE] == {
+        mock_rgbic_device.device_id: SEGMENT_MODE_GROUPED,
+        second.device_id: SEGMENT_MODE_INDIVIDUAL,
+    }

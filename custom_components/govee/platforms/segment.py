@@ -80,15 +80,6 @@ class GoveeSegmentEntity(GoveeEntity, LightEntity, RestoreEntity):
         self._rgb_color: tuple[int, int, int] = (255, 255, 255)
 
     @property
-    def available(self) -> bool:
-        """Return True if entity is available.
-
-        Segments don't depend on coordinator state updates.
-        Just check the coordinator is healthy.
-        """
-        return self.coordinator.last_update_success
-
-    @property
     def is_on(self) -> bool:
         """Return True if segment is on."""
         return self._is_on

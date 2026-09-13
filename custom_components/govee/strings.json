@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Govee API key",
@@ -56,6 +57,10 @@
           "email": "Email for the Govee mobile app. Leave empty to remove real-time updates.",
           "password": "Password for the Govee mobile app. Leave empty to keep the existing password."
         }
+      },
+      "bluetooth_confirm": {
+        "title": "Govee device found nearby",
+        "description": "{name} was found over Bluetooth. Govee devices are controlled through your Govee cloud account, so the next step asks for your Govee API key."
       }
     },
     "error": {
@@ -74,7 +79,8 @@
       "already_configured": "This Govee API key is already configured",
       "missing_credentials": "The account email and password were not provided",
       "reauth_successful": "Re-authentication was successful",
-      "reconfigure_successful": "Reconfiguration was successful"
+      "reconfigure_successful": "Reconfiguration was successful",
+      "already_in_progress": "A Govee set-up is already in progress."
     }
   },
   "options": {
@@ -114,6 +120,9 @@
         "description": "Choose which RGBIC devices to configure segment modes for.",
         "data": {
           "devices": "Devices to configure"
+        },
+        "data_description": {
+          "devices": "Devices to set a segment mode for. Devices you leave out keep their current mode."
         }
       },
       "configure_device_mode": {

@@ -11,23 +11,29 @@ rules:
     comment: Services are registered in async_setup and validate a loaded entry per call.
   appropriate-polling:
     status: done
-    comment: DataUpdateCoordinator with a configurable poll interval (default 60 s, 30-300).
+    comment: >-
+      DataUpdateCoordinator with a configurable interval (default 60 s,
+      30-300). One request per polled device; devices whose entities are all
+      disabled are skipped, and a rate-limit response backs the interval off.
   brands:
-    status: exempt
-    comment: HACS integration, not core.
+    status: done
+    comment: home-assistant/brands ships custom_integrations/govee (icon and logo).
   common-modules:
     status: done
     comment: coordinator.py and entity.py hold the shared patterns.
   config-flow:
     status: done
-    comment: User, account, verification, reauth, reconfigure, and options steps with data_description.
+    comment: >-
+      User, account, verification, Bluetooth discovery, reauth, reconfigure,
+      and options steps; every field carries a data_description.
   config-flow-test-coverage:
     status: done
     comment: >-
-      Every step (user, account, 2FA code, reauth, reconfigure, options incl.
-      per-device segment modes) is driven through the flow manager in
-      tests/test_config_flow_manager*.py, covering aborts, errors, and entry
-      data; tests/test_config_flow.py adds unit coverage of the flow class.
+      Every step (user, account, 2FA code, Bluetooth discovery, reauth,
+      reconfigure, options incl. per-device segment modes) is driven through
+      the flow manager in tests/test_config_flow_manager*.py and
+      tests/test_config_flow_bluetooth.py, covering aborts, errors, and entry
+      data; config_flow.py measures 100 % line coverage.
   dependency-transparency:
     status: done
     comment: All requirements are declared in manifest.json.
@@ -50,7 +56,9 @@ rules:
     status: done
   runtime-data:
     status: done
-    comment: entry.runtime_data holds the coordinator; GoveeConfigEntry is used throughout.
+    comment: >-
+      entry.runtime_data holds the coordinator behind the GoveeConfigEntry
+      alias; hass.data is only read by the v1 to v2 entry migration.
   test-before-configure:
     status: done
     comment: The API key is validated against the device list before an entry is created.
@@ -75,7 +83,10 @@ rules:
     comment: README "Set up".
   entity-unavailable:
     status: done
-    comment: Entities follow device online state; a total cloud outage raises UpdateFailed so every entity goes unavailable.
+    comment: >-
+      Entities go unavailable when the last update failed or Govee reports
+      the device offline (segment lights included); a total cloud outage
+      raises UpdateFailed so every entity goes unavailable.
   integration-owner:
     status: done
   log-when-unavailable:
@@ -96,7 +107,7 @@ rules:
   test-coverage:
     status: done
     comment: >-
-      99.8 % overall and every module above 96 %; tox and .coveragerc enforce
+      99.9 % overall and every module above 96 %; tox and .coveragerc enforce
       a 95 % floor. The only uncovered lines are import fallbacks for optional
       libraries and branches unreachable by construction.
 
@@ -107,11 +118,16 @@ rules:
     status: done
     comment: Config-entry and per-device diagnostics with key and value redaction.
   discovery:
-    status: exempt
-    comment: Cloud API integration; devices are enumerated from the account.
+    status: done
+    comment: >-
+      Bluetooth advertisements from Govee devices (manifest matchers) start
+      a discovery flow that offers the cloud set-up once; it aborts when an
+      entry exists or another flow is open.
   discovery-update-info:
     status: exempt
-    comment: Cloud API integration.
+    comment: >-
+      Bluetooth discovery carries no network address and the cloud endpoint
+      is fixed, so there is nothing to update.
   docs-configuration-parameters:
     status: done
   docs-data-update:
@@ -136,11 +152,17 @@ rules:
     comment: Devices added to the account after startup trigger a throttled config-entry reload (issue #101).
   entity-category:
     status: done
+    comment: >-
+      Diagnostics carry DIAGNOSTIC; settings (music sensitivity, heater
+      auto-stop, probe alarm limits, probe polling, scene refresh) carry CONFIG.
   entity-device-class:
     status: done
   entity-disabled-by-default:
     status: done
-    comment: Per-transport connectivity sensors are opt-in.
+    comment: >-
+      The rate-limit sensor, the last-update, last-command, and MQTT-received
+      timestamps, and the leak address sensors are disabled by default;
+      per-transport connectivity sensors are opt-in through an option.
   entity-translations:
     status: done
     comment: Every entity has a translation key; no entity hard-codes a name.
@@ -177,5 +199,6 @@ rules:
     status: done
     comment: >-
       The API client code lives in-tree and ships a py.typed marker; the
-      whole package passes mypy --strict (setup.cfg), and GoveeConfigEntry
-      types the config entry throughout.
+      whole package passes mypy --strict (setup.cfg) with no
+      ignore_missing_imports for Home Assistant or the typed dependencies,
+      and GoveeConfigEntry types the config entry throughout.

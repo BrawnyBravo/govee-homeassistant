@@ -250,7 +250,7 @@ Transport strengths: TLS with `CERT_REQUIRED`, hostname checking, and the Amazon
 
 ## Status after fixes (2026-09-13)
 
-Applied in commits `c02671d` and `64efe24` and the quality-scale follow-up commit. Gates after the changes: flake8, mypy strict, and `black --check` clean; 3,242 tests pass; coverage 99.8 % with the floor raised to 95 %.
+Applied in commits `c02671d`, `64efe24`, `0fd0699`, `a87df35`, and the claimed-versus-observed audit commit. Gates after the changes: flake8, mypy strict, `black --check`, and hassfest clean; 3,256 tests pass; coverage 99.9 % with the floor raised to 95 % and `config_flow.py` at 100 %.
 
 Fixed:
 
@@ -258,7 +258,8 @@ Fixed:
 - Medium 7, 8, 9, 10, 11, 14, 15, 16, 18, 19, 20, 21, 22, 23: names and icons moved to `strings.json` and `icons.json`; emails dropped from logs and 30 info lines demoted; `event.py` declares `PARALLEL_UPDATES` and push entities no longer poll; the options flow survives an unloaded entry and uses translated selectors; the bare session fallbacks are gone; REST calls have a 30 s timeout; null API fields no longer escape the parser; the DIY style stub is removed; the number entities inherit the base class; area inference is removed; setup only converts API errors into `ConfigEntryNotReady`; README gained removal, limitations, use-case, and example sections; `protocols/` is deleted and the docs match the code.
 - Transport: MQTT brightness is rescaled from the device range, the OpenAPI client only reports connected after the subscribe and warns once per failure streak, the BLE disconnect callback ignores superseded clients, the scene cache shields shared fetches, and the manifest declares `bluetooth_adapters` and `network` with `bleak-retry-connector>=3.4.0`.
 - Tests: `tests/test_setup_entry.py` and `tests/test_config_flow_manager.py` drive the real config entry, registries, and flow manager; `tests/test_ble_advertisement_notify.py` and `tests/test_coordinator_outage.py` cover the new coordinator behaviour.
-- Quality scale: `rate_limited` and `mqtt_disconnected` are fixable repairs whose flows raise the polling interval and retry the account sign-in; every config-flow step is driven through the flow manager; the package ships `py.typed`; the `tests/test_cov_*.py` files take coverage to 99.8 % with a 95 % floor. `quality_scale.yaml` has no `todo` left and the manifest declares `silver`.
+- Quality scale: `rate_limited` and `mqtt_disconnected` are fixable repairs whose flows raise the polling interval and retry the account sign-in; every config-flow step is driven through the flow manager; the package ships `py.typed`; the `tests/test_cov_*.py` files take coverage to 99.8 % with a 95 % floor. `quality_scale.yaml` has no `todo` left.
+- Quality scale audit (claimed versus observed): the manifest's Bluetooth matchers started discovery flows the config flow could not handle, so `async_step_bluetooth` now offers the cloud set-up once and `discovery` is done rather than exempt; the brand exists in `home-assistant/brands`, so `brands` is done; no entity was disabled by default, so the rate-limit, timestamp, and address diagnostics now are; segment lights ignored the device's online state and now follow it; music sensitivity and heater auto-stop carry the config category; the mypy config no longer hides Home Assistant behind `ignore_missing_imports`; the options flow's device picker has a `data_description`; hassfest rejected fixable issues that also carried a `description`, so the text lives in the fix flows. Every rule is done or exempt with a reason, and the manifest declares `platinum`.
 
 Left open:
 

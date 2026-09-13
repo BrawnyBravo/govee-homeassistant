@@ -141,7 +141,7 @@ MQTT client for real-time updates:
 
 ## Testing
 
-About 3,200 tests across 91 files (`pytest --co -q | tail -1` for the current count). Most are unit tests on entities and the coordinator built with `MagicMock`; the `tests/test_cov_<module>.py` files close each module's remaining branches. `tests/test_setup_entry*.py`, `tests/test_config_flow_manager*.py`, and `tests/test_repairs.py` drive the real config entry, flow manager, and repair flows with `MockConfigEntry`. Prefer that style for anything that touches registries, setup, or flow steps.
+About 3,250 tests across 92 files (`pytest --co -q | tail -1` for the current count). Most are unit tests on entities and the coordinator built with `MagicMock`; the `tests/test_cov_<module>.py` files close each module's remaining branches. `tests/test_setup_entry*.py`, `tests/test_config_flow_manager*.py`, and `tests/test_repairs.py` drive the real config entry, flow manager, and repair flows with `MockConfigEntry`. Prefer that style for anything that touches registries, setup, or flow steps.
 
 ## Code Style
 
@@ -149,7 +149,7 @@ About 3,200 tests across 91 files (`pytest --co -q | tail -1` for the current co
 - **Linting**: Flake8 (configured in setup.cfg)
 - **Types**: mypy strict mode; use `GoveeConfigEntry` for the config entry type
 - **Docstrings**: Google style
-- **Coverage**: 95% floor (tox and .coveragerc); 99.8% measured, every module above 96%
+- **Coverage**: 95% floor (tox and .coveragerc); 99.9% measured, every module above 96%; config_flow.py must stay at 100%
 - **Logging**: `%s` formatting, no trailing period, no usernames/emails/tokens; info level only for things the user must act on
 - **Names and icons**: every entity has `_attr_translation_key`; names live in `strings.json` and icons in `icons.json`, never `_attr_name`/`_attr_icon`
 
@@ -202,7 +202,7 @@ Govee requires email verification (2FA) for account login since March 2026.
 - `async_step_account()` catches `Govee2FARequiredError` -> triggers code send -> `async_step_verification_code()`
 - Same flow in `async_step_reconfigure()`
 - `client_id` (UUID hex) must be generated BEFORE the first login and reused across all steps
-- IoT credentials from config flow are pre-cached in `hass.data[DOMAIN][KEY_IOT_CREDENTIALS]` so the entry reload finds them (avoids re-login hitting 2FA again)
+- IoT credentials obtained in the config flow are written to `entry.data[KEY_IOT_CREDENTIALS]` (schema v2) so the entry reload finds them (avoids re-login hitting 2FA again); nothing is kept in `hass.data` at runtime
 
 ### Startup Behavior
 - `Govee2FARequiredError` at startup -> log warning, record failure, create repairs issue, continue polling-only
@@ -268,7 +268,7 @@ For SKUs the API over-reports (H7075: `elementRange.max=14`, device has 3 sectio
 - **Limitation**: API returns empty strings for segment colors
 - **Solution**: Segment entities use local optimistic state + `RestoreEntity`
 - **Clear when**: Never (persists across restarts via HA state machine)
-- **Implementation**: `platforms/segment.py` does NOT subscribe to coordinator updates
+- **Implementation**: `platforms/segment.py` keeps the colours in the entity; coordinator updates only re-render availability, and the grouped entity broadcasts its writes over a per-device dispatcher signal
 
 ### Pattern
 For API values that aren't reliably returned:

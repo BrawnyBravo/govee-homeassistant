@@ -787,6 +787,7 @@ class GoveeAutoStopSwitchEntity(GoveeEntity, SwitchEntity, RestoreEntity):
     """
 
     _attr_translation_key = "govee_heater_auto_stop"
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(
         self,

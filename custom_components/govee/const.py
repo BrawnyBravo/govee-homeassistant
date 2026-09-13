@@ -327,7 +327,6 @@ SEGMENT_MODE_BOTH: Final = "both"
 # moved from hass.data[DOMAIN] to entry.data (see async_migrate_entry).
 CONFIG_VERSION: Final = 2
 
-# Keys for storing cached data in hass.data[DOMAIN]
 # Minimum gap between account re-login attempts after the BFF rejects the
 # stored token (issue #132). Repeated logins are what trips Govee's own 2FA
 # hardening, so a persistently failing account must back off rather than retry
