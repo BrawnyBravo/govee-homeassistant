@@ -345,3 +345,57 @@ Every rule in `quality_scale.yaml` re-checked against the checked-out code by a 
 | async-dependency | done | matches | aiohttp-retry, aiomqtt, bleak-retry-connector are asyncio libraries; TLS context and temp-file work runs in the executor (api/mqtt.py:499; api/mqtt.py:561; api/openapi_events.py:132) |
 | inject-websession | done | matches | async_get_clientsession used at api/client.py:102; api/auth.py:491; ClientSession created in the package: never |
 | strict-typing | done | matches | mypy: Success: no issues found in 44 source files; setup.cfg strict = True with no ignore_missing_imports; py.typed present; 9 targeted type-ignore comments, all with error codes |
+
+## Documentation quality review (2026-09-13, commit `2fda9eb`)
+
+Judged by reading every user-facing and developer document end to end and checking each factual claim against the code, not by heading presence. Scope: README.md (the page HACS renders), the in-product text in `strings.json`, ARCHITECTURE.md, CONTRIBUTING.md, TESTING.md, CLAUDE.md, and the two references under `docs/`.
+
+**Verdict.** The user documentation is strong: it goes well beyond what the quality-scale rules ask for, its option table matches the code range for range, and its troubleshooting maps to real repairs and options. It carries two factual errors, one inconsistency introduced by today's disabled-by-default change, and a handful of gaps. ARCHITECTURE.md is stale enough to mislead a contributor and should be rewritten or removed.
+
+### Per rule
+
+| Rule | Grade | Judgement |
+|---|---|---|
+| docs-high-level-description | Good | "What this is" says what the integration does, what each credential tier adds, that LAN control is automatic, that entities are capability-based, and where `govee_ble` takes over. |
+| docs-installation-instructions | Good, one gap | HACS and manual paths with prerequisites. The Bluetooth discovery card added today is not mentioned; a user who sees "Govee device found nearby" has no README text for it. |
+| docs-installation-parameters | Good, one error | API key, account email and password, and the 2FA code are explained with their sources. "Credentials are stored encrypted in your config entry" is false: Home Assistant keeps config entries as plain JSON under `.storage`. |
+| docs-removal-instructions | Good | Steps, what deletion removes, and the per-device delete path. |
+| docs-actions | Adequate | Both actions are described with examples, but the field semantics (0-based segment indices, 0 to 255 RGB, the two accepted forms of `device_id`) live only in the in-product text; a small fields table would close it. |
+| docs-configuration-parameters | Good, two gaps | All 11 options with defaults and ranges, every range verified against `const.py`. Missing: the `device_id=ip` and `device_id=ip!` LAN overrides (documented in-product and in the credits, not in the table) and the fourth segment mode, `both` (the RGBIC section lists three). |
+| docs-data-update | Good, two gaps | Polling, MQTT push, LAN, BLE, command routing, thermometer cadence, and the 5-minute account refresh are all explained. Not mentioned: devices added to the account are picked up by a rediscovery pass every 5 minutes. "Each thermometer exposes a Last Changed timestamp" is now wrong by default, because today's change disabled that entity by default. |
+| docs-examples | Good | Three automations in current syntax that use real entities, the segment action, and the clear-water button. |
+| docs-known-limitations | Good | Cloud dependence, rate limits, optimistic state, thermometer cadence, undocumented interfaces, BLE-only devices. Worth adding from troubleshooting: two installs on one account evict each other from AWS IoT. |
+| docs-supported-devices | Good, one error | Sixteen families with example SKUs and the entities each gets. The transport section claims direct BLE control for H6053, H6072, H6102, H6199, and H1270; the code allowlist `BLE_COMMAND_SUPPORTED_MODELS` holds only H6199 and H1270, and its comment records that H6072 drops BLE writes (issue #59). The five-model list is the segment-encoding set, not the control allowlist. |
+| docs-supported-functions | Good, one gap | Entities per family, segments, scenes, groups, sensors, diagnostics. Scenes are also exposed as light effects (`effect_list`), which the README never says. |
+| docs-troubleshooting | Good, two nits | Sixteen symptom-to-fix rows tied to real repairs, options, and log behaviour. The "Color doesn't apply" row still uses the old short label of the MQTT option; the token-expired and 2FA repairs are not named, so a user cannot search the README for the title they see. |
+| docs-use-cases | Adequate | Four concrete cases; brief but real. |
+
+### README, cross-cutting
+
+- The quality-scale badge says silver; the manifest declares platinum.
+- The scenes section has two bullets that both start with "Music mode"; merge them.
+- The contributing section's list of must-pass checks omits the Style check job that now runs `black --check`.
+- The page is about 520 lines with no table of contents; the badges block and "Live status" push "What this is" below the fold on the HACS page. A short contents list after the badges would help.
+- The Home Assistant badge and `hacs.json` agree on 2024.11; that minimum was never verified against the APIs the code uses (the review's open item), so it is a claim, not a tested bound.
+
+### In-product text (`strings.json`)
+
+Good: every field has a description, error texts say what to do, and option descriptions carry defaults and ranges. Two are out of date:
+
+- `api_temperature_unit` describes Auto as converting a fixed list of Fahrenheit SKUs; the code (and the README) first reads the account's own unit preference through `account_temperature_unit`, then falls back to that list.
+- `lan_targets` documents the overrides but not the literal `off` that disables LAN entirely, which the README documents and the coordinator honours.
+
+### Developer documentation
+
+- **ARCHITECTURE.md, stale in six places.** The platforms table lists a `scene` platform that no longer exists and omits select, fan, humidifier, number, binary sensor, and event; the repairs section describes an `auth_failed` issue removed today and calls the two real ones informational; the exception hierarchy says `GoveeAuthError` creates a repair; the coordinator is described with an observer pattern that has been replaced by `CoordinatorEntity`; the config flow list lacks the verification and Bluetooth steps; the quality-scale section says the integration targets Gold. CONTRIBUTING.md points contributors at it.
+- **CONTRIBUTING.md.** A "VS Code DevContainer" heading sits over text about symlinking the component into a config directory; nothing about a devcontainer follows. Otherwise current after today's coverage edit.
+- **TESTING.md and CLAUDE.md.** Current after today's edits. CLAUDE.md still ends with a "Directory Updates" section that duplicates the structure block above it.
+- **docs/govee-protocol-reference.md** carries "Last Updated: March 4, 2026" although it covers the probe thermometer and DreamView work merged since; the date is the stale part. **docs/device-catalog.md** has no H5192 entry although the probe thermometer shipped with captured frames, so the catalog lags the captures it says it indexes.
+
+### What to change, in order
+
+1. Correct the two false statements (encrypted credentials; the BLE control model list).
+2. Reconcile the Last Changed timestamp: either keep it enabled by default (it changes only when a reading changes, and the troubleshooting text relies on it) or say it is disabled by default.
+3. Add the Bluetooth discovery card, the `both` segment mode, the LAN overrides, scenes as light effects, the rediscovery cadence, and the two repair titles; fix the badge, the duplicate bullet, and the must-pass list.
+4. Update the two in-product option descriptions.
+5. Rewrite ARCHITECTURE.md from the current code or fold it into CLAUDE.md; fix the CONTRIBUTING.md heading; refresh the reference date and add the H5192 catalog entry.
