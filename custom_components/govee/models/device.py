@@ -66,8 +66,10 @@ TEMP_ONLY_BFF_SKUS = frozenset({"H5310"})
 # they only answer read requests over ptReal (see
 # api/probe_thermometer.py). Their BFF ``lastDeviceData`` stays
 # ``{"online": false}`` permanently, so the BFF read path has nothing to
-# offer them either — the coordinator polls them instead.
-PROBE_THERMOMETER_BFF_SKUS = frozenset({"H5192"})
+# offer them either — the coordinator polls them instead. H5194 is the
+# 4-probe sibling of the H5192: same transport, registers, and checksum,
+# confirmed on real hardware (issue #197).
+PROBE_THERMOMETER_BFF_SKUS = frozenset({"H5192", "H5194"})
 
 # Capability type constants (from Govee API v2.0)
 CAPABILITY_ON_OFF = "devices.capabilities.on_off"

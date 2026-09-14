@@ -100,6 +100,7 @@ from .const import (
     MIN_PROBE_POLL_INTERVAL,
     MIN_WATER_DETECTOR_POLL_INTERVAL,
     MQTT_STATUS_POLL_OFF,
+    MQTT_STATUS_QUERY_EXCLUDED_SKUS,
     MQTT_STATUS_QUERY_QUARANTINE_STRIKES,
     MQTT_STATUS_QUERY_SPACING,
     OPTIMISTIC_GRACE_CAP_SECONDS,
@@ -134,11 +135,11 @@ from .models.commands import (
     create_dreamview_command,
 )
 from .api.probe_thermometer import (
-    PROBES,
     ProbeLimits,
     build_limits_read_packet,
     build_limits_write_packet,
     build_probe_read_packet,
+    probes_for_sku,
 )
 from .models.device import (
     INSTANCE_DREAMVIEW,
@@ -2995,7 +2996,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             device = self._devices.get(device_id)
             if device is None:
                 continue
-            for probe in PROBES:
+            for probe in probes_for_sku(device.sku):
                 await self._ble_manager.async_send_ble_packet(device_id, device.sku, build_probe_read_packet(probe))
                 await self._ble_manager.async_send_ble_packet(device_id, device.sku, build_limits_read_packet(probe))
 
@@ -3032,7 +3033,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         Any device with a known device-specific MQTT topic — anything the
         coordinator could also publish a command to. Groups have no topic of
         their own and are excluded, as is any device quarantined because AWS
-        IoT closed the session right after querying it (issue #195).
+        IoT closed the session right after querying it (issue #195), and any
+        device whose SKU is known outright to do that
+        (MQTT_STATUS_QUERY_EXCLUDED_SKUS) without needing to learn it the
+        quarantine's way, one strike at a time.
         """
         return [
             device_id
@@ -3040,6 +3044,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             if not device.is_group
             and device_id in self._device_topics
             and device_id not in self._status_query_quarantine
+            and device.sku not in MQTT_STATUS_QUERY_EXCLUDED_SKUS
         ]
 
     @property

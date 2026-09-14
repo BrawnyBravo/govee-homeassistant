@@ -24,18 +24,19 @@ from custom_components.govee.models import GoveeDevice
 _LOGGER_NAME = "custom_components.govee.coordinator"
 
 
-def _device(device_id: str) -> GoveeDevice:
+def _device(device_id: str, sku: str = "H6001") -> GoveeDevice:
     return GoveeDevice(
         device_id=device_id,
-        sku="H6001",
+        sku=sku,
         name=f"Lamp {device_id}",
         device_type="devices.types.light",
         capabilities=(),
     )
 
 
-def _coord(devices: tuple[str, ...] = ("A", "B", "C")):
+def _coord(devices: tuple[str, ...] = ("A", "B", "C"), skus: dict[str, str] | None = None):
     """A coordinator with a connected MQTT client and a topic per device."""
+    skus = skus or {}
     config_entry = MagicMock()
     config_entry.entry_id = "test_entry"
     config_entry.options = {}
@@ -46,7 +47,7 @@ def _coord(devices: tuple[str, ...] = ("A", "B", "C")):
         iot_credentials=MagicMock(token="tok"),
         poll_interval=60,
     )
-    coord._devices = {device_id: _device(device_id) for device_id in devices}
+    coord._devices = {device_id: _device(device_id, skus.get(device_id, "H6001")) for device_id in devices}
     coord._device_topics = {device_id: f"GD/{device_id.lower()}" for device_id in devices}
     client = MagicMock()
     client.connected = True
@@ -224,3 +225,36 @@ class TestBlameAndQuarantine:
         assert client.async_publish_status_query.await_args_list == [call("GD/a"), call("GD/b")]
         assert coord._status_query_strikes == {"B": 1}
         assert coord._status_query_in_flight is None
+
+
+class TestPermanentSkuExclusion:
+    """H5110 (issue #195 follow-up): a BLE-bridged thermo-hygrometer that AWS
+    IoT always refuses a direct status query to. Left out of the sweep
+    outright rather than burning through the quarantine on every unit.
+    """
+
+    def test_excluded_sku_is_not_a_sweep_target(self):
+        coord, _ = _coord(devices=("A", "B", "C"), skus={"B": "H5110"})
+
+        assert coord._mqtt_status_poll_targets == ["A", "C"]
+
+    @pytest.mark.asyncio
+    async def test_excluded_sku_is_never_queried(self, sleeps):
+        coord, client = _coord(devices=("A", "B", "C"), skus={"B": "H5110"})
+
+        await coord._poll_mqtt_status()
+
+        assert client.async_publish_status_query.await_args_list == [call("GD/a"), call("GD/c")]
+
+    @pytest.mark.asyncio
+    async def test_several_units_of_the_excluded_sku_cost_no_strikes(self, sleeps):
+        """The reported case: three H5110s on one account. None should ever
+        be queried, so none can ever drop the session or reach quarantine.
+        """
+        coord, client = _coord(devices=("A", "B", "C", "D"), skus={"B": "H5110", "C": "H5110", "D": "H5110"})
+
+        await coord._poll_mqtt_status()
+
+        assert client.async_publish_status_query.await_args_list == [call("GD/a")]
+        assert coord._status_query_strikes == {}
+        assert coord.mqtt_status_query_strikes == []

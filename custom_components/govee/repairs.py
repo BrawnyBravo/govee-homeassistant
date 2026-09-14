@@ -42,6 +42,23 @@ _LOGGER = logging.getLogger(__name__)
 ISSUE_RATE_LIMITED = "rate_limited"
 ISSUE_MQTT_DISCONNECTED = "mqtt_disconnected"
 
+# Issue-id prefixes retired when the rate-limit repair was consolidated into
+# ISSUE_RATE_LIMITED. An install that hit either one before the rename carries
+# the orphaned registry entry forever, since nothing today ever creates an
+# issue with these ids again to let it auto-clear.
+_LEGACY_ISSUE_PREFIXES = ("rate_limit_minute", "poll_interval_unsustainable")
+
+
+@callback
+def async_cleanup_legacy_issues(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Delete pre-rename issue-registry entries left behind for this entry.
+
+    ``ir.async_delete_issue`` is a no-op when the issue does not exist, so
+    this is safe to call unconditionally on every setup.
+    """
+    for prefix in _LEGACY_ISSUE_PREFIXES:
+        ir.async_delete_issue(hass, DOMAIN, f"{prefix}_{entry.entry_id}")
+
 
 @callback
 def async_create_rate_limit_issue(

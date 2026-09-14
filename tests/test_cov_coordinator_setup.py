@@ -1465,6 +1465,24 @@ class TestProbePolling:
         assert {call.args[:2] for call in calls} == {(PROBE, "H5192")}
 
     @pytest.mark.asyncio
+    async def test_h5194_polls_all_four_probes_h5192_still_only_two(self):
+        """H5194 is the 4-probe sibling of the H5192 (issue #197): each SKU
+        must be queried for only the probes it actually has, not the union.
+        """
+        coord = self._with_probe(_coordinator())
+        _add(coord, GoveeDevice.synthetic_probe_thermometer(device_id="grill4", sku="H5194", name="Big Grill"))
+        coord._probe_polling_enabled = {PROBE, "grill4"}
+        coord._mqtt_client = MagicMock(connected=True)
+        coord._ble_manager = MagicMock()
+        coord._ble_manager.async_send_ble_packet = AsyncMock(return_value=True)
+
+        await coord._poll_probe_thermometers()
+
+        calls = coord._ble_manager.async_send_ble_packet.await_args_list
+        assert sum(1 for call in calls if call.args[:2] == (PROBE, "H5192")) == 4
+        assert sum(1 for call in calls if call.args[:2] == ("grill4", "H5194")) == 8
+
+    @pytest.mark.asyncio
     async def test_poll_is_a_noop_when_nothing_is_armed(self):
         coord = self._with_probe(_coordinator())
         coord._mqtt_client = MagicMock(connected=True)

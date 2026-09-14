@@ -113,8 +113,9 @@ class TestProbeGuards:
         frame[19] = 0xAA ^ 0x12 ^ 0x01
         assert verify_checksum(bytes(frame)) is True
 
-    @pytest.mark.parametrize("probe", [0, 3, 0xFF])
+    @pytest.mark.parametrize("probe", [0, 5, 0xFF])
     def test_decode_limits_rejects_unknown_probe_numbers(self, probe):
+        """3 and 4 are valid probe numbers since the H5194 (issue #197)."""
         assert decode_limits(_limits_frame(probe, 8800, 3300, 7000, -1000)) is None
 
     def test_decode_limits_rejects_short_or_foreign_frames(self):

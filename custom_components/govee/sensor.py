@@ -29,7 +29,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api.probe_thermometer import PROBES
+from .api.probe_thermometer import probes_for_sku
 from .const import (
     CONF_API_TEMPERATURE_UNIT,
     DEFAULT_API_TEMPERATURE_UNIT,
@@ -117,7 +117,7 @@ async def async_setup_entry(
         # generic temperature sensor: one reading per probe and channel
         # cannot be expressed by a single sensorTemperature value.
         if device.is_probe_thermometer:
-            for probe in PROBES:
+            for probe in probes_for_sku(device.sku):
                 for channel in ("core", "ambient"):
                     entities.append(GoveeProbeTemperatureSensor(coordinator, device, probe, channel))
             continue

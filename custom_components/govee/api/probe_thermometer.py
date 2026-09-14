@@ -82,7 +82,22 @@ REGISTER_STATUS = 0x0F
 SENTINEL = 0xFFFF
 SCALE = 100.0
 
-PROBES = (1, 2)
+# Probe count by SKU. H5192 is 2-probe; H5194 is its 4-probe sibling on the
+# same transport, registers, and checksum (issue #197). ``PROBES`` stays the
+# union of every supported model — the decoders below use it only as a loose
+# validity bound on the probe number a frame claims, which is harmless to
+# leave wide. Entity creation and polling use :func:`probes_for_sku` instead,
+# so a 2-probe H5192 is never queried for, or given entities for, probes it
+# does not have.
+PROBE_COUNT_BY_SKU = {"H5192": 2, "H5194": 4}
+DEFAULT_PROBE_COUNT = 2
+PROBES = tuple(range(1, max(PROBE_COUNT_BY_SKU.values()) + 1))
+
+
+def probes_for_sku(sku: str) -> tuple[int, ...]:
+    """Probe numbers (1-indexed) an SKU actually has."""
+    return tuple(range(1, PROBE_COUNT_BY_SKU.get(sku, DEFAULT_PROBE_COUNT) + 1))
+
 
 # Status frame (byte 1 == 0x0F): six int16 per probe, 16 bytes apart.
 _STATUS_PROBE_OFFSETS = {1: 10, 2: 26}

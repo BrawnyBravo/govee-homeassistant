@@ -240,6 +240,15 @@ MQTT_STATUS_QUERY_SPACING: Final = 1.0
 # before that device is quarantined from the sweep. Two, so a coincidental
 # network drop during a sweep does not cost a device its status queries.
 MQTT_STATUS_QUERY_QUARANTINE_STRIKES: Final = 2
+# SKUs left out of the sweep outright, rather than learning the hard way via
+# the quarantine above. H5110 is a BLE-bridged thermo-hygrometer relayed
+# through an H5044/H5151 gateway (see FAHRENHEIT_REPORTING_SKUS): it has an
+# AWS IoT topic on the account but never answers a direct status-query
+# publish to it, so AWS closes the session every single time. Confirmed on
+# real hardware with three H5110 units on one account, each independently
+# burning through the quarantine strikes on its own reconnect cycle before
+# the session finally stabilized (issue #195).
+MQTT_STATUS_QUERY_EXCLUDED_SKUS: Final = frozenset({"H5110"})
 
 # Optimistic state handling
 # Grace window (seconds) during which API polls do NOT overwrite optimistic

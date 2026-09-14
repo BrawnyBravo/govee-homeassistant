@@ -27,6 +27,7 @@ from custom_components.govee.repairs import (
     ISSUE_RATE_LIMITED,
     MqttReconnectRepairFlow,
     RateLimitRepairFlow,
+    async_cleanup_legacy_issues,
     async_create_fix_flow,
     async_create_mqtt_issue,
     async_create_rate_limit_issue,
@@ -140,6 +141,37 @@ async def test_mqtt_flow_clears_marker_and_reloads(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert KEY_IOT_LOGIN_FAILED not in entry.data
     reload.assert_awaited_once_with(entry.entry_id)
+
+
+async def test_cleanup_deletes_pre_rename_legacy_issues(hass: HomeAssistant) -> None:
+    """rate_limit_minute/poll_interval_unsustainable predate ISSUE_RATE_LIMITED.
+
+    An install that hit either before the rename carries the orphaned entry
+    forever, since current code never creates one to let it auto-clear.
+    """
+    entry = _entry(hass)
+    registry = ir.async_get(hass)
+    for legacy_id in (f"rate_limit_minute_{entry.entry_id}", f"poll_interval_unsustainable_{entry.entry_id}"):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            legacy_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=legacy_id,
+        )
+
+    async_cleanup_legacy_issues(hass, entry)
+
+    assert registry.async_get_issue(DOMAIN, f"rate_limit_minute_{entry.entry_id}") is None
+    assert registry.async_get_issue(DOMAIN, f"poll_interval_unsustainable_{entry.entry_id}") is None
+
+
+def test_cleanup_is_a_no_op_when_nothing_legacy_exists(hass: HomeAssistant) -> None:
+    """Called on every setup, so it must not raise when there is nothing to delete."""
+    entry = _entry(hass)
+
+    async_cleanup_legacy_issues(hass, entry)
 
 
 @pytest.mark.parametrize("flow_cls", [RateLimitRepairFlow, MqttReconnectRepairFlow])
