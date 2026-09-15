@@ -241,14 +241,22 @@ MQTT_STATUS_QUERY_SPACING: Final = 1.0
 # network drop during a sweep does not cost a device its status queries.
 MQTT_STATUS_QUERY_QUARANTINE_STRIKES: Final = 2
 # SKUs left out of the sweep outright, rather than learning the hard way via
-# the quarantine above. H5110 is a BLE-bridged thermo-hygrometer relayed
-# through an H5044/H5151 gateway (see FAHRENHEIT_REPORTING_SKUS): it has an
-# AWS IoT topic on the account but never answers a direct status-query
-# publish to it, so AWS closes the session every single time. Confirmed on
-# real hardware with three H5110 units on one account, each independently
-# burning through the quarantine strikes on its own reconnect cycle before
-# the session finally stabilized (issue #195).
-MQTT_STATUS_QUERY_EXCLUDED_SKUS: Final = frozenset({"H5110"})
+# the quarantine above. Every one here is a BLE/LoRa gateway-bridged sensor
+# (see FAHRENHEIT_REPORTING_SKUS): it has an AWS IoT topic on the account but
+# never answers a direct status-query publish to it, so AWS closes the
+# session every single time.
+#   H5110 (thermo-hygrometer via H5044/H5151): confirmed on real hardware
+#     with three units on one account, each independently burning through
+#     the quarantine strikes on its own reconnect cycle before the session
+#     stabilized (issue #195).
+#   H5220 (thermo-hygrometer, same gateway family): confirmed via diagnostics
+#     with three units on one account, all quarantined, still delaying
+#     stabilization after H5110 alone was excluded (issue #195 follow-up).
+#   H5111 (fridge/freezer thermometer, same BLE-bridged read path as H5110
+#     per its FAHRENHEIT_REPORTING_SKUS entry above): confirmed via
+#     diagnostics showing the identical quarantine signature (issue #197
+#     follow-up).
+MQTT_STATUS_QUERY_EXCLUDED_SKUS: Final = frozenset({"H5110", "H5220", "H5111"})
 
 # Optimistic state handling
 # Grace window (seconds) during which API polls do NOT overwrite optimistic

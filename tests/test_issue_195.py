@@ -228,19 +228,23 @@ class TestBlameAndQuarantine:
 
 
 class TestPermanentSkuExclusion:
-    """H5110 (issue #195 follow-up): a BLE-bridged thermo-hygrometer that AWS
-    IoT always refuses a direct status query to. Left out of the sweep
-    outright rather than burning through the quarantine on every unit.
+    """H5110, H5220, H5111 (issue #195 and #197 follow-ups): BLE/LoRa
+    gateway-bridged sensors that AWS IoT always refuses a direct status
+    query to. Left out of the sweep outright rather than burning through the
+    quarantine on every unit — confirmed independently for each SKU via
+    reporter diagnostics showing the identical quarantine signature.
     """
 
-    def test_excluded_sku_is_not_a_sweep_target(self):
-        coord, _ = _coord(devices=("A", "B", "C"), skus={"B": "H5110"})
+    @pytest.mark.parametrize("excluded_sku", sorted(const.MQTT_STATUS_QUERY_EXCLUDED_SKUS))
+    def test_excluded_sku_is_not_a_sweep_target(self, excluded_sku):
+        coord, _ = _coord(devices=("A", "B", "C"), skus={"B": excluded_sku})
 
         assert coord._mqtt_status_poll_targets == ["A", "C"]
 
+    @pytest.mark.parametrize("excluded_sku", sorted(const.MQTT_STATUS_QUERY_EXCLUDED_SKUS))
     @pytest.mark.asyncio
-    async def test_excluded_sku_is_never_queried(self, sleeps):
-        coord, client = _coord(devices=("A", "B", "C"), skus={"B": "H5110"})
+    async def test_excluded_sku_is_never_queried(self, sleeps, excluded_sku):
+        coord, client = _coord(devices=("A", "B", "C"), skus={"B": excluded_sku})
 
         await coord._poll_mqtt_status()
 

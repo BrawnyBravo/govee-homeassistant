@@ -74,9 +74,14 @@ class TestMqttDispatch:
         device_id, payload = client._on_state_update.call_args[0]
         assert device_id == DEVICE_ID
         assert payload["_probe_frame"] is True
-        # Status frames carry both probes with all six values each.
-        assert set(payload["probes"]) == {1, 2}
+        # decode_status_frame checks every SKU's frame at the H5194's stride
+        # (issue #197 follow-up), so an H5192's shorter frame still surfaces
+        # probes 3/4 keys here — all-None, since the frame has no data for
+        # them. The merge in _handle_probe_frame drops a no-op update, so
+        # they never actually reach state.probes for a 2-probe device.
+        assert set(payload["probes"]) == {1, 2, 3, 4}
         assert payload["probes"][1]["core"] == pytest.approx(34.0)
+        assert payload["probes"][3] == dict.fromkeys(payload["probes"][1])
 
     async def test_ptreal_reply_reaches_the_state_callback(self):
         client = _make_client()
@@ -179,6 +184,21 @@ class TestFrameMerge:
         coordinator = _coordinator()
         coordinator._handle_probe_frame("nope", {"probes": {1: {"core": 40.0}}})
         assert coordinator._states[DEVICE_ID].probes == {}
+
+    def test_an_all_none_probe_entry_is_not_stored(self):
+        """decode_status_frame now reports probes 3/4 for every SKU (issue
+        #197 follow-up), all-None on a 2-probe H5192's shorter frame. That
+        must not create a phantom probes[3]/[4] entry a #150-style presence
+        check would then see as "a reading exists".
+        """
+        coordinator = _coordinator()
+
+        coordinator._handle_probe_frame(
+            DEVICE_ID,
+            {"probes": {1: {"core": 40.0}, 3: dict.fromkeys(("core", "core_max", "core_min", "ambient"))}},
+        )
+
+        assert set(coordinator._states[DEVICE_ID].probes) == {1}
 
 
 class TestBffRefreshSkip:

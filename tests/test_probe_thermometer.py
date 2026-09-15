@@ -309,6 +309,31 @@ def test_h5194_decodes_probes_beyond_the_h5192s_two(
     assert decode_probe_reading(raw) == expected
 
 
+# Real H5194 status frame (byte 0 0x64, a variant not seen on the H5192),
+# captured with only probe 3 seated: 24.00 degC core and ambient, matching
+# that probe's live 0x24 reading at the same moment. Confirms the 16-byte
+# stride holds at offsets 42 and 58 for probes 3 and 4 (issue #197 follow-up).
+H5194_STATUS_ONLY_PROBE_3_SEATED = bytes.fromhex(
+    "640f0100000001040400ffffffffffffffffffffffff"
+    "65060006ffffffffffffffffffffffff"
+    "650600060960ffffffff0960ffffffff"
+    "5e060006ffffffffffffffffffffffff"
+    "6506000601010a1a0a01ffffffff000002ffffffff000003ffffffff000004ffffffff"
+    "000001000000000000000000000000000000000200000000000000000000000000000000"
+    "030000000000000000000000000000000004000000000000000000000000000000000000000000"
+)
+
+
+def test_h5194_status_frame_confirms_the_stride_at_probes_3_and_4() -> None:
+    probes = decode_status_frame(H5194_STATUS_ONLY_PROBE_3_SEATED)
+    assert probes is not None
+    assert probes[3]["core"] == 24.0
+    assert probes[3]["ambient"] == 24.0
+    for probe in (1, 2, 4):
+        assert probes[probe]["core"] is None
+        assert probes[probe]["ambient"] is None
+
+
 @pytest.mark.parametrize(
     ("hex_frame", "probe"),
     [
