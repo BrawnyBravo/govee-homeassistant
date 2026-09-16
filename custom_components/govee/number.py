@@ -18,7 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .api.probe_thermometer import PROBES
+from .api.probe_thermometer import probes_for_sku
 from .const import SUFFIX_HEATER_TEMPERATURE, SUFFIX_MUSIC_SENSITIVITY
 from .coordinator import GoveeConfigEntry, GoveeCoordinator
 from .entity import GoveeEntity
@@ -42,7 +42,7 @@ async def async_setup_entry(
     for device in coordinator.devices.values():
         # Probe thermometer alarm limits: four per probe.
         if device.is_probe_thermometer:
-            for probe in PROBES:
+            for probe in probes_for_sku(device.sku):
                 for limit in (
                     "core_max",
                     "core_min",

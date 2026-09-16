@@ -3,7 +3,9 @@
 Every fixture is a real frame captured from an H5192 and verified against what
 the Govee app displayed at the same moment. The values in the docstrings are
 what the app showed, so a failure here means the decoder drifted away from the
-device, not away from an invented expectation.
+device, not away from an invented expectation. The H5194 section near the end
+uses real frames from a 4-probe H5194 instead (issue #197): same transport,
+registers, and checksum as the H5192, just with probes 3 and 4.
 """
 
 from __future__ import annotations
@@ -24,8 +26,10 @@ from custom_components.govee.api.probe_thermometer import (
     decode_limits,
     decode_probe_reading,
     decode_status_frame,
+    probes_for_sku,
     verify_checksum,
 )
+from custom_components.govee.models.device import GoveeDevice
 
 # --- Captures -------------------------------------------------------------
 
@@ -267,3 +271,98 @@ def test_bad_checksum_is_detected() -> None:
 def test_concat_returns_none_on_garbage() -> None:
     assert concat_command_blocks([]) is None
     assert concat_command_blocks(["not base64 !!"]) is None
+
+
+# --- H5194 (4-probe sibling, issue #197) ------------------------------------
+#
+# Raw hex captures from a real H5194, reported alongside what the Govee app
+# showed at the same moment (probes 1 and 3 both at 77 degF / 25.0 degC core;
+# probe 2 seated in the base and correctly absent). Given as raw hex rather
+# than base64 op.command blocks, unlike the H5192 fixtures above, since that
+# is how they were captured.
+
+H5194_PROBE_3_READING = bytes.fromhex(
+    "aa24030000000000000000000100000000000000000009c40af0"
+    "ffffffffffffffffffffffffffffee22010001000000000000000000000000000000"
+)
+H5194_PROBE_1_READING = bytes.fromhex(
+    "aa24010000000000000000000100000000000000000009c40a28"
+    "ffffffffffffffffffffffffffffee22010001000000000000000000000000000000"
+)
+H5194_PROBE_2_ABSENT = bytes.fromhex(
+    "aa240200000000000000000001000000000000000000ffffffffffffffffffffffffffffffffffffee22010001000000000000000000000000000000"
+)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (H5194_PROBE_1_READING, (1, 25.0, 26.0)),
+        (H5194_PROBE_3_READING, (3, 25.0, 28.0)),
+        (H5194_PROBE_2_ABSENT, (2, None, None)),
+    ],
+)
+def test_h5194_decodes_probes_beyond_the_h5192s_two(
+    raw: bytes, expected: tuple[int, float | None, float | None]
+) -> None:
+    """Same decoder, same frame shape — probes 3 and 4 just used to be rejected."""
+    assert decode_probe_reading(raw) == expected
+
+
+# Real H5194 status frame (byte 0 0x64, a variant not seen on the H5192),
+# captured with only probe 3 seated: 24.00 degC core and ambient, matching
+# that probe's live 0x24 reading at the same moment. Confirms the 16-byte
+# stride holds at offsets 42 and 58 for probes 3 and 4 (issue #197 follow-up).
+H5194_STATUS_ONLY_PROBE_3_SEATED = bytes.fromhex(
+    "640f0100000001040400ffffffffffffffffffffffff"
+    "65060006ffffffffffffffffffffffff"
+    "650600060960ffffffff0960ffffffff"
+    "5e060006ffffffffffffffffffffffff"
+    "6506000601010a1a0a01ffffffff000002ffffffff000003ffffffff000004ffffffff"
+    "000001000000000000000000000000000000000200000000000000000000000000000000"
+    "030000000000000000000000000000000004000000000000000000000000000000000000000000"
+)
+
+
+def test_h5194_status_frame_confirms_the_stride_at_probes_3_and_4() -> None:
+    probes = decode_status_frame(H5194_STATUS_ONLY_PROBE_3_SEATED)
+    assert probes is not None
+    assert probes[3]["core"] == 24.0
+    assert probes[3]["ambient"] == 24.0
+    for probe in (1, 2, 4):
+        assert probes[probe]["core"] is None
+        assert probes[probe]["ambient"] is None
+
+
+@pytest.mark.parametrize(
+    ("hex_frame", "probe"),
+    [
+        ("aa1201ffffffffffffffff0600060000000000b9", 1),
+        ("aa1202ffffffffffffffff0600060000000000ba", 2),
+        ("aa1203ffffffffffffffff0600060000000000bb", 3),
+    ],
+)
+def test_h5194_limits_reply_checksum_and_decode(hex_frame: str, probe: int) -> None:
+    """Byte 11 reads 0x06 (not the H5192's 0xFF) with nothing set — decode_limits
+    never reads byte 11, so that difference does not affect a read either way.
+    """
+    raw = bytes.fromhex(hex_frame)
+    assert verify_checksum(raw)
+    assert decode_limits(raw) == (probe, ProbeLimits(core_max=None, core_min=None, ambient_max=None, ambient_min=None))
+
+
+def test_h5194_is_recognised_as_a_probe_thermometer() -> None:
+    device = GoveeDevice.synthetic_probe_thermometer("dev-1", "H5194", "Big Grill")
+    assert device.is_probe_thermometer
+
+
+def test_probes_for_sku_h5192_vs_h5194() -> None:
+    assert probes_for_sku("H5192") == (1, 2)
+    assert probes_for_sku("H5194") == (1, 2, 3, 4)
+
+
+def test_probes_for_sku_defaults_to_two_for_an_unknown_sku() -> None:
+    """A hypothetical future probe-thermometer SKU falls back to the H5192
+    shape rather than silently getting zero probes or crashing.
+    """
+    assert probes_for_sku("H9999") == (1, 2)

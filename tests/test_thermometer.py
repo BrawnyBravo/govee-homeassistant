@@ -345,6 +345,19 @@ class TestTemperatureSensorFahrenheitConversion:
         # preference must win over the static allowlist (same rule as H5310).
         assert self._make_sensor_stub(22.3, "auto", sku="H5053", account_unit="celsius") == 22.3
 
+    def test_h5171_wifi_hygrometer_auto_converts_fahrenheit(self):
+        # Issue #173 follow-up: an H5171's raw_api_state carried
+        # sensorTemperature 71.06 (already °F) and HA showed ~159°F. Auto
+        # mode stores it as ~21.7°C so HA renders 71.1°F.
+        result = self._make_sensor_stub(71.06, "auto", sku="H5171")
+        assert abs(result - 21.7) < 1e-4
+
+    def test_h5171_celsius_override_passthrough(self):
+        assert self._make_sensor_stub(21.7, "celsius", sku="H5171") == 21.7
+
+    def test_h5171_account_celsius_hint_beats_allowlist(self):
+        assert self._make_sensor_stub(21.7, "auto", sku="H5171", account_unit="celsius") == 21.7
+
     def test_h5310_pool_thermometer_auto_converts_fahrenheit(self):
         # Issue #157: an 88°F pool surfaced as ~191°F because the Developer API
         # had already returned °F. With no fahOpen flag to go on, the SKU

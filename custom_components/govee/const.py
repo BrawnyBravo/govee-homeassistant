@@ -89,6 +89,11 @@ CONF_API_TEMPERATURE_UNIT: Final = "api_temperature_unit"
 #     its location. Developer-API path; the SKU is not in the BFF thermo sets,
 #     so the account's fahOpen preference is never recorded for it and this
 #     entry is the only signal (issue #173).
+#   H5171 (WiFi thermo-hygrometer): same shape as the H5053 — the Developer
+#     API returned `sensorTemperature: 71.06` with no unit field and HA showed
+#     158.6°F, i.e. the °F reading converted a second time. Same path, same
+#     gap: not in the BFF thermo sets, so the model list is its only signal
+#     (issue #173 follow-up).
 FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
     {
         "H5179",
@@ -97,6 +102,7 @@ FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
         "H5110",
         "H5111",
         "H5053",
+        "H5171",
         "HS5108",
         "HS5106",
         "H717A",
@@ -234,6 +240,23 @@ MQTT_STATUS_QUERY_SPACING: Final = 1.0
 # before that device is quarantined from the sweep. Two, so a coincidental
 # network drop during a sweep does not cost a device its status queries.
 MQTT_STATUS_QUERY_QUARANTINE_STRIKES: Final = 2
+# SKUs left out of the sweep outright, rather than learning the hard way via
+# the quarantine above. Every one here is a BLE/LoRa gateway-bridged sensor
+# (see FAHRENHEIT_REPORTING_SKUS): it has an AWS IoT topic on the account but
+# never answers a direct status-query publish to it, so AWS closes the
+# session every single time.
+#   H5110 (thermo-hygrometer via H5044/H5151): confirmed on real hardware
+#     with three units on one account, each independently burning through
+#     the quarantine strikes on its own reconnect cycle before the session
+#     stabilized (issue #195).
+#   H5220 (thermo-hygrometer, same gateway family): confirmed via diagnostics
+#     with three units on one account, all quarantined, still delaying
+#     stabilization after H5110 alone was excluded (issue #195 follow-up).
+#   H5111 (fridge/freezer thermometer, same BLE-bridged read path as H5110
+#     per its FAHRENHEIT_REPORTING_SKUS entry above): confirmed via
+#     diagnostics showing the identical quarantine signature (issue #197
+#     follow-up).
+MQTT_STATUS_QUERY_EXCLUDED_SKUS: Final = frozenset({"H5110", "H5220", "H5111"})
 
 # Optimistic state handling
 # Grace window (seconds) during which API polls do NOT overwrite optimistic

@@ -366,6 +366,19 @@ Account (BFF) list: not seen (captures without account login, or not listed).
 
 AWS IoT push `state` keys: `onOff`, `result`, `sta`.
 
+## H5171
+
+Developer API type `devices.types.thermometer`; seen in #173 (a `raw_api_state` paste, so only the state shape is known).
+
+Capabilities:
+
+- `property/sensorHumidity`
+- `property/sensorTemperature`
+
+State readback: `online`=true, `sensorHumidity`=58.8, `sensorTemperature`=71.06 — the temperature is the °F reading with no unit field, so the SKU is on `FAHRENHEIT_REPORTING_SKUS`.
+
+Account (BFF) list: not seen (captures without account login, or not listed).
+
 ## H5179
 
 Developer API type `devices.types.thermometer`; seen in #72, #141.

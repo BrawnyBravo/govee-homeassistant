@@ -20,7 +20,7 @@ from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import EntityCategory, UnitOfTemperature
 from homeassistant.helpers.dispatcher import DATA_DISPATCHER
 
-from custom_components.govee.api.probe_thermometer import PROBES
+from custom_components.govee.api.probe_thermometer import probes_for_sku
 from custom_components.govee.const import CONF_API_TEMPERATURE_UNIT, DOMAIN, HUB_DEVICE_IDENTIFIER
 from custom_components.govee.models import GoveeCapability, GoveeDevice, GoveeDeviceState, ProbeReading
 from custom_components.govee.models.device import (
@@ -235,7 +235,9 @@ def _expected_unique_ids(*, mqtt: bool) -> set[str]:
         f"{DUAL_ID}_temperature_2",
         f"{DUAL_ID}_reading_changed",
     }
-    expected |= {f"{PROBE_ID}_probe{probe}_{channel}" for probe in PROBES for channel in ("core", "ambient")}
+    expected |= {
+        f"{PROBE_ID}_probe{probe}_{channel}" for probe in probes_for_sku("H5192") for channel in ("core", "ambient")
+    }
     for leak_id in (
         "01:32:7A:C4:06:03:0D:0C",
         "01:32:7A:C4:06:03:0D:0D",
@@ -275,13 +277,33 @@ class TestSetupEntry:
 
         probe_entities = [entity for entity in added if isinstance(entity, GoveeProbeTemperatureSensor)]
         assert {(entity._probe, entity._channel) for entity in probe_entities} == {
-            (probe, channel) for probe in PROBES for channel in ("core", "ambient")
+            (probe, channel) for probe in probes_for_sku("H5192") for channel in ("core", "ambient")
         }
         assert all(entity._device.device_id == PROBE_ID for entity in probe_entities)
         # The generic temperature sensor would sit at unknown forever.
         assert not any(
             isinstance(entity, GoveeTemperatureSensor) and entity._device.device_id == PROBE_ID for entity in added
         )
+
+    @pytest.mark.asyncio
+    async def test_h5194_gets_all_four_probes_worth_of_entities(self):
+        """The 4-probe sibling of the H5192 (issue #197) must get entities for
+        every probe it actually has, not the H5192's two.
+        """
+        grill_id = "AA:BB:CC:DD:EE:FF:00:08"
+        coordinator = MagicMock()
+        coordinator.devices = {grill_id: GoveeDevice.synthetic_probe_thermometer(grill_id, "H5194", "Big Grill")}
+        coordinator.mqtt_client = None
+        coordinator.get_state.return_value = None
+        coordinator.is_bff_leak_sensor.return_value = False
+        coordinator.leak_sensors = {}
+
+        added = await _setup(coordinator)
+
+        probe_entities = [entity for entity in added if isinstance(entity, GoveeProbeTemperatureSensor)]
+        assert {(entity._probe, entity._channel) for entity in probe_entities} == {
+            (probe, channel) for probe in (1, 2, 3, 4) for channel in ("core", "ambient")
+        }
 
     @pytest.mark.asyncio
     async def test_second_probe_entity_requires_a_reading(self):

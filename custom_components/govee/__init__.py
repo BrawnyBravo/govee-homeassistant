@@ -59,7 +59,7 @@ from .const import (
     SUFFIX_SEGMENT,
 )
 from .coordinator import GoveeConfigEntry, GoveeCoordinator
-from .repairs import async_create_mqtt_issue
+from .repairs import async_cleanup_legacy_issues, async_create_mqtt_issue
 from .services import async_setup_services
 
 __all__ = ["GoveeConfigEntry"]
@@ -155,6 +155,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: GoveeConfigEntry) -> boo
         ConfigEntryNotReady: Temporary setup failure.
     """
     _LOGGER.debug("Setting up entry %s with options %s", entry.entry_id, entry.options)
+
+    async_cleanup_legacy_issues(hass, entry)
 
     api_key = entry.data[CONF_API_KEY]
 

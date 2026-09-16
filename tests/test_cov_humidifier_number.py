@@ -139,6 +139,10 @@ def _probe() -> GoveeDevice:
     return GoveeDevice.synthetic_probe_thermometer("AA:BB:CC:DD:EE:FF:51:92", "H5192", "Grill Probe")
 
 
+def _probe_h5194() -> GoveeDevice:
+    return GoveeDevice.synthetic_probe_thermometer("AA:BB:CC:DD:EE:FF:51:94", "H5194", "Big Grill Probe")
+
+
 def _struct_music_light(options: list[dict]) -> GoveeDevice:
     return GoveeDevice(
         device_id="AA:BB:CC:DD:EE:FF:60:22",
@@ -346,6 +350,18 @@ class TestNumberSetup:
         assert sorted(e.unique_id for e in added) == sorted(
             f"AA:BB:CC:DD:EE:FF:51:92_probe{probe}_{limit}"
             for probe in (1, 2)
+            for limit in ("core_max", "core_min", "ambient_max", "ambient_min")
+        )
+
+    async def test_h5194_gets_four_probes_worth_of_limits(self):
+        """The 4-probe sibling of the H5192 (issue #197) gets 16 limit
+        entities, not the H5192's 8 — and the two SKUs' entities never mix.
+        """
+        added = await _setup(number_mod, _probe_h5194())
+        assert all(isinstance(e, GoveeProbeLimitNumber) for e in added)
+        assert sorted(e.unique_id for e in added) == sorted(
+            f"AA:BB:CC:DD:EE:FF:51:94_probe{probe}_{limit}"
+            for probe in (1, 2, 3, 4)
             for limit in ("core_max", "core_min", "ambient_max", "ambient_min")
         )
 
