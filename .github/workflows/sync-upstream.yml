@@ -9,9 +9,10 @@ name: Sync with upstream
 #
 # EXPECTED CONFLICT: custom_components/govee/manifest.json conflicts on every
 # sync where upstream bumps its version, because both sides edit the same line.
-# That is by design, not a problem. Resolve it by taking upstream's new version
-# and keeping the fork suffix, e.g. upstream 2026.9.7 -> "2026.9.7-house.1".
-# See FORK-NOTES.md. A conflict is resolved, never left to drift.
+# That is by design, not a problem. When it is the ONLY conflict, the job settles
+# it itself: upstream's new version with the fork suffix kept, e.g. upstream
+# 2026.9.7 -> "2026.9.7-house.1". Any other conflict still backs out and opens
+# an issue. See FORK-NOTES.md. A conflict is resolved, never left to drift.
 #
 # Do NOT create GitHub Releases on this fork without reading the install notes in
 # PLAN.md first: for the Govee fork a release silently switches HACS from tracking
@@ -77,6 +78,22 @@ jobs:
       - name: Merge upstream
         id: merge
         run: |
+          # The version line is the fork's one deliberate divergence. Settle it
+          # by taking upstream's version and re-adding the fork suffix; fail
+          # closed if either side does not look the way FORK-NOTES.md says.
+          resolve_manifest() {
+            local file="$1"
+            SUFFIX="$(git show "HEAD:${file}" \
+              | sed -n 's/.*"version": *"[0-9.]*\(-house\.[0-9]*\)".*/\1/p')"
+            UP_VER="$(git show "upstream/${UPSTREAM_REF}:${file}" \
+              | sed -n 's/.*"version": *"\([0-9.]*\)".*/\1/p')"
+            [ -n "${SUFFIX}" ] && [ -n "${UP_VER}" ] || return 1
+            git checkout --theirs -- "${file}" || return 1
+            sed -i "s/\"version\": *\"${UP_VER}\"/\"version\": \"${UP_VER}${SUFFIX}\"/" "${file}"
+            grep -qF "\"version\": \"${UP_VER}${SUFFIX}\"" "${file}" || return 1
+            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "${file}" || return 1
+          }
+
           BEFORE="$(git rev-parse HEAD)"
           UPSTREAM_HEAD="$(git rev-parse "upstream/${UPSTREAM_REF}")"
           echo "upstream_head=${UPSTREAM_HEAD}" >> "$GITHUB_OUTPUT"
@@ -96,6 +113,18 @@ jobs:
           else
             # Read the unmerged paths BEFORE aborting; the abort clears them.
             CONFLICTS="$(git diff --name-only --diff-filter=U || true)"
+            MANIFEST="custom_components/govee/manifest.json"
+            if [ "${CONFLICTS}" = "${MANIFEST}" ] && resolve_manifest "${MANIFEST}"; then
+              git add "${MANIFEST}"
+              if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+                echo "::error::unexpected unmerged paths after resolving ${MANIFEST}"
+                exit 1
+              fi
+              git commit -q -m "Merge upstream v${UP_VER}"
+              echo "result=merged" >> "$GITHUB_OUTPUT"
+              echo "Version line settled: ${UP_VER}${SUFFIX}"
+              exit 0
+            fi
             git merge --abort || true
             echo "result=conflict" >> "$GITHUB_OUTPUT"
             echo "conflicts<<CONFLICT_LIST" >> "$GITHUB_OUTPUT"

@@ -31,11 +31,15 @@ Upstreamed from this fork:
 
 The sync job merges upstream every day. Whenever upstream bumps its version,
 `manifest.json` conflicts, because both sides changed the same line. That is
-expected. Resolve it by taking upstream's new version and keeping the suffix:
+expected. Since 2026-09-16 the job settles it by itself when it is the only
+conflict: upstream's new version, suffix kept:
 
 ```
 upstream "2026.9.7"  +  fork "2026.9.6-house.1"  ->  "2026.9.7-house.1"
 ```
+
+If anything else conflicts alongside it, the job backs out and opens an issue
+as before. Resolve by hand the same way.
 
 For any other conflict: take upstream's version of anything upstream already
 has, keep only what is genuinely the fork's, run the tests and linters, and push.
