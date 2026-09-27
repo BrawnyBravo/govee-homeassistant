@@ -1348,8 +1348,10 @@ class GoveeAuthClient:
                 if response.status != 200:
                     message = _error_message(data, response.status)
                     raise GoveeApiError(f"warnMessage failed: {message}", code=response.status)
+                if not isinstance(data, dict):
+                    raise GoveeApiError("warnMessage returned an unexpected body", code=response.status)
 
-                messages = data.get("data", []) if isinstance(data, dict) else []
+                messages = data.get("data", [])
                 if not isinstance(messages, list):
                     return False
                 # Log the raw shape once so the reverse-engineered field names
@@ -1422,6 +1424,8 @@ class GoveeAuthClient:
                 if response.status != 200:
                     message = _error_message(data, response.status)
                     raise GoveeApiError(f"warnLifted failed: {message}", code=response.status)
+                if not isinstance(data, dict):
+                    raise GoveeApiError("warnLifted returned an unexpected body", code=response.status)
                 _raise_for_bff_status(data, "leak warning lift")
                 _LOGGER.debug("warnLifted accepted for %s (%s)", device_id, sku)
                 return True

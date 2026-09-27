@@ -890,10 +890,12 @@ class TestFetchLeakWarning:
 
         assert exc_info.value.code == 500
 
-    async def test_a_non_dict_200_body_reads_as_dry(self):
+    async def test_a_non_dict_200_body_is_an_api_error(self):
+        # The water-detector poll keeps the last state on an error instead of reading dry.
         client = GoveeAuthClient(session=_session(post=[_response(200, ["oops"])]))
 
-        assert await client.fetch_leak_warning("tok", "AABB", "H5054") is False
+        with pytest.raises(GoveeApiError, match="warnMessage returned an unexpected body"):
+            await client.fetch_leak_warning("tok", "AABB", "H5054")
 
     async def test_a_401_with_undecodable_body_is_still_an_auth_error(self):
         r = _response(401)
@@ -981,6 +983,13 @@ class TestLiftLeakWarning:
             await client.lift_leak_warning("tok", "AABB", "H5054")
 
         assert exc_info.value.code == 500
+
+    async def test_a_non_dict_200_body_is_an_api_error(self):
+        # A malformed reply must not show the Clear leak alert press as a success.
+        client = GoveeAuthClient(session=_session(post=[_response(200, ["oops"])]))
+
+        with pytest.raises(GoveeApiError, match="warnLifted returned an unexpected body"):
+            await client.lift_leak_warning("tok", "AABB", "H5054")
 
     async def test_a_null_error_message_falls_back_to_http_status(self):
         client = GoveeAuthClient(session=_session(post=[_response(502, {"message": None})]))
