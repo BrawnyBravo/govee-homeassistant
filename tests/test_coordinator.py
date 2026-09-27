@@ -4229,6 +4229,7 @@ class TestTryLanCommand:
         coord, coord_mod = self._ready_coord()
         monkeypatch.setattr(coord_mod, "HAS_BLUETOOTH", True)
         coord._ble_devices = {self.DEVICE_ID: MagicMock()}
+        coord._transport.record_success(self.DEVICE_ID, "ble")
         coord._try_ble_command = AsyncMock(return_value=True)
         coord._try_lan_command = AsyncMock(return_value=True)
 

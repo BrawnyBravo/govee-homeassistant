@@ -430,6 +430,7 @@ class TestBleTier:
         ble = MagicMock()
         ble.turn_on = AsyncMock()
         coord._ble_devices[DEV] = ble
+        coord._transport.record_success(DEV, "ble")
 
         assert await coord.async_control_device(DEV, PowerCommand(power_on=True)) is True
 
@@ -448,10 +449,41 @@ class TestBleTier:
         ble = MagicMock()
         ble.set_brightness = AsyncMock(side_effect=TimeoutError("gatt"))
         coord._ble_devices[DEV] = ble
+        coord._transport.record_success(DEV, "ble")
 
         assert await coord.async_control_device(DEV, BrightnessCommand(brightness=30)) is True
 
         assert coord._transport.get(DEV, "ble").last_failure_reason == "gatt"
+        coord._api_client.control_device.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_stale_ble_is_skipped_for_the_next_tier(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        ble = MagicMock()
+        ble.turn_on = AsyncMock()
+        coord._ble_devices[DEV] = ble
+        coord._transport.record_success(DEV, "ble")
+        health = coord._transport.get(DEV, "ble")
+        health.is_available = False
+        health.last_failure_reason = "stale_advertisement"
+
+        assert await coord.async_control_device(DEV, PowerCommand(power_on=True)) is True
+
+        ble.turn_on.assert_not_awaited()
+        coord._api_client.control_device.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_ble_with_no_health_stamp_is_skipped(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        ble = MagicMock()
+        ble.turn_on = AsyncMock()
+        coord._ble_devices[DEV] = ble
+
+        assert await coord.async_control_device(DEV, PowerCommand(power_on=True)) is True
+
+        ble.turn_on.assert_not_awaited()
         coord._api_client.control_device.assert_awaited_once()
 
 

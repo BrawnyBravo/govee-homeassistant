@@ -4562,7 +4562,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # BLE-first dispatch: if a BLE transport is available for this
             # device, try it before the cloud REST API. BLE is ~10x faster
             # (~50ms local vs ~500ms cloud) and works when internet is down.
-            if HAS_BLUETOOTH and device_id in self._ble_devices:
+            if HAS_BLUETOOTH and device_id in self._ble_devices and self._ble_write_eligible(device_id):
                 if await self._try_ble_command(device_id, command):
                     self._apply_optimistic_update(device_id, command)
                     self.async_set_updated_data(self._states)
@@ -4999,6 +4999,16 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         self._record_local_command(device_id, sku, "mqtt", command, delivered=True)
         return True
+
+    def _ble_write_eligible(self, device_id: str) -> bool:
+        """Return True if this device's BLE advertisements are fresh enough to write to.
+
+        BLE writes are unacked (write_gatt_char(..., response=False)), so a stale
+        advertisement (device out of range / asleep) would otherwise be sent to
+        blindly and never fall through to LAN/MQTT/REST (#198).
+        """
+        health = self._transport.get(device_id, "ble")
+        return health is not None and health.is_available
 
     async def _try_ble_command(self, device_id: str, command: DeviceCommand) -> bool:
         """Attempt to send a command via BLE. Returns True on success.
