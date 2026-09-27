@@ -906,6 +906,33 @@ class TestDreamview:
         coord._ble_manager.async_send_dreamview.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_h66a0_skips_the_inert_rest_toggle_and_sends_the_video_frame(self):
+        # Govee accepts dreamViewToggle for the H66A0 and the light ignores it (#213).
+        coord = _coordinator()
+        state = _add(coord, _device(sku="H66A0"))
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_dreamview(DEV, True) is True
+
+        assert _sent(coord) == []
+        coord._ble_manager.async_send_dreamview.assert_awaited_once_with(DEV, "H66A0")
+        assert state.dreamview_enabled is True
+
+    @pytest.mark.asyncio
+    async def test_h66a0_off_restores_the_last_colour_instead_of_the_toggle(self):
+        coord = _coordinator()
+        state = _add(coord, _device(sku="H66A0"))
+        state.dreamview_enabled = True
+        state.last_color = RGBColor(10, 20, 30)
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_dreamview(DEV, False) is True
+
+        assert _sent(coord) == [ColorCommand(color=RGBColor(10, 20, 30))]
+        assert state.dreamview_enabled is False
+        coord._ble_manager.async_send_dreamview.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_rest_error_falls_back_to_the_passthrough(self):
         coord = _coordinator()
         state = _add(coord, _device())

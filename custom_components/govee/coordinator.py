@@ -113,6 +113,7 @@ from .const import (
     MQTT_STATUS_QUERY_QUARANTINE_STRIKES,
     MQTT_STATUS_QUERY_SPACING,
     OPTIMISTIC_GRACE_CAP_SECONDS,
+    PTREAL_DREAMVIEW_SKUS,
     RECENT_COMMAND_WINDOW_SECONDS,
     resolve_fahrenheit_conversion,
 )
@@ -5233,21 +5234,23 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             _LOGGER.error("Unknown device for DreamView: %s", device_id)
             return False
 
-        # Try REST API first (works for HTTP-capable devices like H6097)
-        try:
-            success = await self.async_control_device(device_id, create_dreamview_command(enabled))
-            if success:
-                _LOGGER.debug(
-                    "Sent DreamView %s to %s via REST API",
-                    "ON" if enabled else "OFF",
-                    device.name,
-                )
-                return True
-        except ConfigEntryAuthFailed:
-            # Let authentication errors propagate so Home Assistant can handle reauth
-            raise
-        except Exception as err:
-            _LOGGER.debug("REST DreamView failed for %s: %s", device.name, err)
+        # Try REST API first (works for HTTP-capable devices like H6097), except
+        # on SKUs that accept the toggle and ignore it (issue #213).
+        if device.sku.upper() not in PTREAL_DREAMVIEW_SKUS:
+            try:
+                success = await self.async_control_device(device_id, create_dreamview_command(enabled))
+                if success:
+                    _LOGGER.debug(
+                        "Sent DreamView %s to %s via REST API",
+                        "ON" if enabled else "OFF",
+                        device.name,
+                    )
+                    return True
+            except ConfigEntryAuthFailed:
+                # Let authentication errors propagate so Home Assistant can handle reauth
+                raise
+            except Exception as err:
+                _LOGGER.debug("REST DreamView failed for %s: %s", device.name, err)
 
         # Fall back to BLE passthrough for devices that need it.
         #

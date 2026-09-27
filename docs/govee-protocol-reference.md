@@ -2157,7 +2157,7 @@ TV backlight with **movie mode** — a capability not seen on other devices. Fro
 Key observations:
 - **`movie_setting` / `movieMode`** is a new capability type — hardware DreamView/movie mode
 - Has both `gradientToggle` AND `dreamViewToggle` (hardware HDMI passthrough)
-- Not currently exposed by the integration (feature request in issue #14)
+- `dreamViewToggle` is accepted (HTTP 200) but inert: the light answers `33 60 01 00…` for both on and off and never enters screen sync (issue #213). The integration skips it (`PTREAL_DREAMVIEW_SKUS`) and sends the `33 05 00` video-mode frame over AWS IoT instead (unverified on hardware; `33 60 01 01 01…`, the frame the H2A41 reports when the app starts screen sync, is the other candidate); off restores the last colour
 
 #### H6104 — WiFi RGB Light (`devices.types.light`)
 
