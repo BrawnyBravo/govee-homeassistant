@@ -320,6 +320,8 @@ Update both files when changing option labels:
 
 **Exception: a broken release.** If a release that has already gone out breaks users (the integration fails to load or set up, or a regression stops previously working devices from working), cut a hotfix release immediately, even if one was already cut that day. Keep the hotfix to the regression alone, and say in its release notes which release it corrects. An ordinary bug, a wrong value or a missing feature is not a broken release and waits for the end-of-day release.
 
+**The end-of-day release is automated.** The claude.ai cloud routine "govee daily release" runs at 03:00 UTC (11pm EDT, 10pm EST). It follows the steps below and replies on every issue and PR that the released commits reference (`#N` in the subject). It skips the day when a release already went out (Eastern time), when nothing user-facing landed, or when CI on `main` isn't green. Sessions only merge to `main` with CI green; they don't bump the version or cut the day's release. A session still has to post replies on threads that no commit references, and cuts a broken-release hotfix by hand with the same steps. No GitHub Action creates releases.
+
 1. **Bump version** in `manifest.json` (CalVer: `YYYY.MM.patch`)
 2. **Commit**: stage explicit paths (`git add custom_components tests ...`), never a bare `git add -A` (sandbox placeholder dotfiles sit in the repo root)
 3. **Push**: `git push origin main`
