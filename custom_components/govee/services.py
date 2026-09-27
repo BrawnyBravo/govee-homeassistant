@@ -22,6 +22,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers.service import async_register_admin_service
 
 from .api.ble_packet import calculate_checksum
 from .const import DOMAIN
@@ -249,7 +250,9 @@ def async_setup_services(hass: HomeAssistant) -> None:
         _set_segment_color,
         schema=SERVICE_SET_SEGMENT_COLOR_SCHEMA,
     )
-    hass.services.async_register(
+    # Admin-only: it sends arbitrary frames to the device (#208 debug aid).
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVICE_SEND_RAW_PTREAL,
         _send_raw_ptreal,

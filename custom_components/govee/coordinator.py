@@ -5019,6 +5019,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         ble_device = self._ble_devices.get(device_id)
         if ble_device is None:
             return False
+        device = self._devices.get(device_id)
+        ble_sku = device.sku if device is not None else "unknown"
 
         try:
             if isinstance(command, PowerCommand):
@@ -5044,8 +5046,6 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 exc_info=True,
             )
             self._record_transport_failure(device_id, "ble", str(err))
-            ble_device_entry = self._devices.get(device_id)
-            ble_sku = ble_device_entry.sku if ble_device_entry is not None else "unknown"
             self._record_local_command(device_id, ble_sku, "ble", command, delivered=False, detail=str(err))
             return False
         else:
@@ -5055,8 +5055,6 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # `refresh_ble_staleness` uses to decide the device stopped
             # advertising; a blind write must not move it (#198).
             self._record_transport_send(device_id, "ble")
-            ble_device_entry = self._devices.get(device_id)
-            ble_sku = ble_device_entry.sku if ble_device_entry is not None else "unknown"
             self._record_local_command(device_id, ble_sku, "ble", command, delivered=True)
             # A successful BLE write reaches the device directly — flip
             # `online` back True if a stale `online: false` from the cloud
@@ -5382,23 +5380,23 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """
         device = self._devices.get(device_id)
         if not device or device.is_group:
-            _LOGGER.error("Unknown or group device for raw ptReal: %s", device_id)
+            _LOGGER.debug("Unknown or group device for raw ptReal: %s", device_id)
             return False
 
         if not self._ble_manager.available:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "Cannot send raw ptReal for %s: AWS IoT passthrough not connected",
                 device_id,
             )
             return False
 
         if not frame or len(frame) > 20:
-            _LOGGER.error("Invalid raw ptReal frame length for %s: %d bytes", device_id, len(frame))
+            _LOGGER.debug("Invalid raw ptReal frame length for %s: %d bytes", device_id, len(frame))
             return False
 
         if len(frame) == 20:
             if calculate_checksum(list(frame[:19])) != frame[19]:
-                _LOGGER.error("Invalid raw ptReal checksum for %s", device_id)
+                _LOGGER.debug("Invalid raw ptReal checksum for %s", device_id)
                 return False
             packet = bytes(frame)
         else:

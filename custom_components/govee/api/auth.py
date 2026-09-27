@@ -362,8 +362,8 @@ async def _read_json(response: aiohttp.ClientResponse, context: str) -> Any:
 
 def _error_message(data: Any, status: int) -> str:
     """Body ``message`` when the body is a dict carrying one, else ``HTTP <status>``."""
-    if isinstance(data, dict):
-        return str(data.get("message", f"HTTP {status}"))
+    if isinstance(data, dict) and data.get("message"):
+        return str(data["message"])
     return f"HTTP {status}"
 
 

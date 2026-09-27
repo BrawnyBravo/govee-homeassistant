@@ -982,6 +982,12 @@ class TestLiftLeakWarning:
 
         assert exc_info.value.code == 500
 
+    async def test_a_null_error_message_falls_back_to_http_status(self):
+        client = GoveeAuthClient(session=_session(post=[_response(502, {"message": None})]))
+
+        with pytest.raises(GoveeApiError, match="warnLifted failed: HTTP 502"):
+            await client.lift_leak_warning("tok", "AABB", "H5054")
+
     async def test_a_401_with_undecodable_body_is_still_an_auth_error(self):
         r = _response(401)
         r.json = AsyncMock(side_effect=json.JSONDecodeError("x", "", 0))

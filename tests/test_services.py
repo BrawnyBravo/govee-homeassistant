@@ -12,7 +12,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.core import Context
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
 
 from custom_components.govee.models import RGBColor, SegmentColorCommand
 from custom_components.govee.services import (
@@ -269,3 +270,22 @@ class TestSendRawPtrealService:
         )
 
         coordinator.async_send_raw_ptreal.assert_awaited_once_with(device_id, bytes.fromhex("3305"))
+
+    async def test_non_admin_users_cannot_send_raw_frames(self, hass, hass_read_only_user, monkeypatch):
+        """Raw frames can leave a light in an odd mode, so the service is admin-only."""
+        device_id = "AA:BB:CC:DD:EE:FF:00:55"
+        coordinator = _make_coordinator(_make_device(segment_count=0, device_id=device_id), device_id)
+        coordinator.async_send_raw_ptreal = AsyncMock(return_value=True)
+        monkeypatch.setattr(LOOKUP, lambda hass, raw: (coordinator, device_id))
+
+        async_setup_services(hass)
+        with pytest.raises(Unauthorized):
+            await hass.services.async_call(
+                DOMAIN,
+                SERVICE_SEND_RAW_PTREAL,
+                {"device_id": device_id, "frame": "33 05"},
+                blocking=True,
+                context=Context(user_id=hass_read_only_user.id),
+            )
+
+        coordinator.async_send_raw_ptreal.assert_not_awaited()
