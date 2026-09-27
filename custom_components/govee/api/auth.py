@@ -341,6 +341,32 @@ def _raise_for_bff_status(data: Any, context: str) -> None:
     raise GoveeApiError(f"BFF {context} failed: {message}", code=status)
 
 
+async def _read_json(response: aiohttp.ClientResponse, context: str) -> Any:
+    """Parse a response body, turning undecodable JSON into GoveeApiError.
+
+    Args:
+        response: The HTTP response to decode.
+        context: Short description of the call, used in the error message.
+
+    Returns:
+        The parsed JSON body.
+
+    Raises:
+        GoveeApiError: The body was not valid JSON.
+    """
+    try:
+        return await response.json()
+    except ValueError as err:  # json.JSONDecodeError
+        raise GoveeApiError(f"{context} returned invalid JSON", code=response.status) from err
+
+
+def _error_message(data: Any, status: int) -> str:
+    """Body ``message`` when the body is a dict carrying one, else ``HTTP <status>``."""
+    if isinstance(data, dict):
+        return str(data.get("message", f"HTTP {status}"))
+    return f"HTTP {status}"
+
+
 def _derive_client_id(email: str) -> str:
     """Derive a stable client_id from the account email.
 
@@ -1316,14 +1342,14 @@ class GoveeAuthClient:
                 headers=headers,
                 json=body,
             ) as response:
-                data = await response.json()
                 if response.status == 401:
                     raise GoveeAuthError("warnMessage auth failed (401)")
+                data = await _read_json(response, "warnMessage")
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     raise GoveeApiError(f"warnMessage failed: {message}", code=response.status)
 
-                messages = data.get("data", [])
+                messages = data.get("data", []) if isinstance(data, dict) else []
                 if not isinstance(messages, list):
                     return False
                 # Log the raw shape once so the reverse-engineered field names
@@ -1390,11 +1416,11 @@ class GoveeAuthClient:
                 headers=headers,
                 json=body,
             ) as response:
-                data = await response.json()
                 if response.status == 401:
                     raise GoveeAuthError("warnLifted auth failed (401)")
+                data = await _read_json(response, "warnLifted")
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     raise GoveeApiError(f"warnLifted failed: {message}", code=response.status)
                 _raise_for_bff_status(data, "leak warning lift")
                 _LOGGER.debug("warnLifted accepted for %s (%s)", device_id, sku)

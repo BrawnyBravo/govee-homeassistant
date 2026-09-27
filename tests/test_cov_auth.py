@@ -872,6 +872,37 @@ class TestFetchLeakWarning:
 
         assert await client.fetch_leak_warning("tok", "AABB", "H5054") is True
 
+    async def test_invalid_json_is_an_api_error(self):
+        r = _response(200)
+        r.json = AsyncMock(side_effect=json.JSONDecodeError("x", "", 0))
+        client = GoveeAuthClient(session=_session(post=[r]))
+
+        with pytest.raises(GoveeApiError, match="warnMessage returned invalid JSON") as exc_info:
+            await client.fetch_leak_warning("tok", "AABB", "H5054")
+
+        assert exc_info.value.code == 200
+
+    async def test_a_non_dict_error_body_falls_back_to_http_status(self):
+        client = GoveeAuthClient(session=_session(post=[_response(500, ["oops"])]))
+
+        with pytest.raises(GoveeApiError, match="warnMessage failed: HTTP 500") as exc_info:
+            await client.fetch_leak_warning("tok", "AABB", "H5054")
+
+        assert exc_info.value.code == 500
+
+    async def test_a_non_dict_200_body_reads_as_dry(self):
+        client = GoveeAuthClient(session=_session(post=[_response(200, ["oops"])]))
+
+        assert await client.fetch_leak_warning("tok", "AABB", "H5054") is False
+
+    async def test_a_401_with_undecodable_body_is_still_an_auth_error(self):
+        r = _response(401)
+        r.json = AsyncMock(side_effect=json.JSONDecodeError("x", "", 0))
+        client = GoveeAuthClient(session=_session(post=[r]))
+
+        with pytest.raises(GoveeAuthError, match="warnMessage auth failed"):
+            await client.fetch_leak_warning("tok", "AABB", "H5054")
+
 
 class TestLiftLeakWarning:
     """Marking a standalone detector's leak alerts read (the app's Read button)."""
@@ -931,6 +962,32 @@ class TestLiftLeakWarning:
         client = GoveeAuthClient(session=_session(post=[TimeoutError()]))
 
         with pytest.raises(GoveeApiError, match="Connection error lifting leak warning: TimeoutError"):
+            await client.lift_leak_warning("tok", "AABB", "H5054")
+
+    async def test_invalid_json_is_an_api_error(self):
+        r = _response(200)
+        r.json = AsyncMock(side_effect=json.JSONDecodeError("x", "", 0))
+        client = GoveeAuthClient(session=_session(post=[r]))
+
+        with pytest.raises(GoveeApiError, match="warnLifted returned invalid JSON") as exc_info:
+            await client.lift_leak_warning("tok", "AABB", "H5054")
+
+        assert exc_info.value.code == 200
+
+    async def test_a_non_dict_error_body_falls_back_to_http_status(self):
+        client = GoveeAuthClient(session=_session(post=[_response(500, ["oops"])]))
+
+        with pytest.raises(GoveeApiError, match="warnLifted failed: HTTP 500") as exc_info:
+            await client.lift_leak_warning("tok", "AABB", "H5054")
+
+        assert exc_info.value.code == 500
+
+    async def test_a_401_with_undecodable_body_is_still_an_auth_error(self):
+        r = _response(401)
+        r.json = AsyncMock(side_effect=json.JSONDecodeError("x", "", 0))
+        client = GoveeAuthClient(session=_session(post=[r]))
+
+        with pytest.raises(GoveeAuthError, match="warnLifted auth failed"):
             await client.lift_leak_warning("tok", "AABB", "H5054")
 
 
