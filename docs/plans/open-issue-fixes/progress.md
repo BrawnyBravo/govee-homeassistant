@@ -12,3 +12,4 @@ Ruling: class=architectural tasks=5 — four independent fixes across coordinato
 ## 2026-09-27T15:46:25Z verify T-005 ok=true
 Ruling: descope — critic advisory 5 (blind BLE writes until the next staleness poll) left as is; the window existed before and is bounded by 120 s plus the poll interval (T-001, round 1)
 ## 2026-09-27T15:50:08Z build complete 5/5 done; critic LGTM; advisories 1-4 fixed in follow-up commit
+## 2026-09-27T15:57:58Z check PASS check-report.md

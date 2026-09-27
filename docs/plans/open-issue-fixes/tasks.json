@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "open-issue-fixes",
-  "updated": "2026-09-27T15:47:23Z",
+  "updated": "2026-09-27T15:55:42Z",
   "tasks": [
     {
       "id": "T-001",
@@ -32,7 +32,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-09-27T15:47:16Z",
+        "ts": "2026-09-27T15:55:34Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -40,23 +40,23 @@
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py tests/test_coordinator.py",
             "exit": 0,
-            "duration_ms": 2029,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 21%]\n........................................................................ [ 42%]\n........................................................................ [ 64%]\n........................................................................ [ 85%]\n................................................                         [100%]\n336 passed in 0.83s",
-            "recorded_at": "2026-09-27T15:47:16Z"
+            "duration_ms": 2176,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 21%]\n........................................................................ [ 42%]\n........................................................................ [ 64%]\n........................................................................ [ 85%]\n................................................                         [100%]\n336 passed in 0.87s",
+            "recorded_at": "2026-09-27T15:55:34Z"
           },
           {
             "cmd": "grep -q 'def _ble_write_eligible' custom_components/govee/coordinator.py",
             "exit": 0,
             "duration_ms": 6,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:16Z"
+            "recorded_at": "2026-09-27T15:55:34Z"
           },
           {
             "cmd": "grep -q 'test_stale_ble_is_skipped' tests/test_cov_coordinator_control.py",
             "exit": 0,
-            "duration_ms": 4,
+            "duration_ms": 5,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:16Z"
+            "recorded_at": "2026-09-27T15:55:34Z"
           }
         ]
       },
@@ -93,7 +93,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-09-27T15:47:18Z",
+        "ts": "2026-09-27T15:55:36Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -101,23 +101,23 @@
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py tests/test_coordinator.py tests/test_transport_health.py",
             "exit": 0,
-            "duration_ms": 2171,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 19%]\n........................................................................ [ 38%]\n........................................................................ [ 57%]\n........................................................................ [ 77%]\n........................................................................ [ 96%]\n.............                                                            [100%]\n373 passed in 0.98s",
-            "recorded_at": "2026-09-27T15:47:18Z"
+            "duration_ms": 2389,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 19%]\n........................................................................ [ 38%]\n........................................................................ [ 57%]\n........................................................................ [ 77%]\n........................................................................ [ 96%]\n.............                                                            [100%]\n373 passed in 1.08s",
+            "recorded_at": "2026-09-27T15:55:36Z"
           },
           {
             "cmd": "grep -qE '_record_local_command\\(\\s*device_id,\\s*[a-z_.]+,\\s*\"ble\"' custom_components/govee/coordinator.py",
             "exit": 0,
-            "duration_ms": 5,
+            "duration_ms": 6,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:18Z"
+            "recorded_at": "2026-09-27T15:55:36Z"
           },
           {
             "cmd": "grep -q '_record_transport_send(device_id, \"ble\")' custom_components/govee/coordinator.py",
             "exit": 0,
             "duration_ms": 4,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:18Z"
+            "recorded_at": "2026-09-27T15:55:36Z"
           }
         ]
       },
@@ -156,7 +156,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-09-27T15:47:20Z",
+        "ts": "2026-09-27T15:55:38Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -164,30 +164,30 @@
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_auth.py tests/test_auth.py tests/test_clear_leak_alert.py",
             "exit": 0,
-            "duration_ms": 1900,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 27%]\n........................................................................ [ 54%]\n........................................................................ [ 81%]\n................................................                         [100%]\n264 passed in 0.73s",
-            "recorded_at": "2026-09-27T15:47:20Z"
+            "duration_ms": 1956,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 27%]\n........................................................................ [ 54%]\n........................................................................ [ 81%]\n..................................................                       [100%]\n266 passed in 0.72s",
+            "recorded_at": "2026-09-27T15:55:38Z"
           },
           {
             "cmd": "grep -q 'def _read_json' custom_components/govee/api/auth.py",
             "exit": 0,
             "duration_ms": 4,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:20Z"
+            "recorded_at": "2026-09-27T15:55:38Z"
           },
           {
             "cmd": "grep -q 'def _error_message' custom_components/govee/api/auth.py",
             "exit": 0,
-            "duration_ms": 4,
+            "duration_ms": 5,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:20Z"
+            "recorded_at": "2026-09-27T15:55:38Z"
           },
           {
             "cmd": "grep -q 'test_invalid_json_is_an_api_error' tests/test_cov_auth.py",
             "exit": 0,
             "duration_ms": 4,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:20Z"
+            "recorded_at": "2026-09-27T15:55:38Z"
           }
         ]
       },
@@ -222,7 +222,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-09-27T15:47:22Z",
+        "ts": "2026-09-27T15:55:40Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -230,23 +230,23 @@
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py",
             "exit": 0,
-            "duration_ms": 1447,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 79%]\n...................                                                      [100%]\n91 passed in 0.27s",
-            "recorded_at": "2026-09-27T15:47:22Z"
+            "duration_ms": 1526,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 79%]\n...................                                                      [100%]\n91 passed in 0.28s",
+            "recorded_at": "2026-09-27T15:55:40Z"
           },
           {
             "cmd": "grep -q 'async def async_send_raw_ptreal' custom_components/govee/coordinator.py",
             "exit": 0,
-            "duration_ms": 4,
+            "duration_ms": 5,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:22Z"
+            "recorded_at": "2026-09-27T15:55:40Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/mypy custom_components/govee",
             "exit": 0,
-            "duration_ms": 170,
+            "duration_ms": 169,
             "tail": "Success: no issues found in 45 source files",
-            "recorded_at": "2026-09-27T15:47:22Z"
+            "recorded_at": "2026-09-27T15:55:40Z"
           }
         ]
       },
@@ -290,7 +290,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-09-27T15:47:23Z",
+        "ts": "2026-09-27T15:55:42Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -298,30 +298,30 @@
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_services.py tests/test_setup_entry.py",
             "exit": 0,
-            "duration_ms": 1445,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n............................                                             [100%]\n28 passed in 0.28s",
-            "recorded_at": "2026-09-27T15:47:23Z"
+            "duration_ms": 1433,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n.............................                                            [100%]\n29 passed in 0.28s",
+            "recorded_at": "2026-09-27T15:55:41Z"
           },
           {
             "cmd": "grep -q 'SERVICE_SEND_RAW_PTREAL' custom_components/govee/services.py",
             "exit": 0,
-            "duration_ms": 5,
+            "duration_ms": 6,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:23Z"
+            "recorded_at": "2026-09-27T15:55:41Z"
           },
           {
             "cmd": "grep -q '^send_raw_ptreal:' custom_components/govee/services.yaml",
             "exit": 0,
             "duration_ms": 4,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:23Z"
+            "recorded_at": "2026-09-27T15:55:42Z"
           },
           {
             "cmd": "python3 -c \"import json;a=json.load(open('custom_components/govee/strings.json'));b=json.load(open('custom_components/govee/translations/en.json'));assert a['services']==b['services'] and a['exceptions']==b['exceptions'];assert 'send_raw_ptreal' in a['services'] and 'invalid_ptreal_frame' in a['exceptions'] and 'ptreal_unavailable' in a['exceptions']\"",
             "exit": 0,
-            "duration_ms": 26,
+            "duration_ms": 30,
             "tail": "",
-            "recorded_at": "2026-09-27T15:47:23Z"
+            "recorded_at": "2026-09-27T15:55:42Z"
           }
         ]
       },

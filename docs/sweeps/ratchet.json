@@ -1,0 +1,72 @@
+{
+  "$schema": "blitz-ratchet/1.0",
+  "ref": "bbbfb1b38d108020902d554c729bac16930617b2",
+  "plan": "open-issue-fixes",
+  "updated_at": "2026-09-27T15:52:34Z",
+  "notes": "Python stack: test_count=pytest --co, type_errors=mypy errors, lint_violations=flake8 lines, as_any_count=# type: ignore in custom_components, mocks_in_src/todo_count=grep over custom_components. completeness_score not measured (TS-only detector).",
+  "metrics": {
+    "test_count": {
+      "baseline": 3514,
+      "current": 3514,
+      "min_allowed": 3514,
+      "direction": "up"
+    },
+    "type_errors": {
+      "baseline": 0,
+      "current": 0,
+      "max_allowed": 0,
+      "direction": "down",
+      "absolute_floor": 0
+    },
+    "as_any_count": {
+      "baseline": 10,
+      "current": 10,
+      "max_allowed": 10,
+      "direction": "down"
+    },
+    "lint_violations": {
+      "baseline": 0,
+      "current": 0,
+      "max_allowed": 0,
+      "direction": "down"
+    },
+    "mocks_in_src": {
+      "baseline": 0,
+      "current": 0,
+      "max_allowed": 0,
+      "direction": "down"
+    },
+    "todo_count": {
+      "baseline": 0,
+      "current": 0,
+      "max_allowed": 0,
+      "direction": "down"
+    },
+    "stale_worktree_branch_count": {
+      "baseline": 0,
+      "current": 0,
+      "max_allowed": 0,
+      "direction": "down"
+    }
+  },
+  "auto_revert": {
+    "enabled": true,
+    "needs_human_label": "ratchet-regression"
+  },
+  "history": [
+    {
+      "ref": "bbbfb1b38d108020902d554c729bac16930617b2",
+      "plan": "open-issue-fixes",
+      "ts": "2026-09-27T15:52:34Z",
+      "metrics": {
+        "test_count": 3514,
+        "type_errors": 0,
+        "as_any_count": 10,
+        "lint_violations": 0,
+        "mocks_in_src": 0,
+        "todo_count": 0,
+        "stale_worktree_branch_count": 0
+      }
+    }
+  ]
+}
