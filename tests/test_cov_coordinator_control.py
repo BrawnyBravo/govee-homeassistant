@@ -265,6 +265,7 @@ class TestControlDeviceTiers:
         _add(coord, _device())
         coord._mqtt_client = _mqtt()
         coord._device_topics[DEV] = "GD/dev"
+        coord._transport.record_success(DEV, "mqtt")
 
         assert await coord.async_control_device(DEV, PowerCommand(power_on=True)) is True
 
@@ -282,6 +283,7 @@ class TestControlDeviceTiers:
         _add(coord, _device())
         coord._mqtt_client = _mqtt()
         coord._device_topics[DEV] = "GD/dev"
+        coord._transport.record_success(DEV, "mqtt")
 
         assert await coord.async_control_device(DEV, ColorCommand(color=RGBColor(1, 2, 3))) is True
 
@@ -290,6 +292,19 @@ class TestControlDeviceTiers:
         assert publishes[1] == ("GD/dev", "color", {"r": 1, "g": 2, "b": 3})
         assert coord._mqtt_client.async_publish_command.await_args_list[1].kwargs == {"cmd_version": 1}
         assert coord._states[DEV].color == RGBColor(1, 2, 3)
+
+    @pytest.mark.asyncio
+    async def test_mqtt_tier_waits_until_the_device_has_answered_on_aws_iot(self):
+        # An H6163 never listens on AWS IoT; its unacknowledged publishes vanished (#198).
+        coord = _coordinator(options={CONF_ENABLE_MQTT_CONTROL: True})
+        _add(coord, _device())
+        coord._mqtt_client = _mqtt()
+        coord._device_topics[DEV] = "GD/dev"
+
+        assert await coord.async_control_device(DEV, PowerCommand(power_on=True)) is True
+
+        coord._mqtt_client.async_publish_command.assert_not_awaited()
+        coord._api_client.control_device.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_mqtt_tier_is_skipped_for_groups(self):

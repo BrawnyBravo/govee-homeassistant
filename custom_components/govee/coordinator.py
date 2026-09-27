@@ -4588,7 +4588,15 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # power/brightness/color over the AWS IoT channel (~50ms) instead
             # of the REST cloud API (~500ms). Group devices and non-capable
             # commands (color temp, scenes, segments) fall through to REST.
-            if self._enable_mqtt_control and self.mqtt_connected and not device.is_group:
+            # A publish is never acknowledged, so only devices that have
+            # answered on AWS IoT this session qualify: some firmware (H6163)
+            # never listens there, and its commands would vanish (#198).
+            if (
+                self._enable_mqtt_control
+                and self.mqtt_connected
+                and not device.is_group
+                and self._mqtt_heard_from(device_id)
+            ):
                 if await self._try_mqtt_command(device_id, device.sku, command):
                     self._record_transport_send(device_id, "mqtt")
                     self._apply_optimistic_update(device_id, command)
@@ -4947,6 +4955,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 return False
             return abs(reply.color_temp_kelvin - command.kelvin) <= LAN_COLOR_TEMP_CONFIRM_TOLERANCE
         return False
+
+    def _mqtt_heard_from(self, device_id: str) -> bool:
+        """Return True once the device has sent a state message over AWS IoT this session."""
+        health = self._transport.get(device_id, "mqtt")
+        return health is not None and health.last_success_ts is not None
 
     async def _try_mqtt_command(self, device_id: str, sku: str, command: DeviceCommand) -> bool:
         """Attempt to send a command via native MQTT. Returns True on success.

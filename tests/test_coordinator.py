@@ -4264,6 +4264,7 @@ class TestTryLanCommand:
         # MQTT is enabled + connected but also "fails" so REST is the deliverer.
         coord._enable_mqtt_control = True
         coord._mqtt_client = MagicMock(connected=True)
+        coord._transport.record_success(self.DEVICE_ID, "mqtt")
         coord._try_mqtt_command = AsyncMock(return_value=False)
         coord._api_client.control_device = AsyncMock(return_value=True)
 

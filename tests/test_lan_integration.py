@@ -545,6 +545,7 @@ class TestNeverStranded:
         mqtt.async_publish_command = AsyncMock(return_value=False)
         coord._mqtt_client = mqtt
         coord._ensure_device_topic = AsyncMock(return_value="GA/topic/x")
+        coord._transport.record_success(self.DEVICE_ID, "mqtt")
 
         client._send_transport.sent.clear()
         command = PowerCommand(power_on=False)
