@@ -5044,10 +5044,20 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 exc_info=True,
             )
             self._record_transport_failure(device_id, "ble", str(err))
+            ble_device_entry = self._devices.get(device_id)
+            ble_sku = ble_device_entry.sku if ble_device_entry is not None else "unknown"
+            self._record_local_command(device_id, ble_sku, "ble", command, delivered=False, detail=str(err))
             return False
         else:
             _LOGGER.debug("BLE command succeeded for %s: %s", device_id, type(command).__name__)
-            self._record_transport_success(device_id, "ble")
+            # BLE writes are unacked (response=False), so this is a send, not a
+            # confirmed receive — `last_success_ts` is the advertisement clock
+            # `refresh_ble_staleness` uses to decide the device stopped
+            # advertising; a blind write must not move it (#198).
+            self._record_transport_send(device_id, "ble")
+            ble_device_entry = self._devices.get(device_id)
+            ble_sku = ble_device_entry.sku if ble_device_entry is not None else "unknown"
+            self._record_local_command(device_id, ble_sku, "ble", command, delivered=True)
             # A successful BLE write reaches the device directly — flip
             # `online` back True if a stale `online: false` from the cloud
             # is masking a recovered device (issue #68).

@@ -486,6 +486,60 @@ class TestBleTier:
         ble.turn_on.assert_not_awaited()
         coord._api_client.control_device.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_ble_write_is_recorded_in_recent_commands(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        ble = MagicMock()
+        ble.turn_on = AsyncMock()
+        coord._ble_devices[DEV] = ble
+        coord._transport.record_success(DEV, "ble")
+        command = PowerCommand(power_on=True)
+
+        assert await coord.async_control_device(DEV, command) is True
+
+        coord._api_client.record_local_command.assert_called_with(
+            DEV, "H6072", "ble", command.to_api_payload(), delivered=True, detail=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_ble_write_stamps_send_not_receive(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        ble = MagicMock()
+        ble.turn_on = AsyncMock()
+        coord._ble_devices[DEV] = ble
+        coord._transport.record_success(DEV, "ble")
+        health = coord._transport.get(DEV, "ble")
+        original_success_ts = health.last_success_ts
+
+        assert await coord.async_control_device(DEV, PowerCommand(power_on=True)) is True
+
+        assert health.last_send_ts is not None
+        assert health.last_success_ts == original_success_ts
+
+    @pytest.mark.asyncio
+    async def test_ble_failure_is_recorded_in_recent_commands(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        ble = MagicMock()
+        ble.set_brightness = AsyncMock(side_effect=TimeoutError("gatt"))
+        coord._ble_devices[DEV] = ble
+        coord._transport.record_success(DEV, "ble")
+        command = BrightnessCommand(brightness=30)
+
+        assert await coord.async_control_device(DEV, command) is True
+
+        kwargs = coord._api_client.record_local_command.call_args_list[0].kwargs
+        assert coord._api_client.record_local_command.call_args_list[0].args == (
+            DEV,
+            "H6072",
+            "ble",
+            command.to_api_payload(),
+        )
+        assert kwargs["delivered"] is False
+        assert kwargs["detail"] == "gatt"
+
 
 class TestEnsureDeviceTopic:
     @pytest.mark.asyncio
