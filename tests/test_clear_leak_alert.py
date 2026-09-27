@@ -93,6 +93,46 @@ class TestAsyncClearWaterLeak:
         assert coord._states[DETECTOR_ID].water_leak is False
         coord.async_update_listeners.assert_called_once()
 
+    async def test_a_poll_in_flight_during_the_clear_does_not_relatch(self, monkeypatch):
+        coord = self._coord()
+        coord._states[DETECTOR_ID].water_leak = True
+        coord._water_leak_last_time[DETECTOR_ID] = 100
+        inner = MagicMock()
+        inner.fetch_water_detector_states = AsyncMock(return_value={DETECTOR_ID: {"last_time": 200}})
+        inner.lift_leak_warning = AsyncMock(return_value=True)
+
+        async def _wet_then_cleared(*_: Any) -> bool:
+            # warnMessage answered "wet" before the lift; the user clears
+            # before the poll gets to apply that reading.
+            assert await coord.async_clear_water_leak(DETECTOR_ID) is True
+            return True
+
+        inner.fetch_leak_warning = AsyncMock(side_effect=_wet_then_cleared)
+        self._patch_client(monkeypatch, inner)
+
+        await coord._poll_water_detectors()
+
+        assert coord._states[DETECTOR_ID].water_leak is False
+        assert DETECTOR_ID not in coord._water_leak_last_time
+
+    async def test_the_next_poll_rereads_warnmessage_to_confirm_the_clear(self, monkeypatch):
+        coord = self._coord()
+        coord._states[DETECTOR_ID].water_leak = True
+        coord._water_leak_last_time[DETECTOR_ID] = 200
+        inner = MagicMock()
+        inner.lift_leak_warning = AsyncMock(return_value=True)
+        inner.fetch_water_detector_states = AsyncMock(return_value={DETECTOR_ID: {"last_time": 200}})
+        inner.fetch_leak_warning = AsyncMock(return_value=True)
+        self._patch_client(monkeypatch, inner)
+
+        assert await coord.async_clear_water_leak(DETECTOR_ID) is True
+        await coord._poll_water_detectors()
+
+        # Govee still reports the alert unread, so the sensor reads wet again.
+        inner.fetch_leak_warning.assert_awaited_once()
+        assert coord._states[DETECTOR_ID].water_leak is True
+        assert coord._water_leak_last_time[DETECTOR_ID] == 200
+
     async def test_an_already_dry_detector_is_lifted_without_a_state_write(self, monkeypatch):
         coord = self._coord()
         inner = MagicMock()

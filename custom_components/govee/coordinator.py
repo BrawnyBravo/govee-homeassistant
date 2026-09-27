@@ -529,6 +529,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # device has freshly reported (or is currently wet), keeping the account
         # API request count low.
         self._water_leak_last_time: dict[str, int] = {}
+        # Bumped per detector when the user clears its leak alert, so a poll
+        # tick already in flight drops the reading it took before the clear.
+        self._water_leak_clear_gen: dict[str, int] = {}
         # PII-free census of the last BFF device-list response (#87 diagnostics):
         # which SKUs the BFF returned and whether they carry leak-discovery
         # fields. Empty until the first _discover_leak_sensors() call.
@@ -2850,6 +2853,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     if state is None:
                         continue
 
+                    clear_gen = self._water_leak_clear_gen.get(device_id, 0)
                     online = bool(info.get("online", True)) and bool(info.get("gateway_online", True))
                     last_time = info.get("last_time") or 0
                     prev_time = self._water_leak_last_time.get(device_id, 0)
@@ -2863,10 +2867,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                         except Exception as err:  # noqa: BLE001
                             _LOGGER.debug("warnMessage poll failed for %s: %s", device_id, err)
                             is_wet = bool(state.water_leak)
-                        if state.water_leak != is_wet:
+                        # A clear that landed while warnMessage was in flight
+                        # wins; the next tick reads the alert again.
+                        if self._water_leak_clear_gen.get(device_id, 0) == clear_gen and state.water_leak != is_wet:
                             state.water_leak = is_wet
                             changed = True
-                    if last_time:
+                    if last_time and self._water_leak_clear_gen.get(device_id, 0) == clear_gen:
                         self._water_leak_last_time[device_id] = last_time
 
                     if state.online != online:
@@ -2927,6 +2933,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if not lifted:
             return False
 
+        # Forget the last report time so the next tick reads warnMessage again
+        # and confirms Govee marked the alert read, and invalidate any tick
+        # already in flight.
+        self._water_leak_clear_gen[device_id] = self._water_leak_clear_gen.get(device_id, 0) + 1
+        self._water_leak_last_time.pop(device_id, None)
         state = self._states.get(device_id)
         if state is not None and state.water_leak:
             state.water_leak = False
