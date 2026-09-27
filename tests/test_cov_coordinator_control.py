@@ -11,6 +11,7 @@ ever opened.
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,6 +20,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 
 import custom_components.govee.coordinator as coord_mod
 from custom_components.govee.api.auth import GoveeIotCredentials
+from custom_components.govee.api.ble_packet import build_packet, encode_packet_base64
 from custom_components.govee.api.exceptions import GoveeApiError, GoveeAuthError
 from custom_components.govee.api.lan_client import LanDevStatus, LanDeviceInfo
 from custom_components.govee.const import CONF_ENABLE_MQTT_CONTROL
@@ -183,6 +185,7 @@ def _ble_manager(*, available: bool = True, result: bool = True) -> MagicMock:
     manager.async_send_music_mode_v3 = AsyncMock(return_value=result)
     manager.async_send_dreamview = AsyncMock(return_value=result)
     manager.async_send_diy_scene = AsyncMock(return_value=result)
+    manager.async_send_ble_packet = AsyncMock(return_value=result)
     return manager
 
 
@@ -981,6 +984,97 @@ class TestDiyScene:
         assert await coord.async_send_diy_scene(DEV, 5) is False
 
         assert state.active_diy_scene is None
+
+
+class TestRawPtreal:
+    @pytest.mark.asyncio
+    async def test_short_frame_gets_a_checksum(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_raw_ptreal(DEV, bytes([0x33, 0x05, 0x01])) is True
+
+        expected = encode_packet_base64(build_packet([0x33, 0x05, 0x01]))
+        coord._ble_manager.async_send_ble_packet.assert_awaited_once_with(DEV, "H6072", expected)
+
+    @pytest.mark.asyncio
+    async def test_valid_20_byte_frame_is_sent_unchanged(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._ble_manager = _ble_manager()
+
+        frame = build_packet([0x33, 0x05, 0x01])
+        assert len(frame) == 20
+
+        assert await coord.async_send_raw_ptreal(DEV, frame) is True
+
+        coord._ble_manager.async_send_ble_packet.assert_awaited_once_with(DEV, "H6072", encode_packet_base64(frame))
+
+    @pytest.mark.asyncio
+    async def test_bad_checksum_20_byte_frame_is_refused(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._ble_manager = _ble_manager()
+
+        frame = bytearray(build_packet([0x33, 0x05, 0x01]))
+        frame[19] ^= 0xFF
+
+        assert await coord.async_send_raw_ptreal(DEV, bytes(frame)) is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_too_long_frame_is_refused(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_raw_ptreal(DEV, bytes(21)) is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_empty_frame_is_refused(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_raw_ptreal(DEV, b"") is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_unknown_device_is_refused(self):
+        coord = _coordinator()
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_raw_ptreal("nope", bytes([0x33])) is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_group_device_is_refused(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._devices[DEV] = replace(coord._devices[DEV], is_group=True)
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_raw_ptreal(DEV, bytes([0x33])) is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_passthrough_unavailable_is_refused(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._ble_manager = _ble_manager(available=False)
+
+        assert await coord.async_send_raw_ptreal(DEV, bytes([0x33])) is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_send_failure_propagates(self):
+        coord = _coordinator()
+        _add(coord, _device())
+        coord._ble_manager = _ble_manager(result=False)
+
+        assert await coord.async_send_raw_ptreal(DEV, bytes([0x33])) is False
 
 
 # --------------------------------------------------------------------------- #

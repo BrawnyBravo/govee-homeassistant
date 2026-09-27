@@ -151,7 +151,7 @@ from .models.commands import (
     WorkModeCommand,
     create_dreamview_command,
 )
-from .api.ble_packet import music_v3_effect_code
+from .api.ble_packet import build_packet, calculate_checksum, encode_packet_base64, music_v3_effect_code
 from .api.probe_thermometer import (
     ProbeLimits,
     build_limits_read_packet,
@@ -5360,6 +5360,60 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             )
 
         return success
+
+    async def async_send_raw_ptreal(self, device_id: str, frame: bytes) -> bool:
+        """Send a raw ptReal BLE frame to a device (developer/debug aid).
+
+        This is a debug path for issue #208 (H7026 and similar RGBIC devices
+        where the Platform API cannot address every segment): it lets a
+        developer service try candidate frames against the device's BLE
+        passthrough. It performs no validation of the frame's meaning and
+        applies no optimistic state update. Sending a wrong frame can put the
+        light into an unexpected mode.
+
+        Args:
+            device_id: Device identifier.
+            frame: Raw command bytes. 1-19 bytes are padded and checksummed
+                via `build_packet`; exactly 20 bytes are sent as-is provided
+                the last byte is a valid XOR checksum of the first 19.
+
+        Returns:
+            True if the frame was sent successfully.
+        """
+        device = self._devices.get(device_id)
+        if not device or device.is_group:
+            _LOGGER.error("Unknown or group device for raw ptReal: %s", device_id)
+            return False
+
+        if not self._ble_manager.available:
+            _LOGGER.warning(
+                "Cannot send raw ptReal for %s: AWS IoT passthrough not connected",
+                device_id,
+            )
+            return False
+
+        if not frame or len(frame) > 20:
+            _LOGGER.error("Invalid raw ptReal frame length for %s: %d bytes", device_id, len(frame))
+            return False
+
+        if len(frame) == 20:
+            if calculate_checksum(list(frame[:19])) != frame[19]:
+                _LOGGER.error("Invalid raw ptReal checksum for %s", device_id)
+                return False
+            packet = bytes(frame)
+        else:
+            packet = build_packet(list(frame))
+
+        result = await self._ble_manager.async_send_ble_packet(device_id, device.sku, encode_packet_base64(packet))
+
+        _LOGGER.debug(
+            "Sent raw ptReal %s to %s: %s",
+            packet.hex(),
+            device_id,
+            "ok" if result else "failed",
+        )
+
+        return result
 
     @staticmethod
     def _preserve_optimistic_field(
