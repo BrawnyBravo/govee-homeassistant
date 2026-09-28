@@ -21,7 +21,7 @@ from custom_components.govee.const import (
 )
 from custom_components.govee.coordinator import GoveeCoordinator
 from custom_components.govee.models import GoveeDeviceState
-from custom_components.govee.request_budget import cloud_poll_divisor
+from custom_components.govee.request_budget import cloud_poll_divisor, poll_exceeds_budget
 
 LONG_IDLE = IDLE_DEVICE_AFTER_SECONDS + 60
 
@@ -106,10 +106,39 @@ def test_a_command_puts_an_idle_device_back_on_every_cycle() -> None:
     assert _run_cycles(coordinator, 12) == 12
 
 
-def test_first_cycle_of_an_idle_device_still_polls() -> None:
-    """The cadence starts by polling, so idleness never delays the first read."""
+def test_a_device_with_no_state_yet_is_never_held_back() -> None:
+    """Idleness never delays the first read: with nothing held yet there is nothing to serve."""
     coordinator = _coordinator(off=True, idle_seconds=LONG_IDLE)
+    coordinator._states = {}
     assert GoveeCoordinator._idle_devices_to_skip(coordinator, {"dev": MagicMock()}) == set()
+
+
+def test_idle_devices_are_spread_across_the_cycle_not_polled_in_lock_step() -> None:
+    """Counters that all started at zero would poll every idle device on the same one cycle in four."""
+    ids = [f"AA:BB:CC:DD:EE:FF:00:{n:02X}" for n in range(24)]
+    now = dt_util.utcnow()
+    states = {}
+    for device_id in ids:
+        state = GoveeDeviceState.create_empty(device_id)
+        state.power_state = False
+        states[device_id] = state
+    coordinator = _CadenceStub(
+        _states=states,
+        _poll_cycle_counts={},
+        _state_changed_at={device_id: now - timedelta(seconds=LONG_IDLE) for device_id in ids},
+        _commands={},
+    )
+    pollable = {device_id: MagicMock() for device_id in ids}
+
+    polled_per_cycle = []
+    for _ in range(IDLE_DEVICE_POLL_DIVISOR * 3):
+        skipped = GoveeCoordinator._idle_devices_to_skip(coordinator, pollable)
+        polled_per_cycle.append(len(ids) - len(skipped))
+
+    # Every device still costs one cycle in N, but not all on the same cycle.
+    assert sum(polled_per_cycle) == len(ids) * 3
+    assert max(polled_per_cycle) < len(ids)
+    assert min(polled_per_cycle) > 0
 
 
 def test_state_change_stamp_ignores_a_repeat_reading() -> None:
@@ -128,3 +157,25 @@ def test_state_change_stamp_ignores_a_repeat_reading() -> None:
     changed.power_state = True
     GoveeCoordinator._note_state_change(stub, "dev", changed)
     assert "dev" in stub._state_changed_at
+
+
+class TestPollExceedsBudget:
+    """The gate that keeps the idle cadence off installs that can afford full cadence."""
+
+    def test_nineteen_devices_at_60s_overspend_a_9000_budget(self) -> None:
+        assert poll_exceeds_budget(requests_per_cycle=19, base_interval=60, daily_budget=9000) is True
+
+    def test_a_handful_of_devices_fit(self) -> None:
+        assert poll_exceeds_budget(requests_per_cycle=3, base_interval=60, daily_budget=9000) is False
+
+    def test_the_boundary_is_not_an_overspend(self) -> None:
+        # 6 devices at 60 s = 8,640 a day.
+        assert poll_exceeds_budget(requests_per_cycle=6, base_interval=60, daily_budget=8640) is False
+        assert poll_exceeds_budget(requests_per_cycle=6, base_interval=60, daily_budget=8639) is True
+
+    def test_a_longer_configured_interval_can_bring_a_large_install_under(self) -> None:
+        assert poll_exceeds_budget(requests_per_cycle=19, base_interval=300, daily_budget=9000) is False
+
+    def test_nothing_to_poll_never_exceeds(self) -> None:
+        assert poll_exceeds_budget(requests_per_cycle=0, base_interval=60, daily_budget=9000) is False
+        assert poll_exceeds_budget(requests_per_cycle=5, base_interval=0, daily_budget=9000) is False

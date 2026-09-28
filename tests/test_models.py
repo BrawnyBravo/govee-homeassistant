@@ -359,6 +359,45 @@ class TestGoveeDevice:
         """Test that regular lights don't have DreamView support."""
         assert mock_light_device.supports_dreamview is False
 
+    @staticmethod
+    def _movie_mode_device(sku: str):
+        from custom_components.govee.models.device import GoveeCapability
+
+        return GoveeDevice(
+            device_id="AA:BB:CC:DD:EE:FF:00:A4",
+            sku=sku,
+            name="TV Backlight 3",
+            device_type="devices.types.light",
+            capabilities=(
+                GoveeCapability(
+                    type="devices.capabilities.movie_setting",
+                    instance="movieMode",
+                    parameters={"dataType": "ENUM", "options": [{"name": "Game", "value": 0}]},
+                ),
+            ),
+            is_group=False,
+        )
+
+    def test_h2a41_movie_mode_counts_as_dreamview(self):
+        """Issue #199: the H2A41 advertises screen sync as movieMode, not dreamViewToggle."""
+        assert self._movie_mode_device("H2A41").supports_dreamview is True
+
+    def test_movie_mode_alone_is_not_dreamview_on_unverified_skus(self):
+        """Only SKUs in MOVIE_MODE_DREAMVIEW_SKUS are trusted to map movieMode onto DreamView."""
+        assert self._movie_mode_device("H6199").supports_dreamview is False
+
+    def test_h2a41_without_movie_mode_is_not_dreamview(self, mock_light_device):
+        device = self._movie_mode_device("H2A41")
+        bare = GoveeDevice(
+            device_id=device.device_id,
+            sku="H2A41",
+            name=device.name,
+            device_type=device.device_type,
+            capabilities=mock_light_device.capabilities,
+            is_group=False,
+        )
+        assert bare.supports_dreamview is False
+
     def test_from_api_response(self, api_device_response):
         """Test creating device from API response."""
         device = GoveeDevice.from_api_response(api_device_response)
@@ -1392,6 +1431,12 @@ class TestSegmentCountOverride:
         cap = _make_rgbic_segment_capability(element_range_max=14, size_max=15)
         device = _make_rgbic_device("H7076", cap)
         assert device.segment_count == 4
+
+    def test_h7026_returns_16_segments_where_the_api_cannot_address_the_rest(self):
+        """H7026 advertises 30 bulbs but indices 16-29 recolour the whole string (issue #208)."""
+        cap = _make_rgbic_segment_capability(element_range_max=29, size_max=30)
+        device = _make_rgbic_device("H7026", cap)
+        assert device.segment_count == 16
 
     def test_unknown_sku_returns_api_count(self):
         """SKUs not in the override table keep the parser's API count (REQ-002)."""

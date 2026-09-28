@@ -93,6 +93,7 @@ def _coordinator(*, remaining: Any, reset_in: Any) -> Any:
         _api_client=SimpleNamespace(rate_limit_remaining=remaining, rate_limit_reset_in=reset_in),
         _original_update_interval=timedelta(seconds=60),
         update_interval=timedelta(seconds=60),
+        _header_deferred=False,
     )
 
 
@@ -113,3 +114,18 @@ def test_unparseable_headers_never_stall_the_poll() -> None:
     coordinator = _coordinator(remaining="not-a-number", reset_in=200)
     assert GoveeCoordinator._defer_for_rate_limit_headers(coordinator, 19) is False
     assert coordinator.update_interval == timedelta(seconds=60)
+
+
+def test_a_deferral_is_never_followed_by_a_second_one_on_the_same_reading() -> None:
+    """A deferred cycle makes no request, so the headers cannot refresh while it waits.
+
+    A duration-shaped reset ("0 left, resets in 30s") would repeat identically on
+    every tick; having waited once, the next cycle polls and the responses update
+    the numbers.
+    """
+    coordinator = _coordinator(remaining=0, reset_in=30)
+
+    assert GoveeCoordinator._defer_for_rate_limit_headers(coordinator, 19) is True
+    assert GoveeCoordinator._defer_for_rate_limit_headers(coordinator, 19) is False
+    # Once that poll has run and the numbers still say "no room", waiting again is allowed.
+    assert GoveeCoordinator._defer_for_rate_limit_headers(coordinator, 19) is True

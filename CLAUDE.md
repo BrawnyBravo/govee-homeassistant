@@ -316,8 +316,15 @@ Update both files when changing option labels:
 
 ## Release Process
 
+**One release per day, cut at the end of the day.** Fixes and merged PRs land on `main` throughout the day (CI must be green), but the version is bumped and the release created once, at the end of the user's local calendar day, covering everything that landed. Never cut a second release the same day, and don't bump `manifest.json` before release time. Users get an update notification per release, and several a week was reported as too many (#202). Issue and PR replies that cite a version go out after that day's release, per the reply rule below.
+
+**Exception: a broken release.** If a release that has already gone out breaks users (the integration fails to load or set up, or a regression stops previously working devices from working), cut a hotfix release immediately, even if one was already cut that day. Keep the hotfix to the regression alone, and say in its release notes which release it corrects. An ordinary bug, a wrong value or a missing feature is not a broken release and waits for the end-of-day release.
+
+**The end-of-day release is automated.** The GitHub Actions workflow `.github/workflows/daily-release.yml` runs at 03:00 UTC (11pm EDT, 10pm EST). Plain shell steps do the release: they skip the day when a release already went out (Eastern time), when CI on `main` isn't green, or when nothing under `custom_components/` changed since the last tag. That last check is a hard file check, `git diff --name-only <tag>..HEAD -- custom_components/`, ignoring the manifest version, so a day with only docs, test, plan or CI changes never produces a release. Otherwise they bump the version, push with the `RELEASE_TOKEN` admin token (which bypasses the required checks and triggers CI), wait for the five required checks, and run `gh release create`. Claude Code (`anthropics/claude-code-action`) only writes the notes and posts the replies: one on every issue and PR that a released commit references (`#N` in the subject), plus each entry queued in `docs/release-replies.md` (`## #N`, `close: yes|no`, a brief), which it then clears. Sessions only merge to `main` with CI green; they don't bump the version or cut the day's release. For a thread no commit references (a thank-you, a close, a request for data), queue an entry instead of posting it. Run the workflow by hand from the Actions tab: `dry_run` (the default) reports what would ship without releasing. A broken-release hotfix is cut by hand with the steps below. Claude cloud routines can't create releases (GitHub refuses that session type), so don't move this job back to one.
+
 1. **Bump version** in `manifest.json` (CalVer: `YYYY.MM.patch`)
-2. **Commit**: `git add -A && git commit -m "message"`
+2. **Commit**: stage explicit paths (`git add custom_components tests ...`), never a bare `git add -A` (sandbox placeholder dotfiles sit in the repo root)
 3. **Push**: `git push origin main`
-4. **Wait for CI**: Check with `gh run list --limit 5`
+4. **Wait for CI**: `gh run list --commit "$(git rev-parse HEAD)"` (full SHA; all five workflows must pass)
 5. **Create release**: `gh release create vYYYY.MM.patch --title "vYYYY.MM.patch" --notes "..."`
+6. **Then reply** on the issues and PRs it fixed, citing the shipped version; leave issues open until the reporter validates

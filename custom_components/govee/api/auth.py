@@ -218,6 +218,11 @@ GOVEE_BFF_DEVICE_LIST_URL = "https://app2.govee.com/bff-app/v1/device/list"
 # only retrievable from the account "warning message" history, matching the
 # homebridge-govee `http` path.
 GOVEE_LEAK_WARN_URL = "https://app2.govee.com/leak/rest/device/v1/warnMessage"
+# Marks every leak alert of a standalone detector read — the call behind the
+# Govee app's "Read" button on the H5054 detail screen (Govee Home 7.6.21:
+# INet.leakWarnLifted, GateWayLeakWarnLiftedRequest). Once read, warnMessage
+# has no unread LeakageAlert left, so the detector polls dry again.
+GOVEE_LEAK_WARN_LIFTED_URL = "https://app2.govee.com/leak/rest/device/v1/warnLifted"
 GOVEE_CLIENT_TYPE = "1"
 GOVEE_APP_VERSION = "7.4.10"
 GOVEE_IOT_VERSION = "0"
@@ -334,6 +339,32 @@ def _raise_for_bff_status(data: Any, context: str) -> None:
     if status == 401:
         raise GoveeAuthError(f"BFF {context} rejected the token: {message}", code=401)
     raise GoveeApiError(f"BFF {context} failed: {message}", code=status)
+
+
+async def _read_json(response: aiohttp.ClientResponse, context: str) -> Any:
+    """Parse a response body, turning undecodable JSON into GoveeApiError.
+
+    Args:
+        response: The HTTP response to decode.
+        context: Short description of the call, used in the error message.
+
+    Returns:
+        The parsed JSON body.
+
+    Raises:
+        GoveeApiError: The body was not valid JSON.
+    """
+    try:
+        return await response.json()
+    except ValueError as err:  # json.JSONDecodeError
+        raise GoveeApiError(f"{context} returned invalid JSON", code=response.status) from err
+
+
+def _error_message(data: Any, status: int) -> str:
+    """Body ``message`` when the body is a dict carrying one, else ``HTTP <status>``."""
+    if isinstance(data, dict) and data.get("message"):
+        return str(data["message"])
+    return f"HTTP {status}"
 
 
 def _derive_client_id(email: str) -> str:
@@ -578,13 +609,13 @@ class GoveeAuthClient:
                 # IoT key response wraps data in a "data" field
                 return data.get("data", {}) if isinstance(data, dict) else {}
 
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError) as err:
             _LOGGER.warning(
                 "Connection error fetching IoT key: %s (%s)",
                 type(err).__name__,
                 str(err),
             )
-            raise GoveeApiError(f"Connection error getting IoT key: {err}") from err
+            raise GoveeApiError(f"Connection error getting IoT key: {str(err) or type(err).__name__}") from err
 
     @staticmethod
     def _extract_topics_from_devices(devices: list[Any]) -> dict[str, str]:
@@ -782,8 +813,8 @@ class GoveeAuthClient:
                 )
                 return device_topics
 
-        except aiohttp.ClientError as err:
-            raise GoveeApiError(f"Connection error fetching device topics: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise GoveeApiError(f"Connection error fetching device topics: {str(err) or type(err).__name__}") from err
 
     async def fetch_bff_thermo_hygrometers(
         self,
@@ -941,8 +972,10 @@ class GoveeAuthClient:
                 _LOGGER.debug("Discovered %d thermo-hygrometers from BFF API", len(sensors))
                 return sensors
 
-        except aiohttp.ClientError as err:
-            raise GoveeApiError(f"Connection error fetching BFF device list: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise GoveeApiError(
+                f"Connection error fetching BFF device list: {str(err) or type(err).__name__}"
+            ) from err
 
     async def fetch_bff_leak_sensors(
         self,
@@ -1173,8 +1206,10 @@ class GoveeAuthClient:
                 )
                 return sensors, hubs, thermo_readings
 
-        except aiohttp.ClientError as err:
-            raise GoveeApiError(f"Connection error fetching BFF device list: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise GoveeApiError(
+                f"Connection error fetching BFF device list: {str(err) or type(err).__name__}"
+            ) from err
 
     async def fetch_water_detector_states(
         self,
@@ -1262,8 +1297,10 @@ class GoveeAuthClient:
                     }
                 return result
 
-        except aiohttp.ClientError as err:
-            raise GoveeApiError(f"Connection error fetching water-detector states: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise GoveeApiError(
+                f"Connection error fetching water-detector states: {str(err) or type(err).__name__}"
+            ) from err
 
     async def fetch_leak_warning(
         self,
@@ -1305,12 +1342,14 @@ class GoveeAuthClient:
                 headers=headers,
                 json=body,
             ) as response:
-                data = await response.json()
                 if response.status == 401:
                     raise GoveeAuthError("warnMessage auth failed (401)")
+                data = await _read_json(response, "warnMessage")
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     raise GoveeApiError(f"warnMessage failed: {message}", code=response.status)
+                if not isinstance(data, dict):
+                    raise GoveeApiError("warnMessage returned an unexpected body", code=response.status)
 
                 messages = data.get("data", [])
                 if not isinstance(messages, list):
@@ -1331,8 +1370,68 @@ class GoveeAuthClient:
                     for m in messages
                 )
 
-        except aiohttp.ClientError as err:
-            raise GoveeApiError(f"Connection error fetching leak warning: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise GoveeApiError(f"Connection error fetching leak warning: {str(err) or type(err).__name__}") from err
+
+    async def lift_leak_warning(
+        self,
+        token: str,
+        device_id: str,
+        sku: str,
+    ) -> bool:
+        """Mark all of a standalone water detector's leak alerts read.
+
+        The counterpart of :meth:`fetch_leak_warning`: the same request the
+        Govee app's "Read" button sends from the H5054 detail screen. With no
+        unread ``LeakageAlert`` left, the next ``warnMessage`` poll reads dry.
+        It clears every alert of the device, as the app's button does. A
+        detector that is still wet raises a new alert, which latches again.
+
+        Args:
+            token: Account token (from app2 login).
+            device_id: Device ID (developer-API or colon form; stripped here).
+            sku: Device SKU (e.g. ``H5054``).
+
+        Returns:
+            True once Govee has accepted the request.
+
+        Raises:
+            GoveeAuthError: The token was rejected (HTTP or in-body 401).
+            GoveeApiError: Any other failure.
+        """
+        session = self._require_session()
+
+        # Minimal proven header set, no clientId — see fetch_water_detector_states.
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "appVersion": GOVEE_APP_VERSION,
+            "clientType": GOVEE_CLIENT_TYPE,
+            "iotVersion": GOVEE_IOT_VERSION,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        body = {"device": device_id.replace(":", ""), "sku": sku}
+
+        try:
+            async with session.post(
+                GOVEE_LEAK_WARN_LIFTED_URL,
+                headers=headers,
+                json=body,
+            ) as response:
+                if response.status == 401:
+                    raise GoveeAuthError("warnLifted auth failed (401)")
+                data = await _read_json(response, "warnLifted")
+                if response.status != 200:
+                    message = _error_message(data, response.status)
+                    raise GoveeApiError(f"warnLifted failed: {message}", code=response.status)
+                if not isinstance(data, dict):
+                    raise GoveeApiError("warnLifted returned an unexpected body", code=response.status)
+                _raise_for_bff_status(data, "leak warning lift")
+                _LOGGER.debug("warnLifted accepted for %s (%s)", device_id, sku)
+                return True
+
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise GoveeApiError(f"Connection error lifting leak warning: {str(err) or type(err).__name__}") from err
 
     def gateway_routes(self) -> dict[str, dict[str, str]]:
         """Gateway command routes discovered by the last topic fetch (#135).
@@ -1468,8 +1567,10 @@ class GoveeAuthClient:
                 if response.status != 200:
                     raise GoveeApiError(f"Failed to request verification code: HTTP {response.status}")
                 _LOGGER.debug("Verification code requested")
-        except aiohttp.ClientError as err:
-            raise GoveeApiError(f"Connection error requesting verification code: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise GoveeApiError(
+                f"Connection error requesting verification code: {str(err) or type(err).__name__}"
+            ) from err
 
     async def login(
         self,
@@ -1610,13 +1711,13 @@ class GoveeAuthClient:
                 _LOGGER.debug("Successfully authenticated with Govee")
                 return credentials
 
-        except aiohttp.ClientError as err:
+        except (aiohttp.ClientError, TimeoutError) as err:
             _LOGGER.warning(
                 "Connection error during Govee login: %s (%s)",
                 type(err).__name__,
                 str(err),
             )
-            raise GoveeApiError(f"Connection error during login: {err}") from err
+            raise GoveeApiError(f"Connection error during login: {str(err) or type(err).__name__}") from err
 
 
 async def validate_govee_credentials(

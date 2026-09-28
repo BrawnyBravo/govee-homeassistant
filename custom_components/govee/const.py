@@ -127,6 +127,14 @@ FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
 # every other fan SKU. Compared case-insensitively against GoveeDevice.sku.
 MQTT_OSCILLATION_SKUS: Final = frozenset({"H7105", "H7107"})
 
+# Lights whose Platform-API musicMode is accepted (HTTP 200) but reaches the
+# device as an empty frame: Govee relays it over AWS IoT as `33 05 01 00 ...`,
+# with the effect and sensitivity zeroed, whatever was sent, so the light goes
+# dark or does nothing (H612F #215, H6022 #186). For these the integration writes
+# the app's own `33 05 13` frame over ptReal instead, falling back to REST when
+# AWS IoT is not connected. Compared case-insensitively against GoveeDevice.sku.
+MQTT_MUSIC_MODE_SKUS: Final = frozenset({"H6022", "H612F"})
+
 
 # Multi-outlet plugs whose Developer API capability list carries only the
 # master powerSwitch (no socketToggle{N}) but whose outlets homebridge-govee
@@ -159,6 +167,13 @@ SKU_SEGMENT_OVERRIDES: Final = {
     # light (0=top, 1=bottom, 2=part of the left side, 3=everything else);
     # 4-14 are accepted with HTTP 200 "success" and do nothing (issue #160).
     "H7076": 4,
+    # H7026 Outdoor String Lights: 30 bulbs in the app and elementRange 0-29, but
+    # the Platform API only addresses indices 0-15. 16-29 return HTTP 200 and
+    # recolour the *whole string* instead of one bulb, so a grouped write that
+    # reaches them overwrites the bulbs set before it. The device's AWS IoT status
+    # frames (aa a5 01..08, four bulbs each) carry all 30, so a native write
+    # path could lift this limit later (issue #208).
+    "H7026": 16,
 }
 
 
@@ -234,10 +249,18 @@ MAX_DAILY_REQUEST_BUDGET: Final = GOVEE_DAILY_REQUEST_LIMIT
 # that a device with no local transport is never more than that behind.
 MAX_BUDGET_PACED_INTERVAL: Final = 900
 
-# Transports that deliver the same state fields as the /device/state poll at
-# no cost against Govee's quota. A reading from one of these newer than the
-# poll interval makes that cycle's cloud read redundant.
-LOCAL_STATE_TRANSPORTS: Final[frozenset[str]] = frozenset({"lan", "mqtt", "ble"})
+# A LAN or MQTT reading that has been applied to a device's state carries the
+# same power/brightness/colour fields as the /device/state poll, at no cost
+# against Govee's quota, so a recent one makes that cycle's cloud read redundant.
+# Only readings actually applied count: an outbound command, a LAN write to a
+# device that never answers reads, or a readback that mismatched the command
+# and was discarded are not readings of the device's state.
+#
+# "Recent" is a multiple of the poll interval rather than the interval itself:
+# solicited LAN reads run at the tail of a poll cycle, so at the start of the
+# next one they are a full interval old plus however long the tail took, and a
+# window of exactly one interval would never admit them.
+LOCAL_READING_FRESHNESS_FACTOR: Final = 1.5
 # How many cloud reads in a row a device may skip on the strength of local
 # readings before one is forced anyway. Five, so a device with a healthy
 # local transport still reconciles against the cloud roughly every sixth
@@ -293,7 +316,20 @@ MQTT_STATUS_QUERY_QUARANTINE_STRIKES: Final = 2
 #     per its FAHRENHEIT_REPORTING_SKUS entry above): confirmed via
 #     diagnostics showing the identical quarantine signature (issue #197
 #     follow-up).
-MQTT_STATUS_QUERY_EXCLUDED_SKUS: Final = frozenset({"H5110", "H5220", "H5111"})
+#   H5075 (thermo-hygrometer): same class again — BLE-advertising, no network
+#     stack of its own, listed on the account with a topic it never answers.
+#     Confirmed on v2026.9.11 with six units on one account, each taking the
+#     session down on its own reconnect cycle: the sweep at the 300s mark
+#     dropped the session, and the five reconnects that followed died ~1s
+#     after querying the next unit, so MQTT was effectively dead for 30
+#     minutes after every restart while the six burned through their strikes
+#     (issue #195 follow-up).
+#   H5074 (thermo-hygrometer, the H5075's smaller sibling): the same class,
+#     BLE-only with a topic on the account it never answers, so a status
+#     query to it drops the session just as the H5075's did (issue #195).
+#     Not in FAHRENHEIT_REPORTING_SKUS: that list needs a reading showing
+#     which unit the model reports in.
+MQTT_STATUS_QUERY_EXCLUDED_SKUS: Final = frozenset({"H5110", "H5220", "H5111", "H5075", "H5074"})
 
 # Optimistic state handling
 # Grace window (seconds) during which API polls do NOT overwrite optimistic
@@ -369,6 +405,19 @@ LAN_CORRELATION_TTL_SECONDS: Final = 600
 # though H1250/H60A6 (the other SKUs reported with inert light toggles) are
 # plausibly the same fixture design.
 MAIN_LIGHT_TOGGLE_SKUS: Final = frozenset({"H1270"})
+
+# SKUs whose screen-sync (DreamView) is advertised as ``movie_setting`` /
+# ``movieMode`` instead of the usual ``dreamViewToggle`` capability. The
+# existing DreamView command path drives them unchanged, so the only gap was
+# detection: the H2A41 TV Backlight 3 got no DreamView switch (issue #199).
+# Deliberately narrow: only the H2A41 is verified against real hardware.
+MOVIE_MODE_DREAMVIEW_SKUS: Final = frozenset({"H2A41"})
+
+# SKUs that advertise ``dreamViewToggle`` but ignore it: Govee answers HTTP 200
+# and the light never enters screen sync (issue #213). The REST toggle is
+# skipped for them, so DreamView ON goes straight to the video-mode frame over
+# AWS IoT and OFF restores the last colour. Unverified on hardware.
+PTREAL_DREAMVIEW_SKUS: Final = frozenset({"H66A0"})
 
 # BLE constants
 # Govee AWS/BLE advert manufacturer ID. Verified against

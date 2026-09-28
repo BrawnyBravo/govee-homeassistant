@@ -1,0 +1,332 @@
+{
+  "$schema": "blitz-tasks/1.0",
+  "plan": "open-issue-fixes",
+  "updated": "2026-09-27T15:55:42Z",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "Skip the BLE tier when a device's advertisements are stale (#198)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "tests/test_cov_coordinator_control.py",
+        "tests/test_coordinator.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py tests/test_coordinator.py",
+          "timeout": 300
+        },
+        {
+          "cmd": "grep -q 'def _ble_write_eligible' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'test_stale_ble_is_skipped' tests/test_cov_coordinator_control.py",
+          "timeout": 10
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": {
+        "ts": "2026-09-27T15:55:34Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py tests/test_coordinator.py",
+            "exit": 0,
+            "duration_ms": 2176,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 21%]\n........................................................................ [ 42%]\n........................................................................ [ 64%]\n........................................................................ [ 85%]\n................................................                         [100%]\n336 passed in 0.87s",
+            "recorded_at": "2026-09-27T15:55:34Z"
+          },
+          {
+            "cmd": "grep -q 'def _ble_write_eligible' custom_components/govee/coordinator.py",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:34Z"
+          },
+          {
+            "cmd": "grep -q 'test_stale_ble_is_skipped' tests/test_cov_coordinator_control.py",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:34Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "research-codebase.md Outcome 1. Gate async_control_device BLE tier (~coordinator.py:4563) on new _ble_write_eligible(device_id) = transport health ble.is_available, mirroring LAN gate at ~4791. Existing TestBleTier tests enrol via _ble_devices with no health stamp: stamp coord._transport.record_success(DEV, 'ble') first. New test: stale BLE (mark unavailable 'stale_advertisement') -> ble.turn_on not awaited, REST awaited."
+    },
+    {
+      "id": "T-002",
+      "title": "Record BLE writes as sends and in recent commands (#198 diagnostics)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "tests/test_cov_coordinator_control.py"
+      ],
+      "depends_on": [
+        "T-001"
+      ],
+      "verify": [
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py tests/test_coordinator.py tests/test_transport_health.py",
+          "timeout": 300
+        },
+        {
+          "cmd": "grep -qE '_record_local_command\\(\\s*device_id,\\s*[a-z_.]+,\\s*\"ble\"' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '_record_transport_send(device_id, \"ble\")' custom_components/govee/coordinator.py",
+          "timeout": 10
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": {
+        "ts": "2026-09-27T15:55:36Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py tests/test_coordinator.py tests/test_transport_health.py",
+            "exit": 0,
+            "duration_ms": 2389,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 19%]\n........................................................................ [ 38%]\n........................................................................ [ 57%]\n........................................................................ [ 77%]\n........................................................................ [ 96%]\n.............                                                            [100%]\n373 passed in 1.08s",
+            "recorded_at": "2026-09-27T15:55:36Z"
+          },
+          {
+            "cmd": "grep -qE '_record_local_command\\(\\s*device_id,\\s*[a-z_.]+,\\s*\"ble\"' custom_components/govee/coordinator.py",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:36Z"
+          },
+          {
+            "cmd": "grep -q '_record_transport_send(device_id, \"ble\")' custom_components/govee/coordinator.py",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:36Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "research-codebase.md Outcome 1 step 2. In _try_ble_command (~coordinator.py:5003) success: replace _record_transport_success(device_id,'ble') with _record_transport_send(device_id,'ble') so blind writes stop refreshing the advert staleness clock; call _record_local_command(device_id, sku, 'ble', command, delivered=True); on exception delivered=False, detail=str(err). Keep online-restore behaviour tests consistent."
+    },
+    {
+      "id": "T-003",
+      "title": "Turn malformed leak-alert responses into GoveeApiError (#219)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/auth.py",
+        "tests/test_cov_auth.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_auth.py tests/test_auth.py tests/test_clear_leak_alert.py",
+          "timeout": 300
+        },
+        {
+          "cmd": "grep -q 'def _read_json' custom_components/govee/api/auth.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'def _error_message' custom_components/govee/api/auth.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'test_invalid_json_is_an_api_error' tests/test_cov_auth.py",
+          "timeout": 10
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": {
+        "ts": "2026-09-27T15:55:38Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_auth.py tests/test_auth.py tests/test_clear_leak_alert.py",
+            "exit": 0,
+            "duration_ms": 1956,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 27%]\n........................................................................ [ 54%]\n........................................................................ [ 81%]\n..................................................                       [100%]\n266 passed in 0.72s",
+            "recorded_at": "2026-09-27T15:55:38Z"
+          },
+          {
+            "cmd": "grep -q 'def _read_json' custom_components/govee/api/auth.py",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:38Z"
+          },
+          {
+            "cmd": "grep -q 'def _error_message' custom_components/govee/api/auth.py",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:38Z"
+          },
+          {
+            "cmd": "grep -q 'test_invalid_json_is_an_api_error' tests/test_cov_auth.py",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:38Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "research-codebase.md Outcome 2. Module helpers _read_json(response, context) (ValueError -> GoveeApiError 'returned invalid JSON', code=status) and _error_message(data, status). Use in fetch_leak_warning and lift_leak_warning; check 401 before parsing JSON so _async_bff_call re-login still sees GoveeAuthError; fetch 200 path tolerates non-dict body (dry). auth.py must stay at 100% coverage."
+    },
+    {
+      "id": "T-004",
+      "title": "Coordinator: send a raw ptReal frame to a device (#208 debug aid)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "tests/test_cov_coordinator_control.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py",
+          "timeout": 300
+        },
+        {
+          "cmd": "grep -q 'async def async_send_raw_ptreal' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": {
+        "ts": "2026-09-27T15:55:40Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_cov_coordinator_control.py",
+            "exit": 0,
+            "duration_ms": 1526,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n........................................................................ [ 79%]\n...................                                                      [100%]\n91 passed in 0.28s",
+            "recorded_at": "2026-09-27T15:55:40Z"
+          },
+          {
+            "cmd": "grep -q 'async def async_send_raw_ptreal' custom_components/govee/coordinator.py",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:40Z"
+          },
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/mypy custom_components/govee",
+            "exit": 0,
+            "duration_ms": 169,
+            "tail": "Success: no issues found in 45 source files",
+            "recorded_at": "2026-09-27T15:55:40Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "research-codebase.md Outcome 3 option 2. async_send_raw_ptreal(device_id, frame: bytes) -> bool: unknown device or group -> False; AWS IoT passthrough unavailable (self._ble_manager.available False) -> False; frame of <=19 bytes gets checksum via api/ble_packet.build_packet; a 20-byte frame must carry a valid XOR checksum else False; send via self._ble_manager.async_send_ble_packet(device_id, sku, encode_packet_base64(packet)); debug-log the hex frame (no device secrets)."
+    },
+    {
+      "id": "T-005",
+      "title": "Service action govee.send_raw_ptreal (#208 debug aid)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/services.py",
+        "custom_components/govee/services.yaml",
+        "custom_components/govee/strings.json",
+        "custom_components/govee/translations/en.json",
+        "tests/test_services.py"
+      ],
+      "depends_on": [
+        "T-004"
+      ],
+      "verify": [
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_services.py tests/test_setup_entry.py",
+          "timeout": 300
+        },
+        {
+          "cmd": "grep -q 'SERVICE_SEND_RAW_PTREAL' custom_components/govee/services.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '^send_raw_ptreal:' custom_components/govee/services.yaml",
+          "timeout": 10
+        },
+        {
+          "cmd": "python3 -c \"import json;a=json.load(open('custom_components/govee/strings.json'));b=json.load(open('custom_components/govee/translations/en.json'));assert a['services']==b['services'] and a['exceptions']==b['exceptions'];assert 'send_raw_ptreal' in a['services'] and 'invalid_ptreal_frame' in a['exceptions'] and 'ptreal_unavailable' in a['exceptions']\"",
+          "timeout": 10
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": {
+        "ts": "2026-09-27T15:55:42Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q -o addopts= -p no:cacheprovider tests/test_services.py tests/test_setup_entry.py",
+            "exit": 0,
+            "duration_ms": 1433,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n.............................                                            [100%]\n29 passed in 0.28s",
+            "recorded_at": "2026-09-27T15:55:41Z"
+          },
+          {
+            "cmd": "grep -q 'SERVICE_SEND_RAW_PTREAL' custom_components/govee/services.py",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:41Z"
+          },
+          {
+            "cmd": "grep -q '^send_raw_ptreal:' custom_components/govee/services.yaml",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:42Z"
+          },
+          {
+            "cmd": "python3 -c \"import json;a=json.load(open('custom_components/govee/strings.json'));b=json.load(open('custom_components/govee/translations/en.json'));assert a['services']==b['services'] and a['exceptions']==b['exceptions'];assert 'send_raw_ptreal' in a['services'] and 'invalid_ptreal_frame' in a['exceptions'] and 'ptreal_unavailable' in a['exceptions']\"",
+            "exit": 0,
+            "duration_ms": 30,
+            "tail": "",
+            "recorded_at": "2026-09-27T15:55:42Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "Register SERVICE_SEND_RAW_PTREAL in async_setup_services. Fields device_id (required, device selector) and frame (required hex string; spaces allowed; 1-20 bytes). Resolve via _get_coordinator_for_device (device_not_found). Bad hex/length -> ServiceValidationError translation_key invalid_ptreal_frame; coordinator False -> HomeAssistantError translation_key ptreal_unavailable (explain it needs account login / AWS IoT). Mirror strings.json and translations/en.json (services + exceptions). Description must say it is a developer/debug tool sending raw frames."
+    }
+  ]
+}
