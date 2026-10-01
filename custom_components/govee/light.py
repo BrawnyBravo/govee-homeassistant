@@ -168,6 +168,18 @@ class GoveeLightEntity(GoveeEntity, LightEntity, RestoreEntity):
     - State restoration for group devices
     """
 
+    # Auxiliary subclasses that need non-LAN commands opt out below.
+    _allow_lan_availability = True
+
+    @property
+    def available(self) -> bool:
+        """Keep the whole-device light usable while its LAN transport is healthy."""
+        if self._allow_lan_availability and not self._device.is_group:
+            lan = self.coordinator.get_transport_health(self._device_id, "lan")
+            if lan is not None and lan.is_available and self.device_state is not None:
+                return True
+        return super().available
+
     def __init__(
         self,
         coordinator: GoveeCoordinator,
@@ -435,6 +447,8 @@ class GoveeMainLightEntity(GoveeLightEntity):
     # Distinct from the switch platform's ``govee_main_light`` key, which
     # belongs to the (inert on these SKUs) mainLightToggle capability.
     _attr_translation_key = "govee_main_light_panel"
+    # Panel actions reassert ring segments, which have no LAN representation.
+    _allow_lan_availability = False
 
     def __init__(self, coordinator: GoveeCoordinator, device: GoveeDevice) -> None:
         """Initialize the main-panel entity."""
