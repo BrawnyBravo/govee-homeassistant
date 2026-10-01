@@ -1,0 +1,469 @@
+{
+  "$schema": "blitz-tasks/1.0",
+  "plan": "issue-sweep-oct",
+  "updated": "2026-10-01T14:38:16Z",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "Merge PR #225: H5103 in FAHRENHEIT_REPORTING_SKUS",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/const.py",
+        "tests/test_thermometer.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q '\"H5103\"' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_thermometer.py -k h5103",
+          "timeout": 300
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": {
+        "ts": "2026-10-01T14:38:02Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "grep -q '\"H5103\"' custom_components/govee/const.py",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-10-01T14:38:01Z"
+          },
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_thermometer.py -k h5103",
+            "exit": 0,
+            "duration_ms": 1463,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 93 items / 90 deselected / 3 selected\n\ntests/test_thermometer.py ...                                            [100%]\n\n======================= 3 passed, 90 deselected in 0.14s =======================",
+            "recorded_at": "2026-10-01T14:38:02Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "research-prs.md: merge as-is (fork PR, CI never ran; local gates 3520 pass). Merge keeps author SHA (git merge --ff-only refs/pr/225 or gh pr merge 225 --squash). Confirm with user before merging (outward action). Queue #85 reply in T-012."
+    },
+    {
+      "id": "T-002",
+      "title": "Merge PR #227 (#226 LAN availability) + fix outage wording in CLAUDE.md/quality_scale.yaml",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/light.py",
+        "CLAUDE.md",
+        "custom_components/govee/quality_scale.yaml"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q '_allow_lan_availability' custom_components/govee/light.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'cloud-dependent' CLAUDE.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'cloud-dependent' custom_components/govee/quality_scale.yaml",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_lan_availability.py tests/test_lan_integration.py tests/test_coordinator_outage.py",
+          "timeout": 300
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": {
+        "ts": "2026-10-01T14:38:16Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "grep -q '_allow_lan_availability' custom_components/govee/light.py",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-10-01T14:38:14Z"
+          },
+          {
+            "cmd": "grep -q 'cloud-dependent' CLAUDE.md",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-01T14:38:14Z"
+          },
+          {
+            "cmd": "grep -q 'cloud-dependent' custom_components/govee/quality_scale.yaml",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-10-01T14:38:14Z"
+          },
+          {
+            "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_lan_availability.py tests/test_lan_integration.py tests/test_coordinator_outage.py",
+            "exit": 0,
+            "duration_ms": 1651,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 27 items\n\ntests/test_lan_availability.py ...........                               [ 40%]\ntests/test_lan_integration.py ............                               [ 85%]\ntests/test_coordinator_outage.py ....                                    [100%]\n\n============================== 27 passed in 0.46s ==============================",
+            "recorded_at": "2026-10-01T14:38:16Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "research-prs.md: merge with edits. Fork PR, CI action_required; local gates 3530 pass, coordinator/light/config_flow 100%. Follow-up commit: CLAUDE.md:188 + quality_scale.yaml:87-89 entity-unavailable say cloud-dependent entities go unavailable, LAN-healthy whole-device light stays (#226); optional coordinator comment tweak above LAN try. Confirm with user before merging."
+    },
+    {
+      "id": "T-003",
+      "title": "#221: purifier Mode select sends workMode/gearMode on workMode purifiers",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/models/device.py",
+        "custom_components/govee/select.py",
+        "tests/test_purifier.py",
+        "tests/test_models.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q 'def purifier_gear_work_mode' custom_components/govee/models/device.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'work_mode=self._gear_work_mode' custom_components/govee/select.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_purifier.py tests/test_models.py tests/test_cov_select.py tests/test_fan.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-221.md: select.py:863 always ModeCommand(purifierMode); H7124/H7129/H7126 have only workMode gearMode -> 400. Add GoveeDevice.purifier_gear_work_mode (None when real purifierMode cap). Select sends WorkModeCommand(gear, value); current_option reads state.work_mode/mode_value. Optional: coordinator sets state.purifier_mode on INSTANCE_PURIFIER_MODE. H7121 (#201) unaffected (no gearMode). Fixture mock_air_purifier_device in conftest."
+    },
+    {
+      "id": "T-004",
+      "title": "#222: connection_mode reads mqtt only after a frame in the current session",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/sensor.py",
+        "custom_components/govee/coordinator.py",
+        "tests/test_connection_mode_sensor.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q 'mqtt_connected_since' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'mqtt_connected_since' custom_components/govee/sensor.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_connection_mode_sensor.py tests/test_sensor.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-misc.md #222: sensor.py _is_delivering/_active_transport (~83-90, ~966-985) trusts last_success_ts from a previous session. Add coordinator.mqtt_connected_since (-> _mqtt_client.connected_since, api/mqtt.py:426) next to mqtt_last_message_ts (coordinator.py:646); require last_success_ts >= it."
+    },
+    {
+      "id": "T-005",
+      "title": "#222: count every inbound MQTT message and expose it in diagnostics",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/mqtt.py",
+        "custom_components/govee/diagnostics.py",
+        "tests/test_diagnostics.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q '_inbound_total' custom_components/govee/api/mqtt.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'inbound_messages' custom_components/govee/diagnostics.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'last_inbound_at' custom_components/govee/diagnostics.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/ -k 'mqtt or diagnostics'",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-misc.md #222: increment _inbound_total + _last_inbound_ts at top of _handle_message (api/mqtt.py:723) before filters; diagnostics mqtt block (:262-274) adds inbound_messages, last_inbound_at, last_device_message_at. No watchdog (fresh session didn't help; re-login risks 2FA). Commit body must carry the reply asks: Reconfigure with 2FA code for fresh IoT creds, diagnostics after ~1h."
+    },
+    {
+      "id": "T-006",
+      "title": "#220: H605B DreamView off restores last colour instead of inert REST toggle",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/const.py",
+        "custom_components/govee/coordinator.py",
+        "tests/test_cov_coordinator_control.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q 'DREAMVIEW_OFF_VIA_COLOUR_SKUS' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'DREAMVIEW_OFF_VIA_COLOUR_SKUS' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_coordinator_control.py -k 'h605b or h66a0 or dreamview'",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-misc.md #220: diagnostics show dreamViewToggle 0 accepted, light still in aa05 00 video mode 73s later. coordinator.py:5239-5248 returns before colour-restore (:5261-5279). New DREAMVIEW_OFF_VIA_COLOUR_SKUS={'H605B'} off-only; ON keeps REST. Not PTREAL_DREAMVIEW_SKUS (would reroute ON). Add H605B note in docs/govee-protocol-reference.md near :2160. Tests mirror test_h66a0_* (:908-933)."
+    },
+    {
+      "id": "T-007",
+      "title": "#224: decode H5059 upper/lower probe bytes into leak state",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/mqtt.py",
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/models/device.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q 'LEAK_DUAL_PROBE_SKUS' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'upper_probe_wet' custom_components/govee/api/mqtt.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'upper_probe_wet' custom_components/govee/models/device.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_mqtt_multisync.py tests/test_water_leak.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-features.md #224: mqtt.py:1067 leak branch add upper=raw[13]==1, lower=raw[14]==1 when len>=17; GoveeLeakSensorState gets upper_probe_wet/lower_probe_wet: bool|None; _handle_leak_event (coordinator.py:2950) stores only for LEAK_DUAL_PROBE_SKUS (const.py, frozenset({'H5059'})); aggregate-dry clears both. Reporter's 4 hex frames are fixtures. OpenAPI probesState fallback deferred until a real payload. ALSO edits custom_components/govee/const.py (LEAK_DUAL_PROBE_SKUS)."
+    },
+    {
+      "id": "T-008",
+      "title": "#224: Upper probe / Lower probe moisture entities for H5059",
+      "role": "frontend",
+      "files": [
+        "custom_components/govee/binary_sensor.py",
+        "custom_components/govee/strings.json",
+        "custom_components/govee/translations/en.json"
+      ],
+      "depends_on": [
+        "T-007"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'class GoveeLeakProbeBinarySensor' custom_components/govee/binary_sensor.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'leak_upper_probe' custom_components/govee/strings.json",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'leak_lower_probe' custom_components/govee/translations/en.json",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_binary_sensor_event.py tests/test_water_leak.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-features.md #224: copy GoveeLeakBinarySensor (binary_sensor.py:457) dispatcher pattern; unique_id {mac}_leak_upper_probe/_lower_probe; MOISTURE; created only when sensor.sku.upper() in LEAK_DUAL_PROBE_SKUS. Optional icons.json entries. Commit body: ask for one bodyAppearedEvent payload from diagnostics openapi_events.recent_events."
+    },
+    {
+      "id": "T-009",
+      "title": "#223: H1232 masked ptReal segment colour/brightness frame builders + segment override",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/ble_packet.py",
+        "custom_components/govee/const.py",
+        "tests/test_ble_packet.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -q 'def build_segment_color_ptreal' custom_components/govee/api/ble_packet.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'PTREAL_SEGMENT_SKUS' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE '\"H1232\": *16' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_ble_packet.py tests/test_models.py -k 'segment or ptreal or h1232'",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-features.md #223: color frame 33 05 15 01 RR GG BB 00x5 <mask LE 3B>; brightness 33 05 15 02 HH <mask LE 3B>; bit i = segment i+1, bit 16 = main panel. Reporter's 4 verified frames are golden tests. SKU_SEGMENT_OVERRIDES['H1232']=16, PTREAL_SEGMENT_SKUS/PTREAL_MAIN_PANEL_BIT. Do NOT add H1232 to MAIN_LIGHT_TOGGLE_SKUS. H60A6/H1252 out."
+    },
+    {
+      "id": "T-010",
+      "title": "#223: route H1232 segment writes through one masked ptReal frame",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "tests/test_cov_coordinator_control.py"
+      ],
+      "depends_on": [
+        "T-009"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'build_segment_color_ptreal' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_coordinator_control.py tests/test_segment*.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-features.md #223: in async_control_device before REST segment branch (~coordinator.py:4614): SegmentColorCommand + sku in PTREAL_SEGMENT_SKUS + _ble_manager.available -> one frame, mask = OR of indices, async_send_ble_packet, optimistic state, record mqtt send. No passthrough: idx < api count -> REST, idx >= api count -> False (entity raises)."
+    },
+    {
+      "id": "T-011",
+      "title": "#223: H1232 main panel light entity (toggle on/off, ptReal colour/brightness)",
+      "role": "frontend",
+      "files": [
+        "custom_components/govee/light.py",
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/icons.json"
+      ],
+      "depends_on": [
+        "T-010"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'class GoveeMainPanelLight' custom_components/govee/light.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'async def async_set_main_panel' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'govee_main_light_panel' custom_components/govee/icons.json",
+          "timeout": 10
+        },
+        {
+          "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_light.py tests/test_light.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "research-features.md #223: GoveeMainPanelLight(GoveeEntity, LightEntity, RestoreEntity), created when sku in PTREAL_MAIN_PANEL_BIT. On/off ToggleCommand('mainLightToggle') via _async_send_command; is_on from state.toggles. Colour/brightness via coordinator.async_set_main_panel (panel mask 00 00 01); False -> raise self._command_failed(). translation key govee_main_light_panel (exists), unique_id suffix _main_panel. Must interplay with PR #227 light.py changes (T-002 first if merged)."
+    },
+    {
+      "id": "T-012",
+      "title": "Queue release replies for threads no commit references (#211, #186, #85)",
+      "role": "infra",
+      "files": [
+        "docs/release-replies.md"
+      ],
+      "depends_on": [
+        "T-001"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q '^## #211' docs/release-replies.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '^## #186' docs/release-replies.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '^## #85' docs/release-replies.md",
+          "timeout": 10
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Briefs from research-features.md #211 (needs data: one-change-at-a-time diagnostics, lamp on; which part each of 8 segments lights; close: no) and research-misc.md #186 (does HA Rolling match app Spectrum? diagnostics right after choosing Spectrum in app; close: no), #85 (H5103 now auto-converts Fahrenheit, cite version; close: no). Commit messages for T-003..T-011 reference #N so they auto-reply."
+    }
+  ]
+}
