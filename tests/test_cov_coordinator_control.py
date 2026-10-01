@@ -933,6 +933,35 @@ class TestDreamview:
         coord._ble_manager.async_send_dreamview.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_h605b_on_sends_the_rest_toggle(self):
+        # The H605B does enter video mode on ON, only OFF is inert (#220).
+        coord = _coordinator()
+        state = _add(coord, _device(sku="H605B"))
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_dreamview(DEV, True) is True
+
+        assert _sent(coord) == [ToggleCommand(toggle_instance=INSTANCE_DREAMVIEW, enabled=True)]
+        assert state.dreamview_enabled is True
+        coord._ble_manager.async_send_dreamview.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_h605b_off_restores_the_last_colour_instead_of_the_inert_toggle(self):
+        # Govee accepts dreamViewToggle 0 for the H605B but the light stays in
+        # video mode (#220), so OFF skips REST and restores the last colour.
+        coord = _coordinator()
+        state = _add(coord, _device(sku="H605B"))
+        state.dreamview_enabled = True
+        state.last_color = RGBColor(10, 20, 30)
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_send_dreamview(DEV, False) is True
+
+        assert _sent(coord) == [ColorCommand(color=RGBColor(10, 20, 30))]
+        assert state.dreamview_enabled is False
+        coord._ble_manager.async_send_dreamview.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_rest_error_falls_back_to_the_passthrough(self):
         coord = _coordinator()
         state = _add(coord, _device())

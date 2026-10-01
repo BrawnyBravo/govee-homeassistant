@@ -87,6 +87,7 @@ from .const import (
     DEFAULT_WATER_DETECTOR_POLL_INTERVAL,
     DEVICE_REDISCOVERY_INTERVAL,
     DOMAIN,
+    DREAMVIEW_OFF_VIA_COLOUR_SKUS,
     IDLE_DEVICE_AFTER_SECONDS,
     IDLE_DEVICE_POLL_DIVISOR,
     IOT_RELOGIN_MIN_INTERVAL,
@@ -5248,8 +5249,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             return False
 
         # Try REST API first (works for HTTP-capable devices like H6097), except
-        # on SKUs that accept the toggle and ignore it (issue #213).
-        if device.sku.upper() not in PTREAL_DREAMVIEW_SKUS:
+        # on SKUs that accept the toggle and ignore it (issue #213), and except
+        # for OFF on SKUs that accept OFF but stay in video mode (issue #220).
+        skip_rest = device.sku.upper() in PTREAL_DREAMVIEW_SKUS or (
+            not enabled and device.sku.upper() in DREAMVIEW_OFF_VIA_COLOUR_SKUS
+        )
+        if not skip_rest:
             try:
                 success = await self.async_control_device(device_id, create_dreamview_command(enabled))
                 if success:

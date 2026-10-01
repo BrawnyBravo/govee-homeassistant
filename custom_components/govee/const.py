@@ -425,6 +425,14 @@ MOVIE_MODE_DREAMVIEW_SKUS: Final = frozenset({"H2A41"})
 # AWS IoT and OFF restores the last colour. Unverified on hardware.
 PTREAL_DREAMVIEW_SKUS: Final = frozenset({"H66A0"})
 
+# SKUs that accept ``dreamViewToggle`` OFF over REST (HTTP 200) but stay in
+# video mode: diagnostics for the H605B showed an MQTT op frame (``aa 05 00``)
+# still driving the light 73s after the accepted toggle (issue #220). Only
+# the OFF direction is rerouted to the colour-restore path below; ON keeps
+# the normal REST path since it does enter video mode. Unverified on
+# hardware beyond the reporter's diagnostics.
+DREAMVIEW_OFF_VIA_COLOUR_SKUS: Final = frozenset({"H605B"})
+
 # BLE constants
 # Govee AWS/BLE advert manufacturer ID. Verified against
 # Bluetooth-Devices/govee-ble (used by H5127 and related). Additional IDs
