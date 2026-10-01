@@ -329,6 +329,55 @@ class TestGoveeDevice:
         assert "Low" in names
         assert "High" in names
 
+    def test_air_purifier_gear_work_mode(self, mock_air_purifier_device):
+        """H7126 (workMode/gearMode, no purifierMode cap) resolves gearMode=1 (#221)."""
+        assert mock_air_purifier_device.purifier_gear_work_mode == 1
+
+    def test_purifier_mode_cap_has_no_gear_work_mode(self):
+        """A real purifierMode capability (H6006) means purifier_gear_work_mode is None."""
+        from custom_components.govee.models.device import (
+            CAPABILITY_MODE,
+            CAPABILITY_ON_OFF,
+            DEVICE_TYPE_PURIFIER,
+            INSTANCE_POWER,
+            INSTANCE_PURIFIER_MODE,
+        )
+
+        device = GoveeDevice(
+            device_id="AA:BB:CC:DD:EE:FF:00:77",
+            sku="H6006",
+            name="Purifier",
+            device_type=DEVICE_TYPE_PURIFIER,
+            capabilities=(
+                GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),
+                GoveeCapability(
+                    type=CAPABILITY_MODE,
+                    instance=INSTANCE_PURIFIER_MODE,
+                    parameters={"options": [{"name": "Sleep", "value": 1}]},
+                ),
+            ),
+            is_group=False,
+        )
+        assert device.purifier_gear_work_mode is None
+
+    def test_no_work_mode_cap_has_no_gear_work_mode(self):
+        """A device without workMode or purifierMode (H7121-shaped) is None."""
+        from custom_components.govee.models.device import (
+            CAPABILITY_ON_OFF,
+            DEVICE_TYPE_PURIFIER,
+            INSTANCE_POWER,
+        )
+
+        device = GoveeDevice(
+            device_id="AA:BB:CC:DD:EE:FF:00:78",
+            sku="H7121",
+            name="Purifier",
+            device_type=DEVICE_TYPE_PURIFIER,
+            capabilities=(GoveeCapability(type=CAPABILITY_ON_OFF, instance=INSTANCE_POWER, parameters={}),),
+            is_group=False,
+        )
+        assert device.purifier_gear_work_mode is None
+
     def test_fan_is_not_purifier(self, mock_fan_device):
         """A plain fan (devices.types.fan) must not match is_purifier."""
         assert mock_fan_device.is_purifier is False

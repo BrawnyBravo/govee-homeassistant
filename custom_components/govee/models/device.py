@@ -1103,6 +1103,35 @@ class GoveeDevice:
                                     return gear_options
         return []
 
+    @property
+    def purifier_gear_work_mode(self) -> int | None:
+        """Return the workMode value that selects gearMode speeds, or None.
+
+        H7124/H7129/H7126-style purifiers have no ``purifierMode`` capability;
+        their Mode select options come from the ``workMode`` capability's
+        ``gearMode`` sub-options (``get_purifier_mode_options`` pattern 2), and
+        selecting one must be sent as ``WorkModeCommand(work_mode=..., mode_value=...)``
+        rather than ``ModeCommand(purifierMode)``. Returns None when a real
+        ``purifierMode`` mode capability exists (e.g. H6006), so callers keep
+        using ``ModeCommand`` for those devices.
+        """
+        for cap in self.capabilities:
+            if cap.type == CAPABILITY_MODE and cap.instance == INSTANCE_PURIFIER_MODE:
+                return None
+
+        for cap in self.capabilities:
+            if cap.type == CAPABILITY_WORK_MODE and cap.instance == "workMode":
+                fields = cap.parameters.get("fields", [])
+                for f in fields:
+                    if f.get("fieldName") == "workMode":
+                        for opt in f.get("options", []):
+                            if opt.get("name") == "gearMode":
+                                value = opt.get("value")
+                                if isinstance(value, int):
+                                    return value
+                return 1
+        return None
+
     def get_preset_scene_options(self) -> list[dict[str, Any]]:
         """Extract presetScene options for aroma diffusers (H7161, issue #99).
 
