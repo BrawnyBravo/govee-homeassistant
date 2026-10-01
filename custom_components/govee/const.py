@@ -133,6 +133,11 @@ FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
 # every other fan SKU. Compared case-insensitively against GoveeDevice.sku.
 MQTT_OSCILLATION_SKUS: Final = frozenset({"H7105", "H7107"})
 
+# Leak sensors reporting independent upper/lower probe moisture bytes over
+# MQTT (issue #224), in addition to the aggregate wet flag every leak sensor
+# already exposes.
+LEAK_DUAL_PROBE_SKUS: Final = frozenset({"H5059"})
+
 # Lights whose Platform-API musicMode is accepted (HTTP 200) but reaches the
 # device as an empty frame: Govee relays it over AWS IoT as `33 05 01 00 ...`,
 # with the effect and sensitivity zeroed, whatever was sent, so the light goes

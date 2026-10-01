@@ -1083,8 +1083,10 @@ class GoveeAwsIotClient:
                 }
 
             elif raw[1] == 0x34:
-                # Leak/dry event. Probe-state bytes 14/16 carry the H5059 wet
-                # flag (issue #87); byte 5 is battery. OR both so older SKUs
+                # Leak/dry event. Probe-state bytes carry the H5059 wet
+                # flags (issues #87, #224); byte 5 is battery. Byte 13 is the
+                # upper probe, byte 14 the lower probe, byte 16 the
+                # aggregate. OR byte 5 with the aggregate so older SKUs
                 # decoded off byte 5 keep working and H5059 is added.
                 is_wet = raw[5] == 0x01 or (len(raw) >= 17 and (raw[14] == 0x01 or raw[16] == 0x01))
 
@@ -1101,6 +1103,9 @@ class GoveeAwsIotClient:
                     "sensor_slot": sensor_slot,
                     "is_wet": is_wet,
                 }
+                if len(raw) >= 17:
+                    event_data["upper_probe_wet"] = raw[13] == 0x01
+                    event_data["lower_probe_wet"] = raw[14] == 0x01
 
             elif raw[1] == 0x32 and len(raw) >= 10:
                 # Button press event

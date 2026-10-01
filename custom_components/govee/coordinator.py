@@ -99,6 +99,7 @@ from .const import (
     LAN_WRITE_CONFIRM_TIMEOUT,
     LAN_WRITE_SUPPRESS_SECONDS,
     LAN_WRITE_SUPPRESS_THRESHOLD,
+    LEAK_DUAL_PROBE_SKUS,
     LOCAL_READING_FRESHNESS_FACTOR,
     MAX_BUDGET_PACED_INTERVAL,
     MAX_LOCAL_FRESH_SKIPS,
@@ -2982,8 +2983,20 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             state.last_mqtt_wet_at = time.time()
             state.last_wet_time = int(time.time() * 1000)
 
+        sensor = self._leak_sensors.get(sensor_id)
+        if sensor is not None and sensor.sku.upper() in LEAK_DUAL_PROBE_SKUS:
+            if not is_wet:
+                # Aggregate-dry frame is authoritative: clear both probes
+                # even if this particular frame did not carry probe bytes.
+                state.upper_probe_wet = False
+                state.lower_probe_wet = False
+            else:
+                if "upper_probe_wet" in state_data:
+                    state.upper_probe_wet = state_data["upper_probe_wet"]
+                if "lower_probe_wet" in state_data:
+                    state.lower_probe_wet = state_data["lower_probe_wet"]
+
         if prev_wet != is_wet:
-            sensor = self._leak_sensors.get(sensor_id)
             sensor_name = sensor.name if sensor else sensor_id
             _LOGGER.debug(
                 "Leak sensor '%s' changed: %s -> %s",

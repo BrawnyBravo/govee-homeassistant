@@ -1441,6 +1441,8 @@ class GoveeLeakSensorState:
     last_wet_time: int | None = None  # Epoch ms of last leak event
     read: bool = True  # Alert acknowledged in Govee app
     last_mqtt_wet_at: float = 0.0  # time.time() when MQTT last set is_wet=True
+    upper_probe_wet: bool | None = None  # H5059 dual-probe only; None = not yet reported (#224)
+    lower_probe_wet: bool | None = None  # H5059 dual-probe only; None = not yet reported (#224)
 
 
 def leak_sensor_device_info(sensor: GoveeLeakSensor, domain: str) -> DeviceInfo:
