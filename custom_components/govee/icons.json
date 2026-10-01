@@ -33,6 +33,18 @@
       },
       "leak_hub_online": {
         "default": "mdi:web"
+      },
+      "leak_upper_probe": {
+        "default": "mdi:water-off",
+        "state": {
+          "on": "mdi:water-alert"
+        }
+      },
+      "leak_lower_probe": {
+        "default": "mdi:water-off",
+        "state": {
+          "on": "mdi:water-alert"
+        }
       }
     },
     "button": {
