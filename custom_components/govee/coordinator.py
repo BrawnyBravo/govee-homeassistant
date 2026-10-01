@@ -649,6 +649,13 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             return None
         return self._mqtt_client.last_message_ts
 
+    @property
+    def mqtt_connected_since(self) -> datetime | None:
+        """UTC time the current MQTT session became connected, or None."""
+        if self._mqtt_client is None:
+            return None
+        return self._mqtt_client.connected_since
+
     def mqtt_last_receive_for(self, device_id: str) -> datetime | None:
         """UTC timestamp of the last inbound MQTT message for a device, or None."""
         if self._mqtt_client is None:
