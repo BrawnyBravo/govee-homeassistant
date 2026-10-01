@@ -3740,15 +3740,6 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 if _is_outage_error(result):
                     outage_errors.append(result)
 
-        # Every cloud read failed to reach Govee: raise so the coordinator marks
-        # entities unavailable and logs the outage once (and the recovery once)
-        # instead of serving stale state in silence. A partial failure keeps
-        # per-device isolation above.
-        if results and successful_updates == 0 and len(outage_errors) == len(results):
-            raise UpdateFailed(
-                f"Govee cloud API unreachable for all {len(results)} device(s): " f"{outage_errors[0]}"
-            ) from outage_errors[0]
-
         # Clear rate limit issue and restore poll interval if we got successful updates
         if successful_updates > 0 and self._rate_limited:
             self._rate_limited = False
@@ -3770,15 +3761,30 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # LAN overlay (issue #57): re-correlate (throttled) then overlay the
         # fresh cloud state with the latest solicited devStatus reads. Runs AFTER
         # the cloud fan-in so LAN overlays FRESH cloud objects, never the reverse,
-        # and mutates in place so the return below fires HA listeners without a
+        # and mutates in place so the return below (or, during a total cloud
+        # outage, the UpdateFailed path) fires HA listeners without a
         # re-entrant async_set_updated_data. Failure-isolated: a LAN hiccup must
         # never fail the state poll.
         try:
             await self._async_maybe_rescan_lan()
             await self._refresh_lan_reads()
-            self._refresh_lan_staleness()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug("Govee LAN read refresh failed: %s", err)
+        # Expire old health even when the rescan/read itself failed.
+        self._refresh_lan_staleness()
+
+        # Report a total cloud outage only AFTER local reads and health checks.
+        # Cloud-dependent entities still follow coordinator failure; a main
+        # light can use its independently refreshed LAN availability.
+        if results and successful_updates == 0 and len(outage_errors) == len(results):
+            if not self.last_update_success:
+                # HA notifies on the first failed refresh, but suppresses
+                # listeners on consecutive failures. Publish local state and
+                # health changes without declaring the cloud recovered.
+                self.async_update_listeners()
+            raise UpdateFailed(
+                f"Govee cloud API unreachable for all {len(results)} device(s): " f"{outage_errors[0]}"
+            ) from outage_errors[0]
 
         return self._states
 
