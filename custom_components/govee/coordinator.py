@@ -3761,7 +3761,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # LAN overlay (issue #57): re-correlate (throttled) then overlay the
         # fresh cloud state with the latest solicited devStatus reads. Runs AFTER
         # the cloud fan-in so LAN overlays FRESH cloud objects, never the reverse,
-        # and mutates in place so the return below fires HA listeners without a
+        # and mutates in place so the return below (or, during a total cloud
+        # outage, the UpdateFailed path) fires HA listeners without a
         # re-entrant async_set_updated_data. Failure-isolated: a LAN hiccup must
         # never fail the state poll.
         try:
