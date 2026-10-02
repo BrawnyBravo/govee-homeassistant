@@ -185,7 +185,27 @@ SKU_SEGMENT_OVERRIDES: Final = {
     # frames (aa a5 01..08, four bulbs each) carry all 30, so a native write
     # path could lift this limit later (issue #208).
     "H7026": 16,
+    # H1232 Ceiling Light Pro: API reports 13 (elementRange.max=12), but the
+    # fixture has 17 internal segments (1-16 = RGBIC ring, 17 = main panel).
+    # Ring segments 14-16 and the main panel are only reachable via the
+    # masked ptReal frames in api/ble_packet.py (issue #223, reporter-verified
+    # with send_raw_ptreal).
+    "H1232": 16,
 }
+
+# SKUs whose RGBIC ring segments are addressable past the Platform API's
+# advertised count via masked ptReal frames (``build_segment_color_ptreal`` /
+# ``build_segment_brightness_ptreal`` in api/ble_packet.py). The true ring
+# segment count lives in SKU_SEGMENT_OVERRIDES.
+# Deliberately narrow: only the H1232 is verified against real hardware,
+# though H60A6/H1252 (same fixture family) are plausibly identical (#223).
+PTREAL_SEGMENT_SKUS: Final = frozenset({"H1232"})
+
+# SKUs whose 17th internal segment is a separate main panel, not a ring
+# segment, addressed by this bit in the same 3-byte little-endian ptReal
+# segment mask (bit i = internal segment i+1). Reporter-verified on the
+# H1232 only (#223).
+PTREAL_MAIN_PANEL_BIT: Final = {"H1232": 16}
 
 
 def resolve_fahrenheit_conversion(sku: str, api_unit: str, device_unit_hint: str | None = None) -> bool:

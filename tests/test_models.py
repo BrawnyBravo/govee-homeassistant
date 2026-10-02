@@ -1487,6 +1487,12 @@ class TestSegmentCountOverride:
         device = _make_rgbic_device("H7026", cap)
         assert device.segment_count == 16
 
+    def test_h1232_returns_16_segments_for_the_ptreal_ring(self):
+        """H1232 reports 13 (elementRange.max=12) but the ring has 16 segments (issue #223)."""
+        cap = _make_rgbic_segment_capability(element_range_max=12, size_max=13)
+        device = _make_rgbic_device("H1232", cap)
+        assert device.segment_count == 16
+
     def test_unknown_sku_returns_api_count(self):
         """SKUs not in the override table keep the parser's API count (REQ-002)."""
         cap = _make_rgbic_segment_capability(element_range_max=14, size_max=None)
