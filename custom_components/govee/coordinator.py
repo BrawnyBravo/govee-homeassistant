@@ -116,6 +116,7 @@ from .const import (
     MQTT_STATUS_QUERY_SPACING,
     OPTIMISTIC_GRACE_CAP_SECONDS,
     PTREAL_DREAMVIEW_SKUS,
+    PTREAL_MAIN_PANEL_BIT,
     PTREAL_SEGMENT_SKUS,
     RECENT_COMMAND_WINDOW_SECONDS,
     resolve_fahrenheit_conversion,
@@ -157,6 +158,7 @@ from .models.commands import (
 )
 from .api.ble_packet import (
     build_packet,
+    build_segment_brightness_ptreal,
     build_segment_color_ptreal,
     calculate_checksum,
     encode_packet_base64,
@@ -4518,6 +4520,46 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if state is not None:
             state.apply_optimistic_oscillation(enabled)
         self.async_set_updated_data(self._states)
+        return True
+
+    async def async_set_main_panel(
+        self,
+        device_id: str,
+        *,
+        rgb: RGBColor | None = None,
+        brightness: int | None = None,
+    ) -> bool:
+        """Write the H1232 main panel's colour and/or brightness over ptReal.
+
+        The main panel is internal segment 17 (bit ``PTREAL_MAIN_PANEL_BIT``),
+        not a ring segment, so it has no Platform-API equivalent and is
+        reachable only through the masked ptReal frames in ``api/ble_packet.py``
+        (issue #223). Returns False when the SKU is not in
+        ``PTREAL_MAIN_PANEL_BIT``, the BLE passthrough is down, or either
+        frame fails to send; True only if every requested frame sent.
+        """
+        device = self._devices.get(device_id)
+        if not device or device.sku.upper() not in PTREAL_MAIN_PANEL_BIT:
+            return False
+        if not self._ble_manager.available:
+            return False
+
+        mask = 1 << PTREAL_MAIN_PANEL_BIT[device.sku.upper()]
+
+        if rgb is not None:
+            packet = build_packet(build_segment_color_ptreal(rgb, mask))
+            sent = await self._ble_manager.async_send_ble_packet(device_id, device.sku, encode_packet_base64(packet))
+            if not sent:
+                return False
+            self._record_transport_send(device_id, "mqtt")
+
+        if brightness is not None:
+            packet = build_packet(build_segment_brightness_ptreal(brightness, mask))
+            sent = await self._ble_manager.async_send_ble_packet(device_id, device.sku, encode_packet_base64(packet))
+            if not sent:
+                return False
+            self._record_transport_send(device_id, "mqtt")
+
         return True
 
     async def _try_mqtt_music_mode(self, device_id: str, device: GoveeDevice, command: MusicModeCommand) -> bool:

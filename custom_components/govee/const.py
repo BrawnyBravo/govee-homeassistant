@@ -515,6 +515,9 @@ SUFFIX_MAIN_LIGHT: Final = "_main_light"
 # ``mainLightToggle`` capability) — this is the dedicated main-panel light
 # entity added for MAIN_LIGHT_TOGGLE_SKUS (issue #131).
 SUFFIX_MAIN_LIGHT_TOGGLE: Final = "_main_light_toggle"
+# H1232 ptReal main panel light (#223); distinct from SUFFIX_MAIN_LIGHT_TOGGLE,
+# which is used by the H1270 GoveeMainLightEntity.
+SUFFIX_MAIN_PANEL: Final = "_main_panel"
 SUFFIX_BACKGROUND_LIGHT: Final = "_background_light"
 SUFFIX_NEBULA_LIGHT: Final = "_nebula_light"
 SUFFIX_RIPPLE_LIGHT: Final = "_ripple_light"

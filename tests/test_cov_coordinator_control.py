@@ -20,7 +20,12 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 
 import custom_components.govee.coordinator as coord_mod
 from custom_components.govee.api.auth import GoveeIotCredentials
-from custom_components.govee.api.ble_packet import build_packet, build_segment_color_ptreal, encode_packet_base64
+from custom_components.govee.api.ble_packet import (
+    build_packet,
+    build_segment_brightness_ptreal,
+    build_segment_color_ptreal,
+    encode_packet_base64,
+)
 from custom_components.govee.api.exceptions import GoveeApiError, GoveeAuthError
 from custom_components.govee.api.lan_client import LanDevStatus, LanDeviceInfo
 from custom_components.govee.const import CONF_ENABLE_MQTT_CONTROL
@@ -1503,3 +1508,82 @@ class TestStateHelpers:
         assert state.source == "optimistic"
 
         coord.restore_group_state("nope", True)
+
+
+class TestAsyncSetMainPanel:
+    """H1232 main-panel colour/brightness over masked ptReal (issue #223)."""
+
+    @pytest.mark.asyncio
+    async def test_unsupported_sku_returns_false(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H6072", caps=(_POWER, _RGB)))
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_set_main_panel(DEV, rgb=RGBColor(1, 2, 3)) is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_unknown_device_returns_false(self):
+        coord = _coordinator()
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_set_main_panel(DEV, rgb=RGBColor(1, 2, 3)) is False
+
+    @pytest.mark.asyncio
+    async def test_no_passthrough_returns_false(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._ble_manager = _ble_manager(available=False)
+
+        assert await coord.async_set_main_panel(DEV, rgb=RGBColor(1, 2, 3)) is False
+        coord._ble_manager.async_send_ble_packet.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_colour_sends_one_masked_frame(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_set_main_panel(DEV, rgb=RGBColor(10, 20, 30)) is True
+
+        mask = 1 << 16
+        expected = encode_packet_base64(build_packet(build_segment_color_ptreal(RGBColor(10, 20, 30), mask)))
+        coord._ble_manager.async_send_ble_packet.assert_awaited_once_with(DEV, "H1232", expected)
+
+    @pytest.mark.asyncio
+    async def test_brightness_sends_one_masked_frame(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_set_main_panel(DEV, brightness=50) is True
+
+        mask = 1 << 16
+        expected = encode_packet_base64(build_packet(build_segment_brightness_ptreal(50, mask)))
+        coord._ble_manager.async_send_ble_packet.assert_awaited_once_with(DEV, "H1232", expected)
+
+    @pytest.mark.asyncio
+    async def test_colour_and_brightness_send_both_frames(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._ble_manager = _ble_manager()
+
+        assert await coord.async_set_main_panel(DEV, rgb=RGBColor(1, 2, 3), brightness=80) is True
+
+        assert coord._ble_manager.async_send_ble_packet.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_colour_send_failure_returns_false(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._ble_manager = _ble_manager(result=False)
+
+        assert await coord.async_set_main_panel(DEV, rgb=RGBColor(1, 2, 3)) is False
+
+    @pytest.mark.asyncio
+    async def test_brightness_send_failure_returns_false(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._ble_manager = _ble_manager(result=False)
+
+        assert await coord.async_set_main_panel(DEV, brightness=50) is False
