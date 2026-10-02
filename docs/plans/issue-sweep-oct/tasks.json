@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-oct",
-  "updated": "2026-10-02T00:40:00Z",
+  "updated": "2026-10-02T01:03:19Z",
   "tasks": [
     {
       "id": "T-001",
@@ -27,7 +27,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T14:38:02Z",
+        "ts": "2026-10-02T01:02:19Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -35,16 +35,16 @@
           {
             "cmd": "grep -q '\"H5103\"' custom_components/govee/const.py",
             "exit": 0,
-            "duration_ms": 4,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T14:38:01Z"
+            "recorded_at": "2026-10-02T01:02:16Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_thermometer.py -k h5103",
             "exit": 0,
-            "duration_ms": 1463,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 93 items / 90 deselected / 3 selected\n\ntests/test_thermometer.py ...                                            [100%]\n\n======================= 3 passed, 90 deselected in 0.14s =======================",
-            "recorded_at": "2026-10-01T14:38:02Z"
+            "duration_ms": 3409,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 93 items / 90 deselected / 3 selected\n\ntests/test_thermometer.py ...                                            [100%]\n\n======================= 3 passed, 90 deselected in 0.26s =======================",
+            "recorded_at": "2026-10-02T01:02:19Z"
           }
         ]
       },
@@ -85,7 +85,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T14:38:16Z",
+        "ts": "2026-10-02T01:02:23Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -93,30 +93,30 @@
           {
             "cmd": "grep -q '_allow_lan_availability' custom_components/govee/light.py",
             "exit": 0,
-            "duration_ms": 4,
+            "duration_ms": 12,
             "tail": "",
-            "recorded_at": "2026-10-01T14:38:14Z"
+            "recorded_at": "2026-10-02T01:02:19Z"
           },
           {
             "cmd": "grep -q 'cloud-dependent' CLAUDE.md",
             "exit": 0,
-            "duration_ms": 5,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T14:38:14Z"
+            "recorded_at": "2026-10-02T01:02:19Z"
           },
           {
             "cmd": "grep -q 'cloud-dependent' custom_components/govee/quality_scale.yaml",
             "exit": 0,
-            "duration_ms": 4,
+            "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-01T14:38:14Z"
+            "recorded_at": "2026-10-02T01:02:19Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_lan_availability.py tests/test_lan_integration.py tests/test_coordinator_outage.py",
             "exit": 0,
-            "duration_ms": 1651,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 27 items\n\ntests/test_lan_availability.py ...........                               [ 40%]\ntests/test_lan_integration.py ............                               [ 85%]\ntests/test_coordinator_outage.py ....                                    [100%]\n\n============================== 27 passed in 0.46s ==============================",
-            "recorded_at": "2026-10-01T14:38:16Z"
+            "duration_ms": 4043,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 27 items\n\ntests/test_lan_availability.py ...........                               [ 40%]\ntests/test_lan_integration.py ............                               [ 85%]\ntests/test_coordinator_outage.py ....                                    [100%]\n\n============================== 27 passed in 0.95s ==============================",
+            "recorded_at": "2026-10-02T01:02:23Z"
           }
         ]
       },
@@ -153,7 +153,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T21:09:11Z",
+        "ts": "2026-10-02T01:02:29Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -161,23 +161,23 @@
           {
             "cmd": "grep -q 'def purifier_gear_work_mode' custom_components/govee/models/device.py",
             "exit": 0,
-            "duration_ms": 9,
+            "duration_ms": 8,
             "tail": "",
-            "recorded_at": "2026-10-01T21:09:06Z"
+            "recorded_at": "2026-10-02T01:02:23Z"
           },
           {
             "cmd": "grep -q 'work_mode=self._gear_work_mode' custom_components/govee/select.py",
             "exit": 0,
             "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-01T21:09:06Z"
+            "recorded_at": "2026-10-02T01:02:23Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_purifier.py tests/test_models.py tests/test_cov_select.py tests/test_fan.py",
             "exit": 0,
-            "duration_ms": 5379,
-            "tail": "7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 339 items\n\ntests/test_purifier.py ....................                              [  5%]\ntests/test_models.py ................................................... [ 20%]\n........................................................................ [ 42%]\n.................................                                        [ 51%]\ntests/test_cov_select.py ............................................... [ 65%]\n................                                                         [ 70%]\ntests/test_fan.py ...................................................... [ 86%]\n..............................................                           [100%]\n\n============================= 339 passed in 2.08s ==============================",
-            "recorded_at": "2026-10-01T21:09:11Z"
+            "duration_ms": 5005,
+            "tail": "7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 340 items\n\ntests/test_purifier.py ....................                              [  5%]\ntests/test_models.py ................................................... [ 20%]\n........................................................................ [ 42%]\n..................................                                       [ 52%]\ntests/test_cov_select.py ............................................... [ 65%]\n................                                                         [ 70%]\ntests/test_fan.py ...................................................... [ 86%]\n..............................................                           [100%]\n\n============================= 340 passed in 1.94s ==============================",
+            "recorded_at": "2026-10-02T01:02:29Z"
           }
         ]
       },
@@ -249,7 +249,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T21:16:59Z",
+        "ts": "2026-10-02T01:02:50Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -259,28 +259,28 @@
             "exit": 0,
             "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T21:16:38Z"
+            "recorded_at": "2026-10-02T01:02:29Z"
           },
           {
             "cmd": "grep -q 'inbound_messages' custom_components/govee/diagnostics.py",
             "exit": 0,
-            "duration_ms": 11,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T21:16:39Z"
+            "recorded_at": "2026-10-02T01:02:29Z"
           },
           {
             "cmd": "grep -q 'last_inbound_at' custom_components/govee/diagnostics.py",
             "exit": 0,
-            "duration_ms": 12,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T21:16:39Z"
+            "recorded_at": "2026-10-02T01:02:29Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/ -k 'mqtt or diagnostics'",
             "exit": 0,
-            "duration_ms": 20558,
-            "tail": "sts/test_diagnostics.py ......................................         [ 55%]\ntests/test_fan.py ..                                                     [ 56%]\ntests/test_fan_oscillation_coordinator.py .                              [ 56%]\ntests/test_h7152_temperature_humidity.py ...                             [ 57%]\ntests/test_issue_214_push_keeps_poll.py .                                [ 57%]\ntests/test_lan_control.py .                                              [ 58%]\ntests/test_lan_integration.py .                                          [ 58%]\ntests/test_models.py .........                                           [ 61%]\ntests/test_mqtt_connection.py ......................                     [ 67%]\ntests/test_mqtt_control.py ...........................                   [ 75%]\ntests/test_mqtt_decode.py ...                                            [ 76%]\ntests/test_mqtt_fan_tail.py .........                                    [ 79%]\ntests/test_mqtt_multisync.py ...........................                 [ 87%]\ntests/test_pm25_monitoring.py ....                                       [ 88%]\ntests/test_power_monitoring.py ...                                       [ 89%]\ntests/test_presence_sensor.py ..                                         [ 90%]\ntests/test_probe_thermometer_integration.py ......                       [ 91%]\ntests/test_pump_state.py ...                                             [ 92%]\ntests/test_repairs.py ...                                                [ 93%]\ntests/test_setup_entry_account.py ..                                     [ 94%]\ntests/test_sweep_followups_2026_09b.py ...........                       [ 97%]\ntests/test_thermometer.py ..                                             [ 98%]\ntests/test_transport_health.py .....                                     [ 99%]\ntests/test_water_leak.py .                                               [100%]\n\n==================== 334 passed, 3215 deselected in 16.80s =====================",
-            "recorded_at": "2026-10-01T21:16:59Z"
+            "duration_ms": 21521,
+            "tail": "sts/test_diagnostics.py ......................................         [ 55%]\ntests/test_fan.py ..                                                     [ 55%]\ntests/test_fan_oscillation_coordinator.py .                              [ 55%]\ntests/test_h7152_temperature_humidity.py ...                             [ 56%]\ntests/test_issue_214_push_keeps_poll.py .                                [ 57%]\ntests/test_lan_control.py .                                              [ 57%]\ntests/test_lan_integration.py .                                          [ 57%]\ntests/test_models.py .........                                           [ 60%]\ntests/test_mqtt_connection.py ......................                     [ 66%]\ntests/test_mqtt_control.py ...........................                   [ 74%]\ntests/test_mqtt_decode.py ...                                            [ 75%]\ntests/test_mqtt_fan_tail.py .........                                    [ 78%]\ntests/test_mqtt_multisync.py ...............................             [ 87%]\ntests/test_pm25_monitoring.py ....                                       [ 88%]\ntests/test_power_monitoring.py ...                                       [ 89%]\ntests/test_presence_sensor.py ..                                         [ 90%]\ntests/test_probe_thermometer_integration.py ......                       [ 92%]\ntests/test_pump_state.py ...                                             [ 92%]\ntests/test_repairs.py ...                                                [ 93%]\ntests/test_setup_entry_account.py ..                                     [ 94%]\ntests/test_sweep_followups_2026_09b.py ...........                       [ 97%]\ntests/test_thermometer.py ..                                             [ 98%]\ntests/test_transport_health.py .....                                     [ 99%]\ntests/test_water_leak.py .                                               [100%]\n\n==================== 338 passed, 3260 deselected in 17.76s =====================",
+            "recorded_at": "2026-10-02T01:02:50Z"
           }
         ]
       },
@@ -316,7 +316,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T21:20:12Z",
+        "ts": "2026-10-02T01:02:54Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -324,23 +324,23 @@
           {
             "cmd": "grep -q 'DREAMVIEW_OFF_VIA_COLOUR_SKUS' custom_components/govee/const.py",
             "exit": 0,
-            "duration_ms": 9,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T21:20:08Z"
+            "recorded_at": "2026-10-02T01:02:50Z"
           },
           {
             "cmd": "grep -q 'DREAMVIEW_OFF_VIA_COLOUR_SKUS' custom_components/govee/coordinator.py",
             "exit": 0,
-            "duration_ms": 10,
+            "duration_ms": 12,
             "tail": "",
-            "recorded_at": "2026-10-01T21:20:08Z"
+            "recorded_at": "2026-10-02T01:02:50Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_coordinator_control.py -k 'h605b or h66a0 or dreamview'",
             "exit": 0,
-            "duration_ms": 3282,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 95 items / 85 deselected / 10 selected\n\ntests/test_cov_coordinator_control.py ..........                         [100%]\n\n====================== 10 passed, 85 deselected in 0.31s =======================",
-            "recorded_at": "2026-10-01T21:20:12Z"
+            "duration_ms": 3519,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 109 items / 99 deselected / 10 selected\n\ntests/test_cov_coordinator_control.py ..........                         [100%]\n\n====================== 10 passed, 99 deselected in 0.31s =======================",
+            "recorded_at": "2026-10-02T01:02:54Z"
           }
         ]
       },
@@ -380,7 +380,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T21:25:32Z",
+        "ts": "2026-10-02T01:02:58Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -388,30 +388,30 @@
           {
             "cmd": "grep -q 'LEAK_DUAL_PROBE_SKUS' custom_components/govee/const.py",
             "exit": 0,
-            "duration_ms": 9,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T21:25:28Z"
+            "recorded_at": "2026-10-02T01:02:54Z"
           },
           {
             "cmd": "grep -q 'upper_probe_wet' custom_components/govee/api/mqtt.py",
             "exit": 0,
-            "duration_ms": 20,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T21:25:28Z"
+            "recorded_at": "2026-10-02T01:02:54Z"
           },
           {
             "cmd": "grep -q 'upper_probe_wet' custom_components/govee/models/device.py",
             "exit": 0,
-            "duration_ms": 9,
+            "duration_ms": 11,
             "tail": "",
-            "recorded_at": "2026-10-01T21:25:28Z"
+            "recorded_at": "2026-10-02T01:02:54Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_mqtt_multisync.py tests/test_water_leak.py",
             "exit": 0,
-            "duration_ms": 4251,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 54 items\n\ntests/test_mqtt_multisync.py ...............................             [ 57%]\ntests/test_water_leak.py .......................                         [100%]\n\n============================== 54 passed in 0.73s ==============================",
-            "recorded_at": "2026-10-01T21:25:32Z"
+            "duration_ms": 3796,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 58 items\n\ntests/test_mqtt_multisync.py ...............................             [ 53%]\ntests/test_water_leak.py ...........................                     [100%]\n\n============================== 58 passed in 0.62s ==============================",
+            "recorded_at": "2026-10-02T01:02:58Z"
           }
         ]
       },
@@ -453,7 +453,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T21:29:58Z",
+        "ts": "2026-10-02T01:03:02Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -461,30 +461,30 @@
           {
             "cmd": "grep -q 'class GoveeLeakProbeBinarySensor' custom_components/govee/binary_sensor.py",
             "exit": 0,
-            "duration_ms": 12,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-01T21:29:55Z"
+            "recorded_at": "2026-10-02T01:02:58Z"
           },
           {
             "cmd": "grep -q 'leak_upper_probe' custom_components/govee/strings.json",
             "exit": 0,
-            "duration_ms": 10,
+            "duration_ms": 11,
             "tail": "",
-            "recorded_at": "2026-10-01T21:29:55Z"
+            "recorded_at": "2026-10-02T01:02:58Z"
           },
           {
             "cmd": "grep -q 'leak_lower_probe' custom_components/govee/translations/en.json",
             "exit": 0,
             "duration_ms": 11,
             "tail": "",
-            "recorded_at": "2026-10-01T21:29:55Z"
+            "recorded_at": "2026-10-02T01:02:58Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_binary_sensor_event.py tests/test_water_leak.py",
             "exit": 0,
-            "duration_ms": 3718,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 62 items\n\ntests/test_cov_binary_sensor_event.py .................................. [ 54%]\n.                                                                        [ 56%]\ntests/test_water_leak.py ...........................                     [100%]\n\n============================== 62 passed in 0.64s ==============================",
-            "recorded_at": "2026-10-01T21:29:58Z"
+            "duration_ms": 3995,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 62 items\n\ntests/test_cov_binary_sensor_event.py .................................. [ 54%]\n.                                                                        [ 56%]\ntests/test_water_leak.py ...........................                     [100%]\n\n============================== 62 passed in 0.61s ==============================",
+            "recorded_at": "2026-10-02T01:03:02Z"
           }
         ]
       },
@@ -524,7 +524,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-02T00:23:20Z",
+        "ts": "2026-10-02T01:03:06Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -534,28 +534,28 @@
             "exit": 0,
             "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-02T00:23:17Z"
+            "recorded_at": "2026-10-02T01:03:02Z"
           },
           {
             "cmd": "grep -q 'PTREAL_SEGMENT_SKUS' custom_components/govee/const.py",
             "exit": 0,
             "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-02T00:23:17Z"
+            "recorded_at": "2026-10-02T01:03:02Z"
           },
           {
             "cmd": "grep -qE '\"H1232\": *16' custom_components/govee/const.py",
             "exit": 0,
             "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-02T00:23:17Z"
+            "recorded_at": "2026-10-02T01:03:02Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_ble_packet.py tests/test_models.py -k 'segment or ptreal or h1232'",
             "exit": 0,
-            "duration_ms": 3699,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 243 items / 216 deselected / 27 selected\n\ntests/test_ble_packet.py .........                                       [ 33%]\ntests/test_models.py ..................                                  [100%]\n\n====================== 27 passed, 216 deselected in 0.59s ======================",
-            "recorded_at": "2026-10-02T00:23:20Z"
+            "duration_ms": 3873,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 243 items / 216 deselected / 27 selected\n\ntests/test_ble_packet.py .........                                       [ 33%]\ntests/test_models.py ..................                                  [100%]\n\n====================== 27 passed, 216 deselected in 0.57s ======================",
+            "recorded_at": "2026-10-02T01:03:06Z"
           }
         ]
       },
@@ -588,7 +588,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-02T00:32:28Z",
+        "ts": "2026-10-02T01:03:11Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -596,16 +596,16 @@
           {
             "cmd": "grep -q 'build_segment_color_ptreal' custom_components/govee/coordinator.py",
             "exit": 0,
-            "duration_ms": 8,
+            "duration_ms": 10,
             "tail": "",
-            "recorded_at": "2026-10-02T00:32:23Z"
+            "recorded_at": "2026-10-02T01:03:06Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_coordinator_control.py tests/test_segment*.py",
             "exit": 0,
-            "duration_ms": 4545,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 114 items\n\ntests/test_cov_coordinator_control.py .................................. [ 29%]\n...................................................................      [ 88%]\ntests/test_segment.py .............                                      [100%]\n\n============================= 114 passed in 1.38s ==============================",
-            "recorded_at": "2026-10-02T00:32:28Z"
+            "duration_ms": 4628,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 122 items\n\ntests/test_cov_coordinator_control.py .................................. [ 27%]\n........................................................................ [ 86%]\n...                                                                      [ 89%]\ntests/test_segment.py .............                                      [100%]\n\n============================= 122 passed in 1.47s ==============================",
+            "recorded_at": "2026-10-02T01:03:11Z"
           }
         ]
       },
@@ -647,7 +647,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-02T00:38:27Z",
+        "ts": "2026-10-02T01:03:15Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -657,28 +657,28 @@
             "exit": 0,
             "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-02T00:38:23Z"
+            "recorded_at": "2026-10-02T01:03:11Z"
           },
           {
             "cmd": "grep -q 'async def async_set_main_panel' custom_components/govee/coordinator.py",
             "exit": 0,
-            "duration_ms": 10,
+            "duration_ms": 11,
             "tail": "",
-            "recorded_at": "2026-10-02T00:38:23Z"
+            "recorded_at": "2026-10-02T01:03:11Z"
           },
           {
             "cmd": "grep -q 'govee_main_light_panel' custom_components/govee/icons.json",
             "exit": 0,
-            "duration_ms": 10,
+            "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-02T00:38:23Z"
+            "recorded_at": "2026-10-02T01:03:11Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_cov_light.py tests/test_light.py",
             "exit": 0,
-            "duration_ms": 3944,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 101 items\n\ntests/test_cov_light.py ................................................ [ 47%]\n.....................                                                    [ 68%]\ntests/test_light.py ................................                     [100%]\n\n============================= 101 passed in 0.84s ==============================",
-            "recorded_at": "2026-10-02T00:38:27Z"
+            "duration_ms": 3962,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 101 items\n\ntests/test_cov_light.py ................................................ [ 47%]\n.....................                                                    [ 68%]\ntests/test_light.py ................................                     [100%]\n\n============================= 101 passed in 0.86s ==============================",
+            "recorded_at": "2026-10-02T01:03:15Z"
           }
         ]
       },
@@ -714,7 +714,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-02T00:40:00Z",
+        "ts": "2026-10-02T01:03:15Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -722,23 +722,23 @@
           {
             "cmd": "grep -q '^## #211' docs/release-replies.md",
             "exit": 0,
-            "duration_ms": 9,
+            "duration_ms": 11,
             "tail": "",
-            "recorded_at": "2026-10-02T00:40:00Z"
+            "recorded_at": "2026-10-02T01:03:15Z"
           },
           {
             "cmd": "grep -q '^## #186' docs/release-replies.md",
             "exit": 0,
-            "duration_ms": 9,
+            "duration_ms": 11,
             "tail": "",
-            "recorded_at": "2026-10-02T00:40:00Z"
+            "recorded_at": "2026-10-02T01:03:15Z"
           },
           {
             "cmd": "grep -q '^## #85' docs/release-replies.md",
             "exit": 0,
-            "duration_ms": 9,
+            "duration_ms": 11,
             "tail": "",
-            "recorded_at": "2026-10-02T00:40:00Z"
+            "recorded_at": "2026-10-02T01:03:15Z"
           }
         ]
       },
@@ -774,7 +774,7 @@
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-01T21:12:19Z",
+        "ts": "2026-10-02T01:03:19Z",
         "ok": true,
         "failed": "",
         "tail": "",
@@ -782,23 +782,23 @@
           {
             "cmd": "grep -q 'mqtt_connected_since' custom_components/govee/coordinator.py",
             "exit": 0,
-            "duration_ms": 8,
+            "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-01T21:12:15Z"
+            "recorded_at": "2026-10-02T01:03:15Z"
           },
           {
             "cmd": "grep -q 'mqtt_connected_since' custom_components/govee/sensor.py",
             "exit": 0,
             "duration_ms": 9,
             "tail": "",
-            "recorded_at": "2026-10-01T21:12:16Z"
+            "recorded_at": "2026-10-02T01:03:16Z"
           },
           {
             "cmd": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/bin/pytest -q --no-cov tests/test_connection_mode_sensor.py",
             "exit": 0,
-            "duration_ms": 3618,
-            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 36 items\n\ntests/test_connection_mode_sensor.py ................................... [ 97%]\n.                                                                        [100%]\n\n============================== 36 passed in 0.38s ==============================",
-            "recorded_at": "2026-10-01T21:12:19Z"
+            "duration_ms": 3527,
+            "tail": "/tmp/claude-1000/-home-lasswellt-Projects-govee-homeassistant/b7101f46-014d-44f1-8beb-88aa11ef75c4/scratchpad/venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, socket-0.7.0, respx-0.21.1, sugar-1.0.0, anyio-4.15.1, picked-0.5.0, homeassistant-custom-component-0.13.205, timeout-2.3.1, xdist-3.6.1, pytest_freezer-0.4.8, asyncio-0.24.0, syrupy-4.8.0, cov-6.0.0, requests-mock-1.12.1, aiohttp-1.0.5, platformdirs-4.12.0, github-actions-annotate-failures-0.2.0\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 36 items\n\ntests/test_connection_mode_sensor.py ................................... [ 97%]\n.                                                                        [100%]\n\n============================== 36 passed in 0.33s ==============================",
+            "recorded_at": "2026-10-02T01:03:19Z"
           }
         ]
       },

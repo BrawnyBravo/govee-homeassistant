@@ -25,3 +25,4 @@ Ruling: spec-defect — T-004 verify named nonexistent tests/test_sensor.py; rep
 ## 2026-10-02T00:39:59Z build T-012 start (attempt 1)
 ## 2026-10-02T00:40:14Z verify T-012 ok=true (3135c86; subject avoids #N so the release does not double-post)
 ## 2026-10-02T00:40:14Z build 12/13 done; T-004 superseded by T-013 (spec-defect)
+## 2026-10-02T01:06:43Z check PASS check-report.md
