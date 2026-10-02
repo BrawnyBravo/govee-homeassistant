@@ -1291,11 +1291,23 @@ class TestPtrealSegmentTier:
         coord._api_client.control_device.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_passthrough_send_failure_returns_false(self):
+    async def test_passthrough_send_failure_falls_back_to_rest_in_range(self):
         coord = _coordinator()
         _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
         coord._ble_manager = _ble_manager(result=False)
         command = SegmentColorCommand(segment_indices=(0,), color=RGBColor(1, 2, 3))
+
+        assert await coord.async_control_device(DEV, command) is True
+
+        coord._ble_manager.async_send_ble_packet.assert_awaited_once()
+        coord._api_client.control_device.assert_awaited_once_with(DEV, "H1232", command)
+
+    @pytest.mark.asyncio
+    async def test_passthrough_send_failure_out_of_range_fails(self):
+        coord = _coordinator()
+        _add(coord, _device(sku="H1232", caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._ble_manager = _ble_manager(result=False)
+        command = SegmentColorCommand(segment_indices=(15,), color=RGBColor(1, 2, 3))
 
         assert await coord.async_control_device(DEV, command) is False
 

@@ -4640,13 +4640,13 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 # MQTT not applicable / publish failed — fall through to REST
 
             # H1232 "Ceiling Light Pro" ptReal tier (issue #223): the
-            # Platform API only ever writes the whole ring, so when the
-            # BLE passthrough is up, fold every segment the command touches
-            # into one masked ptReal frame (bit i = ring segment i) instead
-            # of looping REST calls. Without passthrough, requests that stay
-            # inside the API-reported segment count fall through to REST
-            # unchanged; a request for a segment the API doesn't know about
-            # (bit 16 = the main panel) has no REST equivalent and fails.
+            # Platform API reaches only ring segments 1-13, so when the BLE
+            # passthrough is up, fold every segment the command touches into
+            # one masked ptReal frame (bit i = ring segment i) instead of
+            # looping REST calls. Without passthrough (or when the publish
+            # fails), requests that stay inside the API-reported segment
+            # count fall through to REST unchanged; segments 14-16 have no
+            # REST equivalent and fail.
             if isinstance(command, SegmentColorCommand) and device.sku.upper() in PTREAL_SEGMENT_SKUS:
                 if self._ble_manager.available:
                     mask = 0
@@ -4661,7 +4661,6 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                         self._apply_optimistic_update(device_id, command)
                         self.async_set_updated_data(self._states)
                         return True
-                    return False
 
                 resolution = device.segment_count_resolution
                 api_count = resolution["api_count"] if resolution else 0
