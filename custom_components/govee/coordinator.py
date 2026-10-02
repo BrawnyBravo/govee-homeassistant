@@ -116,6 +116,7 @@ from .const import (
     MQTT_STATUS_QUERY_SPACING,
     OPTIMISTIC_GRACE_CAP_SECONDS,
     PTREAL_DREAMVIEW_SKUS,
+    PTREAL_SEGMENT_SKUS,
     RECENT_COMMAND_WINDOW_SECONDS,
     resolve_fahrenheit_conversion,
 )
@@ -154,7 +155,13 @@ from .models.commands import (
     WorkModeCommand,
     create_dreamview_command,
 )
-from .api.ble_packet import build_packet, calculate_checksum, encode_packet_base64, music_v3_effect_code
+from .api.ble_packet import (
+    build_packet,
+    build_segment_color_ptreal,
+    calculate_checksum,
+    encode_packet_base64,
+    music_v3_effect_code,
+)
 from .api.probe_thermometer import (
     ProbeLimits,
     build_limits_read_packet,
@@ -4631,6 +4638,37 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     self.async_set_updated_data(self._states)
                     return True
                 # MQTT not applicable / publish failed — fall through to REST
+
+            # H1232 "Ceiling Light Pro" ptReal tier (issue #223): the
+            # Platform API only ever writes the whole ring, so when the
+            # BLE passthrough is up, fold every segment the command touches
+            # into one masked ptReal frame (bit i = ring segment i) instead
+            # of looping REST calls. Without passthrough, requests that stay
+            # inside the API-reported segment count fall through to REST
+            # unchanged; a request for a segment the API doesn't know about
+            # (bit 16 = the main panel) has no REST equivalent and fails.
+            if isinstance(command, SegmentColorCommand) and device.sku.upper() in PTREAL_SEGMENT_SKUS:
+                if self._ble_manager.available:
+                    mask = 0
+                    for index in command.segment_indices:
+                        mask |= 1 << index
+                    packet = build_packet(build_segment_color_ptreal(command.color, mask))
+                    sent = await self._ble_manager.async_send_ble_packet(
+                        device_id, device.sku, encode_packet_base64(packet)
+                    )
+                    if sent:
+                        self._record_transport_send(device_id, "mqtt")
+                        self._apply_optimistic_update(device_id, command)
+                        self.async_set_updated_data(self._states)
+                        return True
+                    return False
+
+                resolution = device.segment_count_resolution
+                api_count = resolution["api_count"] if resolution else 0
+                if any(index >= api_count for index in command.segment_indices):
+                    return False
+                # All indices are within the API-reported count — fall
+                # through to the existing REST dispatch below unchanged.
 
             # Serialize segment commands per device. Govee silently drops
             # parallel segment requests (issue #53); sequential dispatch
