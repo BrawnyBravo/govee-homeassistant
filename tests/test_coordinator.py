@@ -4268,6 +4268,9 @@ class TestTryLanCommand:
         coord._transport.record_success(self.DEVICE_ID, "mqtt")
         coord._try_mqtt_command = AsyncMock(return_value=False)
         coord._api_client.control_device = AsyncMock(return_value=True)
+        # The REST write would start a confirm on this MQTT-heard device; that
+        # follow-up has its own tests (test_command_confirm.py).
+        coord._confirm_window = None
 
         result = await coord.async_control_device(self.DEVICE_ID, PowerCommand(power_on=True))
 

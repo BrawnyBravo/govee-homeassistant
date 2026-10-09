@@ -15,6 +15,9 @@ from custom_components.govee.api.exceptions import (
 from custom_components.govee.config_flow import GoveeOptionsFlow
 from custom_components.govee.const import (
     CONF_API_KEY,
+    CONF_COMMAND_CONFIRM,
+    CONF_COMMAND_CONFIRM_RESENDS,
+    CONF_COMMAND_CONFIRM_WINDOW,
     CONF_EMAIL,
     CONF_ENABLE_DIY_SCENES,
     CONF_ENABLE_GROUPS,
@@ -24,6 +27,9 @@ from custom_components.govee.const import (
     CONF_PASSWORD,
     CONF_POLL_INTERVAL,
     CONF_WATER_DETECTOR_POLL_INTERVAL,
+    DEFAULT_COMMAND_CONFIRM,
+    DEFAULT_COMMAND_CONFIRM_RESENDS,
+    DEFAULT_COMMAND_CONFIRM_WINDOW,
     DEFAULT_ENABLE_DIY_SCENES,
     DEFAULT_ENABLE_GROUPS,
     DEFAULT_ENABLE_SCENES,
@@ -31,8 +37,12 @@ from custom_components.govee.const import (
     DEFAULT_POLL_INTERVAL,
     DEFAULT_WATER_DETECTOR_POLL_INTERVAL,
     DOMAIN,
+    MAX_COMMAND_CONFIRM_RESENDS,
+    MAX_COMMAND_CONFIRM_WINDOW,
     MAX_MQTT_STATUS_INTERVAL,
     MAX_WATER_DETECTOR_POLL_INTERVAL,
+    MIN_COMMAND_CONFIRM_RESENDS,
+    MIN_COMMAND_CONFIRM_WINDOW,
     MIN_MQTT_STATUS_INTERVAL,
     MIN_WATER_DETECTOR_POLL_INTERVAL,
 )
@@ -462,6 +472,59 @@ class TestMqttStatusIntervalOption:
         result = await _run_init(flow, entry, None)
         validated = result["data_schema"]({CONF_POLL_INTERVAL: 60, CONF_MQTT_STATUS_INTERVAL: 0})
         assert validated[CONF_MQTT_STATUS_INTERVAL] == 0
+
+
+class TestCommandConfirmOptions:
+    """Confirm-and-resend can be turned off, and its window and resend count
+    are bounded in the options flow like the other intervals.
+    """
+
+    @pytest.mark.asyncio
+    async def test_fields_default_to_constants(self):
+        flow, entry = _options_flow()
+        result = await _run_init(flow, entry, None)
+        schema = result["data_schema"].schema
+
+        def default(name):
+            return next(k for k in schema if k == name).default()
+
+        assert default(CONF_COMMAND_CONFIRM) is DEFAULT_COMMAND_CONFIRM
+        assert default(CONF_COMMAND_CONFIRM_WINDOW) == DEFAULT_COMMAND_CONFIRM_WINDOW
+        assert default(CONF_COMMAND_CONFIRM_RESENDS) == DEFAULT_COMMAND_CONFIRM_RESENDS
+
+    @pytest.mark.asyncio
+    async def test_values_are_saved(self):
+        flow, entry = _options_flow()
+        result = await _run_init(
+            flow,
+            entry,
+            {
+                CONF_POLL_INTERVAL: 60,
+                CONF_COMMAND_CONFIRM: False,
+                CONF_COMMAND_CONFIRM_WINDOW: 10,
+                CONF_COMMAND_CONFIRM_RESENDS: 0,
+            },
+        )
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_COMMAND_CONFIRM] is False
+        assert result["data"][CONF_COMMAND_CONFIRM_WINDOW] == 10
+        assert result["data"][CONF_COMMAND_CONFIRM_RESENDS] == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("key", "value"),
+        [
+            (CONF_COMMAND_CONFIRM_WINDOW, MIN_COMMAND_CONFIRM_WINDOW - 1),
+            (CONF_COMMAND_CONFIRM_WINDOW, MAX_COMMAND_CONFIRM_WINDOW + 1),
+            (CONF_COMMAND_CONFIRM_RESENDS, MIN_COMMAND_CONFIRM_RESENDS - 1),
+            (CONF_COMMAND_CONFIRM_RESENDS, MAX_COMMAND_CONFIRM_RESENDS + 1),
+        ],
+    )
+    async def test_out_of_range_rejected_by_schema(self, key, value):
+        flow, entry = _options_flow()
+        result = await _run_init(flow, entry, None)
+        with pytest.raises(vol.Invalid):
+            result["data_schema"]({CONF_POLL_INTERVAL: 60, key: value})
 
 
 class TestConfigFlowSteps:

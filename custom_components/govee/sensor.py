@@ -280,6 +280,10 @@ class GoveeRateLimitSensor(CoordinatorEntity["GoveeCoordinator"], SensorEntity):
         They are nonetheless a lower bound. Counting happens when a response
         is handled, so a request that fails below the HTTP layer is missed.
         Read these as "at least this many".
+
+        ``command_resends`` is how many of those requests went on resending a
+        command the device showed it never applied (confirm-and-resend), since
+        the entry loaded.
         """
         return {
             "total_limit": self.coordinator.api_rate_limit_total,
@@ -288,6 +292,7 @@ class GoveeRateLimitSensor(CoordinatorEntity["GoveeCoordinator"], SensorEntity):
             "requests_last_24h": self.coordinator.api_requests_last_24h,
             "requests_per_hour": self.coordinator.api_requests_per_hour,
             "daily_limit": GOVEE_DAILY_REQUEST_LIMIT,
+            "command_resends": self.coordinator.command_resends,
         }
 
 

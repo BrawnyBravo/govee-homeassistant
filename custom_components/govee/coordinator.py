@@ -70,7 +70,11 @@ from .api.lan_client import (
 )
 from .api.lan_control import command_to_lan, lan_brightness_to_device
 from .const import (
+    COMMAND_CONFIRM_QUERY_DELAY,
     CONF_API_TEMPERATURE_UNIT,
+    CONF_COMMAND_CONFIRM,
+    CONF_COMMAND_CONFIRM_RESENDS,
+    CONF_COMMAND_CONFIRM_WINDOW,
     CONF_EMAIL,
     CONF_ENABLE_MQTT_CONTROL,
     CONF_DAILY_REQUEST_BUDGET,
@@ -80,6 +84,9 @@ from .const import (
     CONF_PROBE_POLL_INTERVAL,
     CONF_WATER_DETECTOR_POLL_INTERVAL,
     DEFAULT_API_TEMPERATURE_UNIT,
+    DEFAULT_COMMAND_CONFIRM,
+    DEFAULT_COMMAND_CONFIRM_RESENDS,
+    DEFAULT_COMMAND_CONFIRM_WINDOW,
     DEFAULT_DAILY_REQUEST_BUDGET,
     DEFAULT_ENABLE_MQTT_CONTROL,
     DEFAULT_MQTT_STATUS_INTERVAL,
@@ -102,10 +109,14 @@ from .const import (
     LEAK_DUAL_PROBE_SKUS,
     LOCAL_READING_FRESHNESS_FACTOR,
     MAX_BUDGET_PACED_INTERVAL,
+    MAX_COMMAND_CONFIRM_RESENDS,
+    MAX_COMMAND_CONFIRM_WINDOW,
     MAX_LOCAL_FRESH_SKIPS,
     MAX_MQTT_STATUS_INTERVAL,
     MAX_PROBE_POLL_INTERVAL,
     MAX_WATER_DETECTOR_POLL_INTERVAL,
+    MIN_COMMAND_CONFIRM_RESENDS,
+    MIN_COMMAND_CONFIRM_WINDOW,
     MIN_MQTT_STATUS_INTERVAL,
     MIN_PROBE_POLL_INTERVAL,
     MIN_WATER_DETECTOR_POLL_INTERVAL,
@@ -120,6 +131,14 @@ from .const import (
     PTREAL_SEGMENT_SKUS,
     RECENT_COMMAND_WINDOW_SECONDS,
     resolve_fahrenheit_conversion,
+)
+from .command_confirm import (
+    ConfirmField,
+    cloud_request_affordable,
+    confirm_field,
+    confirms_conflict,
+    frame_confirms,
+    state_confirms,
 )
 from .request_budget import (
     budget_paced_interval,
@@ -281,6 +300,41 @@ class _LanReadOverlay:
     color_temp_kelvin: int | None
 
 
+@dataclasses.dataclass(eq=False)
+class _PendingConfirm:
+    """One cloud/MQTT command waiting for the device to show it took effect.
+
+    ``verdict`` is the newest status frame's answer about ``field`` (None until
+    a frame mentions it); ``event`` is set the moment a frame confirms. Kept per
+    device and field so a newer command can cancel exactly the confirms it
+    makes stale (see :func:`command_confirm.confirms_conflict`).
+    """
+
+    device_id: str
+    sku: str
+    command: DeviceCommand
+    field: ConfirmField
+    origin: str
+    brightness_range: tuple[int, int]
+    event: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    verdict: bool | None = None
+    resends: int = 0
+    task: asyncio.Task[None] | None = None
+
+
+def _bounded_option(options: Mapping[str, Any], key: str, default: int, low: int, high: int) -> int:
+    """An integer option inside ``[low, high]``, or ``default`` when it is not.
+
+    Same rule as the MQTT status interval: a hand-edited or non-numeric value
+    falls back to the default rather than arming something unexpected.
+    """
+    try:
+        value = int(options.get(key, default))
+    except (TypeError, ValueError):
+        return default
+    return value if low <= value <= high else default
+
+
 class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     """Coordinator for Govee device state management.
 
@@ -296,6 +350,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     # coordinators that skip __init__ working.
     _budget_pacing_announced = False
     _header_deferred = False
+    # None = confirm-and-resend off. The class default keeps hand-built test
+    # coordinators (and anything else that skips __init__) on the old path.
+    _confirm_window: float | None = None
+    _confirm_resends = 0
 
     def __init__(
         self,
@@ -342,6 +400,44 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         self._enable_groups = enable_groups
         # Opt-in: route power/brightness/color over MQTT instead of REST.
         self._enable_mqtt_control = config_entry.options.get(CONF_ENABLE_MQTT_CONTROL, DEFAULT_ENABLE_MQTT_CONTROL)
+        # Confirm-and-resend for cloud and MQTT commands (see
+        # _maybe_schedule_command_confirm). A window of None turns it off.
+        self._confirm_window = None
+        if config_entry.options.get(CONF_COMMAND_CONFIRM, DEFAULT_COMMAND_CONFIRM):
+            self._confirm_window = float(
+                _bounded_option(
+                    config_entry.options,
+                    CONF_COMMAND_CONFIRM_WINDOW,
+                    DEFAULT_COMMAND_CONFIRM_WINDOW,
+                    MIN_COMMAND_CONFIRM_WINDOW,
+                    MAX_COMMAND_CONFIRM_WINDOW,
+                )
+            )
+        self._confirm_resends = _bounded_option(
+            config_entry.options,
+            CONF_COMMAND_CONFIRM_RESENDS,
+            DEFAULT_COMMAND_CONFIRM_RESENDS,
+            MIN_COMMAND_CONFIRM_RESENDS,
+            MAX_COMMAND_CONFIRM_RESENDS,
+        )
+        # device_id -> field -> the confirm waiting on that field.
+        self._pending_confirms: dict[str, dict[ConfirmField, _PendingConfirm]] = {}
+        # Counters for diagnostics and the rate-limit sensor. "resent" and
+        # "cloud_reads" are the extra cloud requests the feature has spent.
+        self._confirm_stats: dict[str, int] = dict.fromkeys(
+            (
+                "started",
+                "confirmed",
+                "confirmed_after_resend",
+                "resent",
+                "failed",
+                "unverified",
+                "skipped_budget",
+                "superseded",
+                "cloud_reads",
+            ),
+            0,
+        )
 
         # Device registry
         self._devices: dict[str, GoveeDevice] = {}
@@ -3513,6 +3609,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         self._record_transport_success(device_id, "mqtt")
         self._transport.record_read(device_id, "mqtt")
 
+        # The device's own report is the readback for any cloud/MQTT command
+        # still waiting on confirmation.
+        self._note_confirm_frame(device_id, state_data)
+
         # Update coordinator data and notify HA — only if something changed.
         if state != before:
             self.async_set_updated_data(self._states)
@@ -4620,6 +4720,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             _LOGGER.error("Unknown device: %s", device_id)
             return False
 
+        # Last command wins: before anything is sent, drop any pending confirm
+        # this command makes stale, so it can never be resent over the top of
+        # it — whichever transport tier ends up carrying this one.
+        self._supersede_command_confirms(device_id, device.sku, command)
+
         # Track power-off commands so segment entities can detect them
         # before the first await, ensuring concurrent coroutines see the flag.
         is_power_off = isinstance(command, PowerCommand) and not command.power_on
@@ -4678,6 +4783,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     self._record_transport_send(device_id, "mqtt")
                     self._apply_optimistic_update(device_id, command)
                     self.async_set_updated_data(self._states)
+                    self._maybe_schedule_command_confirm(device_id, device, command, origin="mqtt")
                     return True
                 # MQTT not applicable / publish failed — fall through to REST
 
@@ -4738,6 +4844,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 self._apply_optimistic_update(device_id, command)
                 self.async_set_updated_data(self._states)
                 self._maybe_schedule_humidity_verification(device_id, device, command)
+                self._maybe_schedule_command_confirm(device_id, device, command, origin="cloud_api")
             else:
                 self._record_transport_failure(device_id, "cloud_api", "control_returned_false")
 
@@ -4794,6 +4901,336 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             "mode_value": state.mode_value,
             "configured_humidity": state.configured_humidity,
         }
+
+    @property
+    def command_resends(self) -> int:
+        """Commands resent because the device showed it never applied them."""
+        stats: dict[str, int] = getattr(self, "_confirm_stats", None) or {}
+        return stats.get("resent", 0)
+
+    @property
+    def command_confirm_stats(self) -> dict[str, Any]:
+        """Confirm-and-resend settings and counters, for diagnostics.
+
+        ``resent`` and ``cloud_reads`` are the extra cloud requests the feature
+        has spent since the entry loaded; the rest describe how commands fared.
+        """
+        stats: dict[str, int] = getattr(self, "_confirm_stats", None) or {}
+        return {
+            "enabled": self._confirm_window is not None,
+            "window_seconds": self._confirm_window,
+            "max_resends": self._confirm_resends,
+            **stats,
+        }
+
+    def _maybe_schedule_command_confirm(
+        self, device_id: str, device: GoveeDevice, command: DeviceCommand, *, origin: str
+    ) -> None:
+        """Watch for the device to show a cloud/MQTT command took effect.
+
+        A cloud ``/device/control`` 200 only means Govee's cloud accepted the
+        command, and an MQTT publish is never acknowledged at all; either can
+        be dropped before it reaches the device, which users experience as a
+        button that needs pressing two or three times. The LAN tier reads the
+        device back after every write; this does the same for these two tiers,
+        using the device's own AWS IoT status frame as the readback, which
+        costs nothing against the request quota.
+
+        Only for devices that have a live status stream (MQTT connected and
+        the device has answered on it this session) and only for the four
+        fields a status frame reports. Everything else (groups, scenes,
+        segments, ceiling-fan combos whose ``onOff`` is the whole unit, a
+        multi-outlet plug's power) is left exactly as before.
+
+        Runs as a background task, so the service call returns as soon as the
+        command is sent, exactly as it did before.
+        """
+        if self._confirm_window is None:
+            return
+        field = confirm_field(command, device.sku)
+        if field is None or device.is_group or device.supports_ceiling_fan:
+            return
+        if field == "power" and device.mqtt_outlet_count:
+            return
+        if not self.mqtt_connected or not self._mqtt_heard_from(device_id):
+            return
+
+        pending = _PendingConfirm(
+            device_id=device_id,
+            sku=device.sku,
+            command=command,
+            field=field,
+            origin=origin,
+            brightness_range=device.brightness_range,
+        )
+        by_field = self._pending_confirms.setdefault(device_id, {})
+        previous = by_field.get(field)
+        if previous is not None and previous.task is not None:
+            # Already superseded in async_control_device; belt and braces.
+            previous.task.cancel()
+        by_field[field] = pending
+        self._confirm_stats["started"] += 1
+        pending.task = self._config_entry.async_create_background_task(
+            self.hass,
+            self._run_command_confirm(pending),
+            name="govee_command_confirm",
+        )
+
+    def _supersede_command_confirms(self, device_id: str, sku: str, command: DeviceCommand) -> None:
+        """Cancel the pending confirms a newer command for the device makes stale."""
+        if self._confirm_window is None:
+            return
+        by_field = self._pending_confirms.get(device_id)
+        if not by_field:
+            return
+        new_field = confirm_field(command, sku)
+        for field, pending in list(by_field.items()):
+            if not confirms_conflict(new_field, field):
+                continue
+            del by_field[field]
+            if pending.task is not None:
+                pending.task.cancel()
+            self._confirm_stats["superseded"] += 1
+            _LOGGER.debug(
+                "Command confirm for %s (%s) superseded by a newer %s",
+                device_id,
+                field,
+                command.__class__.__name__,
+            )
+        if not by_field:
+            self._pending_confirms.pop(device_id, None)
+
+    def _cancel_command_confirms(self) -> None:
+        """Cancel every pending confirm (entry unload)."""
+        if self._confirm_window is None:
+            return
+        for by_field in self._pending_confirms.values():
+            for pending in by_field.values():
+                if pending.task is not None:
+                    pending.task.cancel()
+        self._pending_confirms.clear()
+
+    def _note_confirm_frame(self, device_id: str, state_data: dict[str, Any]) -> None:
+        """Hand a status frame to whatever confirms are waiting on this device.
+
+        A frame that does not mention a confirm's field leaves it alone. One
+        that does replaces its verdict, so a frame from just before the command
+        landed (power-on reporting lag) is overruled by the next one; the
+        confirm only completes early on a match.
+        """
+        if self._confirm_window is None:
+            return
+        by_field = self._pending_confirms.get(device_id)
+        if not by_field:
+            return
+        for pending in by_field.values():
+            verdict = frame_confirms(pending.command, state_data, pending.brightness_range, pending.sku)
+            if verdict is None:
+                continue
+            pending.verdict = verdict
+            if verdict:
+                pending.event.set()
+
+    async def _run_command_confirm(self, pending: _PendingConfirm) -> None:
+        """Confirm one command, resending it when the device shows it was dropped.
+
+        Each round waits for a status frame (asking for one with a status
+        query if the device does not push on its own). A frame that confirms
+        ends it. A frame that contradicts it, at the end of the window, earns a
+        resend over the cloud API, up to the configured count. Only when no
+        frame mentioned the field at all is the cloud asked for the device's
+        state instead. Every cloud request here (resend or read) must fit the
+        daily budget and the per-minute allowance first; if it does not, the
+        confirm gives up rather than spend.
+
+        Cancelled, at any await, by a newer command for the same field (see
+        ``_supersede_command_confirms``) or by unload.
+        """
+        device_id = pending.device_id
+        stats = self._confirm_stats
+        try:
+            while True:
+                verdict = await self._await_confirm_frame(pending)
+                if verdict is None:
+                    verdict = await self._confirm_cloud_read(pending)
+                if verdict is None:
+                    stats["unverified"] += 1
+                    _LOGGER.debug(
+                        "Command confirm for %s (%s): no status frame or cloud reading to check against",
+                        device_id,
+                        pending.field,
+                    )
+                    return
+                if verdict:
+                    stats["confirmed"] += 1
+                    if pending.resends:
+                        stats["confirmed_after_resend"] += 1
+                    _LOGGER.debug(
+                        "Command confirm for %s (%s): device reports the new value (after %d resend(s))",
+                        device_id,
+                        pending.field,
+                        pending.resends,
+                    )
+                    return
+                if pending.resends >= self._confirm_resends:
+                    stats["failed"] += 1
+                    _LOGGER.debug(
+                        "Command confirm for %s (%s): device still reports a different value after "
+                        "%d resend(s); giving up",
+                        device_id,
+                        pending.field,
+                        pending.resends,
+                    )
+                    return
+                if not self._confirm_request_affordable():
+                    stats["skipped_budget"] += 1
+                    _LOGGER.debug(
+                        "Command confirm for %s (%s): device did not apply the command, but a resend "
+                        "would exceed the request budget; not resending",
+                        device_id,
+                        pending.field,
+                    )
+                    return
+                pending.resends += 1
+                _LOGGER.debug(
+                    "Command confirm for %s (%s): device did not apply the %s command; resending over "
+                    "the cloud API (%d of %d)",
+                    device_id,
+                    pending.field,
+                    pending.origin,
+                    pending.resends,
+                    self._confirm_resends,
+                )
+                if not await self._resend_command(pending):
+                    stats["failed"] += 1
+                    return
+                stats["resent"] += 1
+                pending.verdict = None
+                pending.event.clear()
+        finally:
+            by_field = self._pending_confirms.get(device_id)
+            if by_field is not None and by_field.get(pending.field) is pending:
+                del by_field[pending.field]
+                if not by_field:
+                    del self._pending_confirms[device_id]
+
+    @staticmethod
+    async def _wait_confirm_event(pending: _PendingConfirm, timeout: float) -> bool:
+        """Wait up to ``timeout`` seconds for a confirming frame; True if one came."""
+        if pending.event.is_set():
+            return True
+        if timeout <= 0:
+            return False
+        try:
+            async with asyncio.timeout(timeout):
+                await pending.event.wait()
+        except TimeoutError:
+            return False
+        return True
+
+    async def _await_confirm_frame(self, pending: _PendingConfirm) -> bool | None:
+        """One confirm window: True confirmed, False contradicted, None no evidence.
+
+        The first ``COMMAND_CONFIRM_QUERY_DELAY`` seconds give a device that
+        reports changes on its own the chance to do so; after that the device
+        is asked with a status query, the same one the periodic sweep sends,
+        and the rest of the window waits for its answer.
+        """
+        window = self._confirm_window or 0.0
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        if await self._wait_confirm_event(pending, min(COMMAND_CONFIRM_QUERY_DELAY, window)):
+            return True
+        if await self._confirm_status_query(pending):
+            return True
+        if await self._wait_confirm_event(pending, window - (loop.time() - started)):
+            return True
+        return pending.verdict
+
+    async def _confirm_status_query(self, pending: _PendingConfirm) -> bool:
+        """Ask the device for its status; True if a confirming frame arrived meanwhile.
+
+        Follows every rule the periodic sweep does (issue #195): not when the
+        user turned the re-query off, not for a quarantined or excluded device,
+        and never while a sweep or another query is in flight. The query is
+        marked in flight for ``MQTT_STATUS_QUERY_SPACING`` so a session drop it
+        causes is blamed on this device, exactly as a sweep would.
+        """
+        device_id = pending.device_id
+        if not self._mqtt_status_poll_enabled or device_id not in self._mqtt_status_poll_targets:
+            return False
+        if self._status_sweep_running or self._status_query_in_flight is not None:
+            return False
+        client = self._mqtt_client
+        if client is None or not client.connected:
+            return False
+        self._status_query_in_flight = device_id
+        try:
+            await client.async_publish_status_query(self._device_topics.get(device_id))
+            return await self._wait_confirm_event(pending, MQTT_STATUS_QUERY_SPACING)
+        finally:
+            if self._status_query_in_flight == device_id:
+                self._status_query_in_flight = None
+
+    def _confirm_request_affordable(self) -> bool:
+        """Whether a confirm may spend one cloud request now.
+
+        Against the same daily budget the poll paces to, and leaving the same
+        per-minute reserve the segment re-assert keeps for ordinary commands.
+        A request spent here shows up in ``requests_today``, so the poll's
+        pacing absorbs it on its next cycle.
+        """
+        requests_today: object = self._api_client.requests_today
+        rate_limit_remaining: object = self._api_client.rate_limit_remaining
+        return cloud_request_affordable(
+            requests_today=requests_today,
+            daily_budget=self._daily_request_budget,
+            rate_limit_remaining=rate_limit_remaining,
+            rate_limit_reserve=_REASSERT_RATE_LIMIT_RESERVE,
+            rate_limited=self._rate_limited,
+        )
+
+    async def _confirm_cloud_read(self, pending: _PendingConfirm) -> bool | None:
+        """Fall back to the cloud's view of the device, budget permitting.
+
+        Only reached when no status frame mentioned the field at all in the
+        window. The cloud's state can lag the device, so this is weaker
+        evidence than a frame; it is still better than resending blind.
+        """
+        if not self._confirm_request_affordable():
+            return None
+        self._confirm_stats["cloud_reads"] += 1
+        try:
+            state = await self._api_client.get_device_state(pending.device_id, pending.sku)
+        except (GoveeApiError, TimeoutError) as err:
+            _LOGGER.debug("Command confirm for %s: cloud state read failed: %s", pending.device_id, err)
+            return None
+        return state_confirms(pending.command, state, pending.sku)
+
+    async def _resend_command(self, pending: _PendingConfirm) -> bool:
+        """Send the command again over the cloud API; True when Govee accepted it.
+
+        Always the cloud API, whichever tier carried the original: an MQTT
+        publish the device ignored would most likely be ignored again, and the
+        cloud is the tier MQTT already falls back to.
+        """
+        device_id = pending.device_id
+        try:
+            success = await self._api_client.control_device(device_id, pending.sku, pending.command)
+        except (GoveeApiError, TimeoutError) as err:
+            _LOGGER.debug("Command confirm for %s: resend failed: %s", device_id, err)
+            self._record_transport_failure(device_id, "cloud_api", str(err))
+            return False
+        if not success:
+            self._record_transport_failure(device_id, "cloud_api", "control_returned_false")
+            return False
+        self._record_transport_send(device_id, "cloud_api")
+        self._record_transport_success(device_id, "cloud_api")
+        # The frame that contradicted the command also overwrote the optimistic
+        # value with the device's real one; show the intended value again.
+        self._apply_optimistic_update(device_id, pending.command)
+        self.async_set_updated_data(self._states)
+        return True
 
     async def _dispatch_segment_command(
         self,
@@ -5779,6 +6216,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if self._status_poll_unsub:
             self._status_poll_unsub()
             self._status_poll_unsub = None
+        # Nothing may be resent once the entry is going away.
+        self._cancel_command_confirms()
 
         # Disconnect all BLE devices
         for ble_device in self._ble_devices.values():

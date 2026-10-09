@@ -28,7 +28,7 @@ from custom_components.govee.api.ble_packet import (
 )
 from custom_components.govee.api.exceptions import GoveeApiError, GoveeAuthError
 from custom_components.govee.api.lan_client import LanDevStatus, LanDeviceInfo
-from custom_components.govee.const import CONF_ENABLE_MQTT_CONTROL
+from custom_components.govee.const import CONF_COMMAND_CONFIRM, CONF_ENABLE_MQTT_CONTROL
 from custom_components.govee.coordinator import GoveeCoordinator
 from custom_components.govee.models import (
     BrightnessCommand,
@@ -114,7 +114,9 @@ def _coordinator(*, iot: GoveeIotCredentials | None = None, options: dict[str, A
     entry = MagicMock()
     entry.entry_id = "cov_entry"
     entry.title = "Govee"
-    entry.options = options if options is not None else {}
+    # Confirm-and-resend is off here: these tests pin what each tier sends, and
+    # its follow-up traffic has its own tests (test_command_confirm.py).
+    entry.options = {CONF_COMMAND_CONFIRM: False, **(options or {})}
     entry.data = {}
     coord = GoveeCoordinator(
         hass=MagicMock(),

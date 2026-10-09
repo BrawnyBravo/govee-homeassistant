@@ -18,6 +18,16 @@ CONF_ENABLE_DIY_SCENES: Final = "enable_diy_scenes"
 CONF_EXPOSE_TRANSPORT_ENTITIES: Final = "expose_transport_entities"
 CONF_ENABLE_MQTT_CONTROL: Final = "enable_mqtt_control"
 
+# Confirm-and-resend for cloud and MQTT commands. Govee's cloud can accept a
+# command (HTTP 200) and never deliver it, and an MQTT publish is never
+# acknowledged at all. For a device with a live AWS IoT status stream, the
+# coordinator waits up to the window for the device's own status frame to show
+# the commanded value and resends once (or up to the configured count) if it
+# does not. See command_confirm.py.
+CONF_COMMAND_CONFIRM: Final = "command_confirm"
+CONF_COMMAND_CONFIRM_WINDOW: Final = "command_confirm_window"
+CONF_COMMAND_CONFIRM_RESENDS: Final = "command_confirm_resends"
+
 # Standalone water-detector (H5054) leak-poll interval (seconds). These RF-only
 # sensors deliver their trip only via the account warnMessage history (issue
 # #62); a leak surfaces with up to this much latency. Configurable because the
@@ -243,6 +253,27 @@ DEFAULT_ENABLE_DIY_SCENES: Final = True
 DEFAULT_SEGMENT_MODE: Final = "individual"  # "disabled", "grouped", or "individual"
 DEFAULT_EXPOSE_TRANSPORT_ENTITIES: Final = False
 DEFAULT_ENABLE_MQTT_CONTROL: Final = False
+# On by default: a confirm costs nothing against the request quota (it reads the
+# device's own AWS IoT status), and only a command the device demonstrably did
+# not apply is resent. Devices without an AWS IoT status stream are untouched.
+DEFAULT_COMMAND_CONFIRM: Final = True
+# Seconds to wait for the device's status frame to show a command took effect.
+# Most devices answer a status query in well under a second; six leaves room
+# for a slow cloud hop without holding a resend so long it feels unrelated.
+DEFAULT_COMMAND_CONFIRM_WINDOW: Final = 6
+MIN_COMMAND_CONFIRM_WINDOW: Final = 2
+MAX_COMMAND_CONFIRM_WINDOW: Final = 30
+# Resends per command when the device reports a different value. One is
+# usually enough; 0 keeps the confirm (and its log lines and counters) without
+# ever resending.
+DEFAULT_COMMAND_CONFIRM_RESENDS: Final = 1
+MIN_COMMAND_CONFIRM_RESENDS: Final = 0
+MAX_COMMAND_CONFIRM_RESENDS: Final = 3
+# Seconds a confirm waits for a device to push on its own before asking with a
+# status query. Devices that report changes unprompted do so within a second;
+# most only answer a query (see CONF_MQTT_STATUS_INTERVAL), and asking too early
+# can catch the frame from before the command landed.
+COMMAND_CONFIRM_QUERY_DELAY: Final = 1.5
 DEFAULT_API_TEMPERATURE_UNIT: Final = "auto"
 DEFAULT_LAN_TARGETS: Final = ""
 DEFAULT_WATER_DETECTOR_POLL_INTERVAL: Final = 120  # seconds (2 minutes)

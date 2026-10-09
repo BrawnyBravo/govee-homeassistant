@@ -332,6 +332,10 @@ def _runtime_diag(coordinator: GoveeCoordinator) -> dict[str, Any]:
                 coordinator.update_interval.total_seconds() if coordinator.update_interval else None
             ),
         },
+        # Confirm-and-resend settings and counters: how many cloud/MQTT
+        # commands the device confirmed, how many were resent (each one a
+        # cloud request), and how many still never showed up on the device.
+        "command_confirm": coordinator.command_confirm_stats,
         "scene_cache_count": coordinator.scene_cache_count,
         "diy_scene_cache_count": coordinator.diy_scene_cache_count,
     }

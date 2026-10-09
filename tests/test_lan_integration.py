@@ -546,6 +546,9 @@ class TestNeverStranded:
         coord._mqtt_client = mqtt
         coord._ensure_device_topic = AsyncMock(return_value="GA/topic/x")
         coord._transport.record_success(self.DEVICE_ID, "mqtt")
+        # The REST write would start a confirm on this MQTT-heard device; that
+        # follow-up has its own tests (test_command_confirm.py).
+        coord._confirm_window = None
 
         client._send_transport.sent.clear()
         command = PowerCommand(power_on=False)
