@@ -83,6 +83,8 @@ class BleAdvertisementHandler:
 
     def __init__(self, coordinator: GoveeCoordinator) -> None:
         self._coord = coordinator
+        # Devices whose same-SKU advert from another address was already logged.
+        self._mac_mismatch_logged: set[str] = set()
 
     def setup_subscriptions(self) -> list[Any]:
         """Register name-prefix and manufacturer-ID callbacks.
@@ -202,6 +204,14 @@ class BleAdvertisementHandler:
             expected_mac = ble_address_from_device_id(only_id)
             if expected_mac is None or expected_mac == ble_mac:
                 matched_id = only_id
+            elif only_id not in self._mac_mismatch_logged:
+                self._mac_mismatch_logged.add(only_id)
+                _LOGGER.debug(
+                    "Ignoring %s BLE advert from %s: this account's device expects %s",
+                    ble_sku,
+                    ble_mac,
+                    expected_mac,
+                )
         elif len(candidates) > 1:
             for did, _dev in candidates:
                 if ble_address_from_device_id(did) == ble_mac:

@@ -111,6 +111,19 @@ def test_same_model_advert_from_another_address_is_not_enrolled(coordinator, moc
     coordinator.async_update_listeners.assert_not_called()
 
 
+def test_mismatched_advert_is_logged_once_per_device(coordinator, mock_light_device, caplog):
+    import logging
+
+    caplog.set_level(logging.DEBUG, logger="custom_components.govee.ble_advertisement")
+    for _ in range(3):
+        coordinator._ble_handler.handle_advertisement(_advert(mock_light_device.sku, address=NEIGHBOUR))
+
+    mismatches = [r for r in caplog.records if "expects" in r.getMessage()]
+    assert len(mismatches) == 1
+    message = mismatches[0].getMessage()
+    assert mock_light_device.sku in message and NEIGHBOUR in message and "AA:BB:CC:DD:EE:FF" in message
+
+
 def test_advert_address_is_compared_case_insensitively(coordinator, mock_light_device):
     coordinator._ble_handler.handle_advertisement(_advert(mock_light_device.sku, address="aa:bb:cc:dd:ee:ff"))
 
