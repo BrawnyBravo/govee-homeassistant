@@ -479,6 +479,7 @@ class GoveeLanClient:
 
         joined = _join_group(recv_sock, interfaces)
 
+        recv_transport: asyncio.DatagramTransport | None = None
         try:
             recv_transport, _ = await loop.create_datagram_endpoint(
                 lambda: _RealtimeProtocol(self._handle_datagram), sock=recv_sock
@@ -489,6 +490,9 @@ class GoveeLanClient:
         except OSError as err:
             _LOGGER.warning("Govee LAN transport disabled: could not attach datagram endpoint: %s", err)
             _drop_group(recv_sock, joined)
+            if recv_transport is not None:
+                # Unregister it from the loop; closing it also closes recv_sock.
+                recv_transport.close()
             recv_sock.close()
             send_sock.close()
             return

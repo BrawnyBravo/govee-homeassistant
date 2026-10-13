@@ -730,6 +730,30 @@ class TestGoveeLanClientDegrade:
         assert send_sock.closed is True
         assert socket.IP_DROP_MEMBERSHIP in recv_sock.opt_names()
 
+    async def test_second_endpoint_failure_closes_the_first_transport(self, monkeypatch):
+        recv_sock = _FakeSocket()
+        send_sock = _FakeSocket()
+        _patch_sockets(monkeypatch, recv_sock, send_sock)
+        created: list[_FakeTransport] = []
+
+        async def first_only(protocol_factory, sock=None):
+            if created:
+                raise OSError("cannot attach the send socket")
+            transport = _FakeTransport(sock)
+            created.append(transport)
+            return transport, protocol_factory()
+
+        loop = asyncio.get_running_loop()
+        monkeypatch.setattr(loop, "create_datagram_endpoint", first_only)
+
+        client = GoveeLanClient(lambda ip, payload: None)
+        await client.async_start(["10.0.0.2"])  # must NOT raise
+
+        assert client.available is False
+        # The receive transport is not left registered on the loop.
+        assert created[0].closed is True
+        assert send_sock.closed is True
+
 
 class TestGoveeLanClientStop:
     """async_stop drops the group, closes BOTH sockets, and is idempotent."""

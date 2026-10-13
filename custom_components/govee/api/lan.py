@@ -532,7 +532,12 @@ async def async_scan_lan_devices(
     sock = _build_socket()  # raises OSError if port 4002 cannot be bound
     joined = _join_group(sock, interfaces)
 
-    transport, protocol = await loop.create_datagram_endpoint(_ScanProtocol, sock=sock)
+    try:
+        transport, protocol = await loop.create_datagram_endpoint(_ScanProtocol, sock=sock)
+    except BaseException:
+        _drop_group(sock, joined)
+        sock.close()
+        raise
     assert isinstance(protocol, _ScanProtocol)
     try:
         _send_scan(sock, transport, interfaces)
@@ -593,7 +598,12 @@ async def async_probe_lan_raw(
     sock = _build_socket()  # raises OSError if port 4002 cannot be bound
     joined = _join_group(sock, interfaces)  # catch multicast replies too
 
-    transport, protocol = await loop.create_datagram_endpoint(_RawProbeProtocol, sock=sock)
+    try:
+        transport, protocol = await loop.create_datagram_endpoint(_RawProbeProtocol, sock=sock)
+    except BaseException:
+        _drop_group(sock, joined)
+        sock.close()
+        raise
     assert isinstance(protocol, _RawProbeProtocol)
     try:
         for ip in targets:
