@@ -55,6 +55,11 @@ RETRY_FACTOR = 2.0  # Exponential factor
 # Retryable server error status codes
 RETRY_STATUSES = {500, 502, 503, 504}
 
+# Control commands are sent exactly once. A timeout or 5xx does not mean the
+# command was not applied, and resending it spends the quota again and holds
+# the service call for up to three request timeouts.
+SINGLE_ATTEMPT = ExponentialRetry(attempts=1)
+
 # Per-request deadline. Home Assistant's shared session has no default
 # timeout, so without this a stalled connection would hold a service call for
 # aiohttp's default of five minutes.
@@ -593,6 +598,7 @@ class GoveeApiClient:
         try:
             async with client.post(
                 ENDPOINT_CONTROL,
+                retry_options=SINGLE_ATTEMPT,
                 headers=self._get_headers(),
                 timeout=REQUEST_TIMEOUT,
                 json=payload,
