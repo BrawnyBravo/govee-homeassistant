@@ -1027,6 +1027,21 @@ class TestSourceIpDispatch:
         # None of these is a well-formed devStatus reply -> nothing dispatched.
         assert pushes == []
 
+    async def test_hostile_datagrams_are_ignored_without_raising(self, monkeypatch):
+        # A datagram from any LAN host must never raise out of the socket
+        # callback (asyncio would log a traceback per packet).
+        client, pushes = await _start_client(monkeypatch)
+
+        client._handle_datagram("10.0.0.9", b"[" * 100000)  # RecursionError in json
+        client._handle_datagram(
+            "10.0.0.9",
+            b'{"msg":{"cmd":"devStatus","data":{"onOff":1,"brightness":1e400,'
+            b'"color":{"r":0,"g":0,"b":0},"colorTemInKelvin":0}}}',
+        )  # int(inf)
+        client._handle_datagram("10.0.0.9", _dev_status_bytes(color={"r": 1e400, "g": 0, "b": 0}))
+
+        assert pushes == []
+
     async def test_unregister_unknown_ip_is_a_noop(self, monkeypatch):
         # Defensive: unregistering an ip with no in-flight read must not raise.
         client, _ = await _start_client(monkeypatch)

@@ -353,7 +353,7 @@ class _ScanProtocol(asyncio.DatagramProtocol):
             body = msg.get("data", {})
             if not isinstance(body, dict):
                 return
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, RecursionError):
             return
 
         record = {field: body[field] for field in _RESPONSE_FIELDS if field in body}
@@ -396,7 +396,7 @@ class _RawProbeProtocol(asyncio.DatagramProtocol):
             return  # chatty device / broadcast storm — keep the dump bounded
         try:
             payload: Any = json.loads(data.decode("utf-8", errors="replace"))
-        except ValueError:
+        except (ValueError, RecursionError):
             payload = {"_unparsed": data.decode("utf-8", errors="replace")[:512]}
         bucket.append(payload)
 

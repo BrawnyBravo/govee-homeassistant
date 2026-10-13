@@ -304,6 +304,19 @@ def test_rawprobe_captures_undecodable_as_unparsed():
     assert "_unparsed" in captured
 
 
+def test_deeply_nested_datagrams_never_raise():
+    # json.loads raises RecursionError (not ValueError) on deep nesting; a LAN
+    # host must not be able to make the socket callback raise.
+    hostile = b"[" * 100000
+    scan = lan._ScanProtocol()
+    scan.datagram_received(hostile, ("10.0.0.5", 4002))
+    assert scan.responses == {}
+
+    probe = lan._RawProbeProtocol()
+    probe.datagram_received(hostile, ("10.0.0.5", 4002))
+    assert "_unparsed" in probe.replies["10.0.0.5"][0]
+
+
 def test_rawprobe_caps_replies_per_ip():
     proto = lan._RawProbeProtocol()
     for i in range(lan.LAN_PROBE_MAX_REPLIES_PER_IP + 5):

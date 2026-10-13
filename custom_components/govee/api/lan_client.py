@@ -90,7 +90,7 @@ def _coerce_int(value: Any) -> int | None:
         return None
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -100,7 +100,7 @@ def _parse_color(value: Any) -> RGBColor | None:
         return None
     try:
         return RGBColor.from_dict(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -550,8 +550,8 @@ class GoveeLanClient:
         """
         try:
             payload = json.loads(raw.decode("utf-8", errors="replace"))
-        except ValueError:
-            return  # undecodable bytes — not a devStatus, ignore
+        except (ValueError, RecursionError):
+            return  # undecodable or absurdly nested bytes — not a devStatus, ignore
         status = parse_dev_status(payload)
         if status is None:
             return  # scan/status/garbage/partial — never fabricate state
