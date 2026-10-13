@@ -523,10 +523,19 @@ class GoveeBLEDevice:
         if self._disconnect_timer is not None:
             self._disconnect_timer.cancel()
             self._disconnect_timer = None
-        if self._disconnect_task is not None and not self._disconnect_task.done():
-            self._disconnect_task.cancel()
-        self._disconnect_task = None
+        task, self._disconnect_task = self._disconnect_task, None
+        if task is not None:
+            # Let an idle disconnect that already started finish: cancelling it
+            # mid-disconnect could leave the link half closed.
+            await asyncio.wait([task])
+            if not task.cancelled() and task.exception() is not None:
+                _LOGGER.debug("Idle BLE disconnect for %s failed: %s", self.address, task.exception())
         async with self._lock:
+            # A write that was in flight when stop() began re-armed the timer
+            # in its finally; clear it so nothing outlives the unload.
+            if self._disconnect_timer is not None:
+                self._disconnect_timer.cancel()
+                self._disconnect_timer = None
             if self._client is not None and self._client.is_connected:
                 try:
                     await self._client.disconnect()

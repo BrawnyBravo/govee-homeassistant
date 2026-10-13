@@ -848,7 +848,8 @@ class TestIdleDisconnect:
         assert device._client is None
 
     @pytest.mark.asyncio
-    async def test_stop_cancels_an_idle_disconnect_waiting_for_the_lock(self):
+    async def test_stop_lets_a_started_idle_disconnect_finish(self):
+        """Cancelling a disconnect midway could leave the link half closed."""
         import asyncio
 
         device = GoveeBLEDevice(_make_ble_device())
@@ -859,10 +860,47 @@ class TestIdleDisconnect:
             task = device._disconnect_task
             await asyncio.sleep(0)  # the task is now blocked on the lock
         await device.stop()
-        await asyncio.sleep(0.01)
 
-        assert task.cancelled()
-        client.disconnect.assert_awaited_once()  # by stop() only
+        assert task.done() and not task.cancelled()
+        client.disconnect.assert_awaited_once()  # by the idle task; stop() found no link
+        assert device._client is None
+
+    @pytest.mark.asyncio
+    async def test_stop_swallows_a_failed_idle_disconnect(self):
+        import asyncio
+
+        device = GoveeBLEDevice(_make_ble_device())
+        _install_fake_client(device)
+
+        async def _boom():
+            raise RuntimeError("bluez gone")
+
+        device._disconnect_task = asyncio.get_running_loop().create_task(_boom())
+        await device.stop()  # must not raise
+
+        assert device._disconnect_task is None
+
+    @pytest.mark.asyncio
+    async def test_stop_during_an_in_flight_write_leaves_no_armed_timer(self):
+        import asyncio
+
+        device = GoveeBLEDevice(_make_ble_device())
+        client = _install_fake_client(device)
+        release = asyncio.Event()
+
+        async def _slow_write(*_args, **_kwargs):
+            await release.wait()
+
+        client.write_gatt_char = AsyncMock(side_effect=_slow_write)
+        write = asyncio.get_running_loop().create_task(device.turn_on())
+        await asyncio.sleep(0)  # the write holds the lock
+        stop = asyncio.get_running_loop().create_task(device.stop())
+        await asyncio.sleep(0)
+        release.set()
+        await asyncio.gather(write, stop)
+
+        assert device._disconnect_timer is None
+        assert device._client is None
 
     @pytest.mark.asyncio
     async def test_stale_idle_disconnect_skips_a_link_reused_meanwhile(self):
