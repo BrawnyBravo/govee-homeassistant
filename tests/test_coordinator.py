@@ -1343,7 +1343,7 @@ class TestBleAdvertisementHandling:
         coord._ble_ignored_skus_logged = set()
         coord._ble_handler = BleAdvertisementHandler(coord)
 
-        info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
+        info = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
         coord._handle_ble_advertisement(info)
 
         assert "AA:BB:CC:DD:EE:FF:00:11" not in coord._ble_devices
@@ -1352,7 +1352,7 @@ class TestBleAdvertisementHandling:
     def test_single_sku_match_creates_ble_device(self, sample_device):
         """BLE advertisement matching a single cloud device by SKU creates a GoveeBLEDevice."""
         coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
-        info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
+        info = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
 
         coord._handle_ble_advertisement(info)
 
@@ -1455,8 +1455,8 @@ class TestBleAdvertisementHandling:
     def test_repeated_advertisement_refreshes_existing(self, sample_device):
         """Second advertisement for same device refreshes the BLEDevice reference."""
         coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
-        info1 = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
-        info2 = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
+        info1 = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
+        info2 = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
 
         coord._handle_ble_advertisement(info1)
         coord._handle_ble_advertisement(info2)
@@ -1478,7 +1478,7 @@ class TestBleAdvertisementHandling:
 
         coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         coord.hass = MagicMock()
-        info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
+        info = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
 
         coord._handle_ble_advertisement(info)
 
@@ -1498,7 +1498,7 @@ class TestBleAdvertisementHandling:
 
         coord = self._make_coordinator_with_devices({"AA:BB:CC:DD:EE:FF:00:11": sample_device})
         coord.hass = MagicMock()
-        info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
+        info = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
 
         coord._handle_ble_advertisement(info)
 
@@ -1523,7 +1523,7 @@ class TestBleAdvertisementHandling:
         offline_state.online = False
         coord._states["AA:BB:CC:DD:EE:FF:00:11"] = offline_state
 
-        info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
+        info = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
         coord._handle_ble_advertisement(info)
 
         assert coord._states["AA:BB:CC:DD:EE:FF:00:11"].online is True
@@ -1546,7 +1546,7 @@ class TestBleAdvertisementHandling:
         coord._states["AA:BB:CC:DD:EE:FF:00:11"] = offline_state
         original_id = id(offline_state)
 
-        info = self._make_service_info("Govee_H6072_754B", "AA:BB:CC:DD:EE:FF")
+        info = self._make_service_info("Govee_H6072_754B", "CC:DD:EE:FF:00:11")
         coord._handle_ble_advertisement(info)
 
         new_state = coord._states["AA:BB:CC:DD:EE:FF:00:11"]

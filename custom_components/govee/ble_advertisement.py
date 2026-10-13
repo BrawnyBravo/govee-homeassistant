@@ -176,10 +176,16 @@ class BleAdvertisementHandler:
         ``docs/_research/2026-04-09_multi-transport-single-entity.md``):
           1. Extract SKU from the advertising name.
           2. Find cloud devices with that SKU (ignoring group devices).
-          3. If exactly one match → unambiguous correlation.
-          4. If multiple same-SKU → MAC tiebreaker: the cloud ID's last six
-             octets are the BLE MAC (see ``ble_address_from_device_id``).
+          3. If exactly one match → correlate, but only when the advert's
+             address equals the MAC carried in the cloud ID (see
+             ``ble_address_from_device_id``). A neighbour's light of the same
+             model must never be enrolled in place of the owner's. The bare
+             SKU match is kept only for IDs that carry no MAC.
+          4. If multiple same-SKU → MAC tiebreaker on the same derived MAC.
           5. If no match or ambiguous → skip.
+
+        An enrolled device is never re-pointed at a different address by a
+        later advert.
         """
         coord = self._coord
 
@@ -188,12 +194,15 @@ class BleAdvertisementHandler:
             return
 
         candidates = [(did, dev) for did, dev in coord._devices.items() if dev.sku == ble_sku and not dev.is_group]
+        ble_mac = service_info.address.upper()
 
         matched_id: str | None = None
         if len(candidates) == 1:
-            matched_id = candidates[0][0]
+            only_id = candidates[0][0]
+            expected_mac = ble_address_from_device_id(only_id)
+            if expected_mac is None or expected_mac == ble_mac:
+                matched_id = only_id
         elif len(candidates) > 1:
-            ble_mac = service_info.address.upper()
             for did, _dev in candidates:
                 if ble_address_from_device_id(did) == ble_mac:
                     matched_id = did
@@ -251,6 +260,9 @@ class BleAdvertisementHandler:
                 ble_sku,
             )
         else:
+            if coord._ble_devices[matched_id].address.upper() != ble_mac:
+                # Another radio of the same model; keep the enrolled one.
+                return
             coord._ble_devices[matched_id].set_ble_device_and_advertisement_data(
                 service_info.device,
                 service_info.advertisement,
