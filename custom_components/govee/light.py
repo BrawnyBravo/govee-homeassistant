@@ -29,7 +29,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoredExtraData, RestoreEntity
-from homeassistant.util.color import brightness_to_value, value_to_brightness
 
 from .const import (
     CONF_ENABLE_SCENES,
@@ -45,6 +44,7 @@ from .const import (
     SUFFIX_MAIN_LIGHT_TOGGLE,
     SUFFIX_MAIN_PANEL,
 )
+from .brightness import device_to_ha_brightness, ha_to_device_brightness
 from .coordinator import GoveeConfigEntry, GoveeCoordinator
 from .entity import GoveeEntity
 from .models import (
@@ -72,29 +72,6 @@ MAIN_LIGHT_ON_KELVIN = 4000
 
 # The H1232 main panel takes a 1-100 brightness over ptReal.
 MAIN_PANEL_BRIGHTNESS_RANGE = (1, 100)
-
-
-def ha_to_device_brightness(device_range: tuple[int, int], ha_brightness: int) -> int:
-    """Convert HA brightness (1-255) to the device's range.
-
-    Rounds rather than truncating so the pair with ``device_to_ha_brightness``
-    is a true inverse: re-applying the reported brightness never drifts. A
-    device range that starts at 0 is scaled from 1, because 0 means dark and a
-    light that is on must never be sent it.
-    """
-    if ha_brightness <= 0:
-        return device_range[0]
-    low = max(device_range[0], 1)
-    value = round(brightness_to_value((low, device_range[1]), ha_brightness))
-    return max(low, min(device_range[1], value))
-
-
-def device_to_ha_brightness(device_range: tuple[int, int], device_brightness: int) -> int:
-    """Convert a device brightness to HA's 1-255 scale (see ``ha_to_device_brightness``)."""
-    if device_range[1] <= device_range[0]:
-        return 0
-    low = max(device_range[0], 1)
-    return value_to_brightness((low, device_range[1]), device_brightness)
 
 
 async def async_setup_entry(

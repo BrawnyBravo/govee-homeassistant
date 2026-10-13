@@ -43,6 +43,7 @@ from custom_components.govee.models import (
     PowerCommand,
     RGBColor,
     SceneCommand,
+    SegmentBrightnessCommand,
     SegmentColorCommand,
     ToggleCommand,
 )
@@ -229,6 +230,20 @@ class TestControlDeviceTiers:
         health = coord._transport.get(DEV, "cloud_api")
         assert health.last_send_ts is not None and health.last_success_ts is not None
         coord.async_set_updated_data.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_segment_brightness_goes_through_the_segment_queue(self, monkeypatch):
+        monkeypatch.setattr(coord_mod, "SEGMENT_COMMAND_PACING_SECONDS", 0)
+        coord = _coordinator()
+        _add(coord, _device(caps=(_POWER, _BRIGHTNESS, _RGB, _SEGMENTS)))
+        command = SegmentBrightnessCommand(segment_indices=(0, 2), brightness=40)
+
+        assert await coord.async_control_device(DEV, command) is True
+
+        assert DEV in coord._segment_locks
+        assert _sent(coord) == [command]
+        # Brightness does not touch the tracked segment colours (#131 replay).
+        assert DEV not in coord._segment_colors
 
     @pytest.mark.asyncio
     async def test_segment_rejection_records_a_failure(self, monkeypatch):

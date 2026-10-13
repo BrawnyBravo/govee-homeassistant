@@ -150,6 +150,7 @@ from .models.commands import (
     PowerCommand,
     RangeCommand,
     SceneCommand,
+    SegmentBrightnessCommand,
     SegmentColorCommand,
     TemperatureSettingCommand,
     ToggleCommand,
@@ -4722,6 +4723,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 self.async_set_updated_data(self._states)
                 success = await self._dispatch_segment_command(device_id, device.sku, command)
                 return success
+            # Segment brightness has no device-state field to update, but goes
+            # through the same per-device queue so a burst is not dropped.
+            if isinstance(command, SegmentBrightnessCommand):
+                return await self._dispatch_segment_command(device_id, device.sku, command)
 
             success = await self._api_client.control_device(
                 device_id,
@@ -4799,7 +4804,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         self,
         device_id: str,
         sku: str,
-        command: SegmentColorCommand,
+        command: SegmentColorCommand | SegmentBrightnessCommand,
     ) -> bool:
         """Send a single segment command under a per-device lock.
 
