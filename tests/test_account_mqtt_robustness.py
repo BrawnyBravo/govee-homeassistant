@@ -8,6 +8,7 @@ MQTT debug logs. Every network client is an in-process fake.
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import logging
 from typing import Any
@@ -16,7 +17,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 import custom_components.govee.coordinator as coord_mod
-from custom_components.govee.api.mqtt import GoveeAwsIotClient
+from custom_components.govee.api import openapi_events as openapi_mod
+from custom_components.govee.api.mqtt import STABLE_SESSION_SECONDS, GoveeAwsIotClient
 from custom_components.govee.api.exceptions import (
     Govee2FARequiredError,
     GoveeApiError,
@@ -41,6 +43,9 @@ from tests.test_cov_coordinator_setup import (
 )
 
 from tests.test_cov_mqtt import _creds, _msg
+from tests.test_cov_openapi_events import LOGGER_NAME as OPENAPI_LOGGER
+from tests.test_cov_openapi_events import FakeAiomqtt, Harness, _push
+from tests.test_cov_openapi_events import _message as _openapi_message
 
 ACCOUNT = {CONF_EMAIL: "user@example.com", CONF_PASSWORD: "pw"}
 
@@ -283,3 +288,65 @@ class TestInboundTopicIsTruncatedInLogs:
         logged = " ".join(r.getMessage() for r in caplog.records)
         assert "inbound topic=" in logged
         assert "secret-tail" not in logged
+
+
+class _Clock:
+    """A ``time`` stand-in whose monotonic clock advances ``step`` per read."""
+
+    def __init__(self, step: float) -> None:
+        self.now = 1000.0
+        self.step = step
+
+    def monotonic(self) -> float:
+        self.now += self.step
+        return self.now
+
+
+@pytest.fixture(name="harness")
+def _harness_fixture(monkeypatch: pytest.MonkeyPatch) -> Any:
+    return lambda sessions, **kwargs: Harness(monkeypatch, sessions, **kwargs)
+
+
+class TestOpenApiEventsSubackAndBackoff:
+    """The event channel honours SUBACK and only resets backoff on a stable session (CLOUD-6)."""
+
+    @pytest.mark.asyncio
+    async def test_refused_subscription_is_a_failure_not_connected(self, harness, monkeypatch, caplog):
+        monkeypatch.setattr(openapi_mod, "time", _Clock(0.0), raising=False)
+        h = harness([{"granted": (0x80,), "block": True}, {"connect_error": OSError("x")}], stop_after_sleeps=2)
+
+        with caplog.at_level(logging.DEBUG, logger=OPENAPI_LOGGER):
+            await asyncio.wait_for(h.run(), timeout=5)
+
+        assert any("refused" in r.getMessage() for r in caplog.records)
+        assert h.sleeps == [5, 10]
+        assert h.client.connected is False
+
+    @pytest.mark.asyncio
+    async def test_flapping_session_keeps_backing_off(self, harness, monkeypatch):
+        monkeypatch.setattr(openapi_mod, "time", _Clock(0.0), raising=False)
+        drop = {"drop_error": FakeAiomqtt.MqttError("bye")}
+        h = harness([dict(drop), dict(drop), dict(drop)], stop_after_sleeps=3)
+
+        await h.run()
+
+        assert h.sleeps == [5, 10, 20]
+
+    @pytest.mark.asyncio
+    async def test_stable_session_resets_backoff_and_announces_reconnect(self, harness, monkeypatch, caplog):
+        monkeypatch.setattr(openapi_mod, "time", _Clock(STABLE_SESSION_SECONDS + 1), raising=False)
+        h = harness(
+            [
+                {"connect_error": OSError("dns")},
+                {"messages": [_openapi_message(_push())], "drop_error": FakeAiomqtt.MqttError("bye")},
+            ],
+            stop_after_sleeps=2,
+        )
+
+        with caplog.at_level(logging.DEBUG, logger=OPENAPI_LOGGER):
+            await h.run()
+
+        assert h.sleeps == [5, 5]
+        assert any(r.levelno == logging.INFO and "reconnected" in r.getMessage() for r in caplog.records)
+        drop_levels = [r.levelno for r in caplog.records if "connection error" in r.getMessage()]
+        assert drop_levels == [logging.WARNING, logging.WARNING]
