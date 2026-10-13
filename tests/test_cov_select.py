@@ -362,13 +362,13 @@ class TestHdmiSourceSelect:
         mock_hdmi_device_state.hdmi_source = 3
         assert hdmi_select.current_option == "HDMI 3"
 
-    def test_current_option_falls_back_to_first(self, hdmi_select, mock_hdmi_device_state):
+    def test_current_option_unknown_when_source_unknown(self, hdmi_select, mock_hdmi_device_state):
         mock_hdmi_device_state.hdmi_source = None
-        assert hdmi_select.current_option == "HDMI 1"
+        assert hdmi_select.current_option is None
         mock_hdmi_device_state.hdmi_source = 9  # not one of the offered ports
-        assert hdmi_select.current_option == "HDMI 1"
+        assert hdmi_select.current_option is None
         hdmi_select.coordinator.get_state.return_value = None
-        assert hdmi_select.current_option == "HDMI 1"
+        assert hdmi_select.current_option is None
 
     def test_current_option_none_without_options(self, mock_hdmi_device):
         entity = GoveeHdmiSourceSelectEntity(_coordinator(mock_hdmi_device, None), mock_hdmi_device, [])
@@ -501,13 +501,13 @@ class TestNightlightSceneSelectFallbacks:
         entity.async_write_ha_state = MagicMock()
         return entity
 
-    def test_current_option_falls_back_to_first(self, nightlight_device):
+    def test_current_option_unknown_when_scene_unknown(self, nightlight_device):
         entity = self._entity(nightlight_device, _state(nightlight_device, nightlight_scene=None))
-        assert entity.current_option == "Forest"
+        assert entity.current_option is None
         entity.coordinator.get_state.return_value.nightlight_scene = 42
-        assert entity.current_option == "Forest"
+        assert entity.current_option is None
         entity.coordinator.get_state.return_value = None
-        assert entity.current_option == "Forest"
+        assert entity.current_option is None
 
     def test_current_option_none_without_options(self, nightlight_device):
         entity = GoveeNightlightSceneSelectEntity(_coordinator(nightlight_device, None), nightlight_device, [])

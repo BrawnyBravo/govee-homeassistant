@@ -496,8 +496,8 @@ class GoveeHdmiSourceSelectEntity(_GoveeSelectBase):
             for name, value in self._option_map.items():
                 if value == state.hdmi_source:
                     return name
-        # Return first option as default if available
-        return self._attr_options[0] if self._attr_options else None
+        # Unknown source: show unknown rather than a made-up first option.
+        return None
 
     async def async_select_option(self, option: str) -> None:
         """Handle HDMI source selection."""
@@ -549,7 +549,7 @@ class GoveeNightlightSceneSelectEntity(_GoveeSelectBase):
             for name, value in self._option_map.items():
                 if value == state.nightlight_scene:
                     return name
-        return self._attr_options[0] if self._attr_options else None
+        return None
 
     async def async_select_option(self, option: str) -> None:
         """Handle nightlight scene selection."""
@@ -783,8 +783,8 @@ class GoveeFanSpeedSelectEntity(_GoveeSelectBase):
             for name, (wm, _mv) in self._option_map.items():
                 if wm == state.work_mode:
                     return name
-        # Return first option as default if available
-        return self._attr_options[0] if self._attr_options else None
+        # Unknown speed: show unknown rather than a made-up first option.
+        return None
 
     async def async_select_option(self, option: str) -> None:
         """Handle fan speed selection."""
@@ -863,8 +863,9 @@ class GoveePurifierModeSelectEntity(_GoveeSelectBase):
             for name, value in self._option_map.items():
                 if value == state.purifier_mode:
                     return name
-        # Return first option as default if available
-        return self._attr_options[0] if self._attr_options else None
+        # Unknown, or the unit is in a non-gear mode (e.g. Auto): none of the
+        # options is active, so report unknown rather than the first option.
+        return None
 
     async def async_select_option(self, option: str) -> None:
         """Handle purifier mode selection."""
@@ -930,8 +931,8 @@ class GoveePresetSceneSelectEntity(_GoveeSelectBase):
             for name, value in self._option_map.items():
                 if value == state.preset_scene:
                     return name
-        # Default to the first scene when the cloud reports nothing.
-        return self._attr_options[0] if self._attr_options else None
+        # The cloud reports nothing until a scene is picked: show unknown.
+        return None
 
     async def async_select_option(self, option: str) -> None:
         """Handle preset scene selection."""
