@@ -460,7 +460,7 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         """Clear cached MQTT credentials and login-failure marker.
 
         This allows a fresh login attempt after reconfigure.
-        Also dismisses any 2FA repairs issue for this entry.
+        Also dismisses the 2FA and token-expired repairs issues for this entry.
         """
         entry = self.hass.config_entries.async_get_entry(entry_id)
         if entry is not None:
@@ -475,8 +475,10 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
             if mutated:
                 self.hass.config_entries.async_update_entry(entry, data=new_data)
 
-        # Dismiss 2FA repairs issue if it exists
+        # Dismiss the repairs that told the user to reconfigure: 2FA needed,
+        # and an expired token the coordinator could not refresh itself.
         ir.async_delete_issue(self.hass, DOMAIN, f"mqtt_2fa_required_{entry_id}")
+        ir.async_delete_issue(self.hass, DOMAIN, f"mqtt_token_expired_{entry_id}")
 
         _LOGGER.debug("Cleared MQTT cache for entry %s", entry_id)
 
