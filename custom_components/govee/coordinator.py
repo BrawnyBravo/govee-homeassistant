@@ -96,6 +96,7 @@ from .const import (
     LAN_CORRELATION_TTL_SECONDS,
     LAN_READ_MISS_DEMOTE_THRESHOLD,
     LAN_RESCAN_INTERVAL,
+    LAN_SETUP_RETRY_MAX_INTERVAL,
     LAN_WRITE_CONFIRM_TIMEOUT,
     LAN_WRITE_SUPPRESS_SECONDS,
     LAN_WRITE_SUPPRESS_THRESHOLD,
@@ -591,6 +592,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # Set by async_shutdown so a setup retry still in flight never opens a
         # socket after unload.
         self._lan_closed = False
+        # Wait before the next LAN setup retry while no client is running;
+        # doubles after each empty retry (see LAN_SETUP_RETRY_MAX_INTERVAL).
+        self._lan_retry_interval: float = LAN_RESCAN_INTERVAL
         # Startup discovery steps that failed or timed out in this session.
         # While non-empty, the orphan cleanup in __init__.py must not treat
         # entities of not-yet-discovered devices as stale.
@@ -1614,13 +1618,16 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         forces the next call to run.
 
         When setup left LAN off (nothing answered or correlated yet, or the
-        :4002 bind failed), the same throttle retries the full LAN setup
-        instead, so lights whose Wi-Fi came up after Home Assistant still get
-        local control without a reload. ``"off"`` is honoured by
-        :meth:`_async_setup_lan` itself.
+        :4002 bind failed), the full LAN setup is retried instead, so lights
+        whose Wi-Fi came up after Home Assistant still get local control
+        without a reload. The retry starts at ``LAN_RESCAN_INTERVAL`` and
+        doubles after each empty attempt up to ``LAN_SETUP_RETRY_MAX_INTERVAL``;
+        success resets it, and an options change reloads the entry, which
+        starts over. ``"off"`` is honoured by :meth:`_async_setup_lan` itself.
         """
         now = time.monotonic()
-        if now - self._last_lan_rescan < LAN_RESCAN_INTERVAL:
+        interval = LAN_RESCAN_INTERVAL if self._lan_client is not None else self._lan_retry_interval
+        if now - self._last_lan_rescan < interval:
             return
         self._last_lan_rescan = now
 
@@ -1629,6 +1636,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 await self._async_setup_lan(retry=True)
             except Exception as err:  # noqa: BLE001 — never fail the poll
                 _LOGGER.debug("Govee LAN setup retry failed: %s", err)
+            if self._lan_client is None:
+                # Still nothing: back off so a cloud-only install isn't scanned
+                # every five minutes forever.
+                self._lan_retry_interval = min(self._lan_retry_interval * 2, LAN_SETUP_RETRY_MAX_INTERVAL)
+            else:
+                self._lan_retry_interval = LAN_RESCAN_INTERVAL
             return
 
         raw_targets = self._config_entry.options.get(CONF_LAN_TARGETS, "")

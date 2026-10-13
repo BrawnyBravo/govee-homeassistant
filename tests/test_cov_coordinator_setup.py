@@ -801,6 +801,38 @@ class TestLanSetupRetry:
         assert seen["scans"] == 2
 
     @pytest.mark.asyncio
+    async def test_empty_retries_back_off_to_an_hour_and_success_resets(self, monkeypatch):
+        """Cloud-only installs must not scan every five minutes forever."""
+        coord = _coordinator()
+        _add(coord, _light(DEV))
+        seen: dict[str, Any] = {}
+        _patch_lan(monkeypatch, scan=[], client=_FakeLanClient(), seen=seen)
+        clock = {"now": 10_000.0}
+        monkeypatch.setattr(coord_mod.time, "monotonic", lambda: clock["now"])
+
+        await coord._async_setup_lan()  # empty first attempt at t=10000
+        gaps = []
+        last = clock["now"]
+        for _ in range(7):
+            # Advance minute by minute until the next retry actually scans.
+            before = seen["scans"]
+            while seen["scans"] == before:
+                clock["now"] += 60
+                await coord._async_maybe_rescan_lan()
+            gaps.append(clock["now"] - last)
+            last = clock["now"]
+
+        assert gaps == [300, 600, 1200, 2400, 3600, 3600, 3600]
+
+        # Lights finally answer: the client starts and the interval resets.
+        client = _FakeLanClient()
+        _patch_lan(monkeypatch, scan=[{"device": DEV, "ip": "10.0.0.5", "sku": "H6072"}], client=client, seen=seen)
+        clock["now"] += 3600
+        await coord._async_maybe_rescan_lan()
+        assert coord._lan_client is client
+        assert coord._lan_retry_interval == 300
+
+    @pytest.mark.asyncio
     async def test_off_never_retries(self, monkeypatch):
         coord = _coordinator(options={CONF_LAN_TARGETS: "off"})
         _add(coord, _light(DEV))
