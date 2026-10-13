@@ -313,13 +313,17 @@ class _RealtimeProtocol(asyncio.DatagramProtocol):
     def __init__(self, on_datagram: Callable[[str, bytes], None]) -> None:
         """Store the callback invoked for every inbound datagram."""
         self._on_datagram = on_datagram
+        # The most recent socket error. asyncio's datagram ``sendto`` never
+        # raises OSError; it reports it here instead, usually before returning.
+        self.last_error: Exception | None = None
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """Forward the raw datagram to the callback keyed by its source IP."""
         self._on_datagram(addr[0], data)
 
-    def error_received(self, exc: Exception) -> None:  # pragma: no cover - rare
-        """Log a transient socket error; the persistent socket stays open."""
+    def error_received(self, exc: Exception) -> None:
+        """Record and log a transient socket error; the socket stays open."""
+        self.last_error = exc
         _LOGGER.debug("LAN realtime socket error: %s", exc)
 
 
@@ -413,6 +417,7 @@ class GoveeLanClient:
         self._send_sock: socket.socket | None = None
         self._recv_transport: asyncio.DatagramTransport | None = None
         self._send_transport: asyncio.DatagramTransport | None = None
+        self._send_protocol: _RealtimeProtocol | None = None
         self._joined: list[str] = []
         # Solicited reads in flight, keyed by queried source IP. A list per IP
         # tolerates a batch read and a one-off read overlapping on the same IP;
@@ -478,7 +483,7 @@ class GoveeLanClient:
             recv_transport, _ = await loop.create_datagram_endpoint(
                 lambda: _RealtimeProtocol(self._handle_datagram), sock=recv_sock
             )
-            send_transport, _ = await loop.create_datagram_endpoint(
+            send_transport, send_protocol = await loop.create_datagram_endpoint(
                 lambda: _RealtimeProtocol(self._handle_datagram), sock=send_sock
             )
         except OSError as err:
@@ -492,6 +497,7 @@ class GoveeLanClient:
         self._send_sock = send_sock
         self._recv_transport = recv_transport
         self._send_transport = send_transport
+        self._send_protocol = send_protocol if isinstance(send_protocol, _RealtimeProtocol) else None
         self._joined = joined
         self._available = True
         _LOGGER.debug(
@@ -520,6 +526,7 @@ class GoveeLanClient:
         if self._send_transport is not None:
             self._send_transport.close()
             self._send_transport = None
+        self._send_protocol = None
 
         self._recv_sock = None
         self._send_sock = None
@@ -601,15 +608,24 @@ class GoveeLanClient:
         Returns:
             ``True`` iff the datagram was handed to the socket without an
             ``OSError``; ``False`` (logged at debug) when the client is
-            unavailable or ``sendto`` raised ``OSError``.
+            unavailable or the send failed, whether ``sendto`` raised or (as
+            asyncio does) reported it through ``error_received``.
         """
         if not self._available or self._send_transport is None:
             return False
         message = json.dumps({"msg": {"cmd": cmd, "data": data}}).encode("utf-8")
+        protocol = self._send_protocol
+        if protocol is not None:
+            protocol.last_error = None
         try:
             self._send_transport.sendto(message, (ip, LAN_COMMAND_PORT))
         except OSError as err:
             _LOGGER.debug("LAN send %s to %s:%d failed: %s", cmd, ip, LAN_COMMAND_PORT, err)
+            return False
+        # asyncio reports an immediate send failure through error_received
+        # instead of raising, so check what it recorded during this send.
+        if protocol is not None and protocol.last_error is not None:
+            _LOGGER.debug("LAN send %s to %s:%d failed: %s", cmd, ip, LAN_COMMAND_PORT, protocol.last_error)
             return False
         return True
 

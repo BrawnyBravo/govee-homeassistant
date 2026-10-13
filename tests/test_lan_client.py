@@ -866,6 +866,27 @@ class TestAsyncSendCommand:
 
         assert await client.async_send_command("10.0.0.5", "turn", {"value": 0}) is False
 
+    async def test_returns_false_when_the_transport_reports_the_error(self, monkeypatch):
+        # CPython's datagram transport never raises from sendto: it hands the
+        # OSError to protocol.error_received and returns. That must still count
+        # as a failed send.
+        _patch_sockets(monkeypatch, _FakeSocket(), _FakeSocket())
+        endpoints = _patch_create_endpoint(monkeypatch)
+        client = GoveeLanClient(lambda ip, status: None)
+        await client.async_start([])
+        send_transport, send_protocol, _ = endpoints[1]
+
+        def _cpython_sendto(data, addr=None):
+            send_protocol.error_received(OSError(101, "Network is unreachable"))
+
+        send_transport.sendto = _cpython_sendto
+
+        assert await client.async_send_command("10.0.0.5", "turn", {"value": 0}) is False
+
+        # The error belongs to that send only; the next good send succeeds.
+        send_transport.sendto = lambda data, addr=None: None
+        assert await client.async_send_command("10.0.0.5", "turn", {"value": 0}) is True
+
     async def test_returns_false_when_unavailable(self):
         # A never-started client has no send transport — send is a no-op False.
         client = GoveeLanClient(lambda ip, status: None)
