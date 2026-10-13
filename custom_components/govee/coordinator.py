@@ -26,6 +26,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import (
+    Govee2FACodeInvalidError,
     Govee2FARequiredError,
     GoveeApiClient,
     GoveeApiError,
@@ -34,6 +35,7 @@ from .api import (
     GoveeConnectionError,
     GoveeDeviceNotFoundError,
     GoveeIotCredentials,
+    GoveeLoginRejectedError,
     GoveeRateLimitError,
 )
 from .api.auth import GoveeAuthClient, _derive_client_id
@@ -70,6 +72,7 @@ from .api.lan_client import (
 )
 from .api.lan_control import command_to_lan, lan_brightness_to_device
 from .const import (
+    ACCOUNT_LOGIN_RETRY_INTERVAL,
     CONF_API_TEMPERATURE_UNIT,
     CONF_EMAIL,
     CONF_ENABLE_MQTT_CONTROL,
@@ -101,6 +104,7 @@ from .const import (
     LAN_WRITE_SUPPRESS_THRESHOLD,
     LEAK_DUAL_PROBE_SKUS,
     LOCAL_READING_FRESHNESS_FACTOR,
+    LOGIN_FAILED_2FA,
     MAX_BUDGET_PACED_INTERVAL,
     MAX_LOCAL_FRESH_SKIPS,
     MAX_MQTT_STATUS_INTERVAL,
@@ -343,6 +347,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         self.options_snapshot: dict[str, Any] = dict(config_entry.options)
         self._api_client = api_client
         self._iot_credentials = iot_credentials
+        self._login_retry_unsub: CALLBACK_TYPE | None = None
         self._enable_groups = enable_groups
         # Opt-in: route power/brightness/color over MQTT instead of REST.
         self._enable_mqtt_control = config_entry.options.get(CONF_ENABLE_MQTT_CONTROL, DEFAULT_ENABLE_MQTT_CONTROL)
@@ -1948,6 +1953,84 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         state.water_full = is_full
         if changed_at is not None:
             self._water_full_changed_at.setdefault(device_id, changed_at)
+
+    def schedule_account_login_retry(self) -> None:
+        """Arm the next background retry of a setup login that failed transiently.
+
+        Called by the entry setup once the first refresh succeeded, so a setup
+        that ends in ConfigEntryNotReady never leaves a timer behind (the
+        retried setup logs in again itself).
+        """
+        if self._login_retry_unsub:
+            self._login_retry_unsub()
+            self._login_retry_unsub = None
+        if self._shut_down:
+            return
+        self._login_retry_unsub = async_call_later(
+            self.hass, ACCOUNT_LOGIN_RETRY_INTERVAL, self._account_login_retry_callback
+        )
+
+    async def _account_login_retry_callback(self, _now: Any = None) -> None:
+        """Timer callback: retry the account login once."""
+        self._login_retry_unsub = None
+        await self._async_retry_account_login()
+
+    async def _async_retry_account_login(self) -> None:
+        """Retry an account login that failed at setup for a transient reason.
+
+        A network or DNS error at boot used to leave real-time updates off
+        until the next restart. This retries on a timer until it gets an
+        answer: success stores the credentials and reloads the entry so MQTT,
+        device topics and the account-only sensors all start; a genuine
+        rejection (bad password, 2FA, login refused) stores the failure marker
+        and raises the repair, and stops retrying, since only the user can fix
+        those and repeated logins trip Govee's 2FA hardening.
+        """
+        if self._iot_credentials:
+            return
+        email = self._config_entry.data.get(CONF_EMAIL)
+        password = self._config_entry.data.get(CONF_PASSWORD)
+        if not email or not password:
+            return
+
+        try:
+            async with GoveeAuthClient(hass=self.hass) as auth_client:
+                credentials = await auth_client.login(
+                    email,
+                    password,
+                    client_id=_derive_client_id(email),
+                )
+        except Govee2FARequiredError:
+            _LOGGER.warning(
+                "Govee account requires email verification (2FA). Use Reconfigure to "
+                "enter a verification code; continuing with polling-only mode"
+            )
+            self._persist_login_failed(LOGIN_FAILED_2FA)
+            self._async_create_iot_reauth_issue("mqtt_2fa_required")
+            return
+        except (GoveeAuthError, GoveeLoginRejectedError, Govee2FACodeInvalidError) as err:
+            _LOGGER.warning("Failed to get MQTT credentials: %s", err)
+            self._persist_login_failed(str(err))
+            async_create_mqtt_issue(self.hass, self._config_entry, f"account sign-in failed: {err}")
+            return
+        except Exception as err:  # noqa: BLE001 - transient; try again later
+            _LOGGER.debug("Account login retry failed, will try again: %s", err)
+            self.schedule_account_login_retry()
+            return
+
+        if self._shut_down:
+            # The entry unloaded while the login was in flight; reloading it
+            # now could resurrect an entry the user removed or disabled.
+            return
+        _LOGGER.debug("Account login succeeded on retry; reloading to start real-time updates")
+        self._persist_refreshed_credentials(credentials)
+        self.hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
+
+    def _persist_login_failed(self, reason: str) -> None:
+        """Store the login-failure marker so later setups skip the login."""
+        new_data = dict(self._config_entry.data)
+        new_data[KEY_IOT_LOGIN_FAILED] = reason
+        self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
 
     async def _async_refresh_iot_credentials(self) -> bool:
         """Log in again to replace an account token the BFF has stopped accepting.
@@ -5781,6 +5864,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if self._bff_poll_task and not self._bff_poll_task.done():
             self._bff_poll_task.cancel()
             self._bff_poll_task = None
+        if self._login_retry_unsub:
+            self._login_retry_unsub()
+            self._login_retry_unsub = None
         # Cancel standalone water-detector polling (issue #62)
         if self._wd_poll_unsub:
             self._wd_poll_unsub()

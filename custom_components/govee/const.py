@@ -492,8 +492,14 @@ CONFIG_VERSION: Final = 2
 # on every 5-minute poll.
 IOT_RELOGIN_MIN_INTERVAL: Final = 900  # 15 minutes
 
+# Gap between background retries of an account login that failed at setup for
+# a transient reason (network/DNS not ready at boot, Govee server error).
+ACCOUNT_LOGIN_RETRY_INTERVAL: Final = 300  # 5 minutes
+
 KEY_IOT_CREDENTIALS: Final = "iot_credentials"
 KEY_IOT_LOGIN_FAILED: Final = "iot_login_failed"
+# KEY_IOT_LOGIN_FAILED value stored when the account login needs a 2FA code.
+LOGIN_FAILED_2FA: Final = "2FA verification required"
 
 # Entity unique_id suffixes
 # Used in entity creation and orphan cleanup to keep patterns consistent
