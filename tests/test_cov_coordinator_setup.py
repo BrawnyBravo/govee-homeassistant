@@ -250,6 +250,10 @@ class _FakeLanClient:
     async def async_stop(self) -> None:
         self.stop_calls += 1
 
+    async def async_scan(self, **kwargs: Any) -> Any:
+        # Rescans run on the client's own socket; delegate to the patched scan.
+        return await coord_mod.async_scan_lan_devices(**kwargs)
+
 
 def _patch_lan(monkeypatch: pytest.MonkeyPatch, *, scan: Any, client: Any, seen: dict[str, Any] | None = None) -> None:
     """Patch the LAN helpers the coordinator imported so no UDP is ever sent."""
@@ -731,6 +735,29 @@ class TestLanRescan:
         assert coord._lan_devices[DEV].ip == "10.0.0.6"
         assert coord._lan_read_misses[DEV] == 0
         assert coord.lan_unmatched_count == 1
+
+
+class TestRescanUsesTheClientSocket:
+    @pytest.mark.asyncio
+    async def test_rescan_never_binds_a_second_4002_socket(self, monkeypatch):
+        """A second :4002 socket would split unicast replies with the client's on Linux."""
+        coord = _coordinator()
+        _add(coord, _light(DEV))
+        client = MagicMock()
+        client.async_scan = AsyncMock(return_value=[{"device": DEV, "ip": "10.0.0.7", "sku": "H6072"}])
+        coord._lan_client = client
+        coord._request_lan_rescan()
+
+        async def _no_second_socket(**_kwargs: Any) -> Any:
+            raise AssertionError("rescan opened its own :4002 socket")
+
+        _patch_lan(monkeypatch, scan=[], client=client)
+        monkeypatch.setattr(coord_mod, "async_scan_lan_devices", _no_second_socket)
+
+        await coord._async_maybe_rescan_lan()
+
+        client.async_scan.assert_awaited_once()
+        assert coord._lan_devices[DEV].ip == "10.0.0.7"
 
 
 class TestLanSetupRetry:

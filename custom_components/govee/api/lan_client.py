@@ -47,6 +47,9 @@ from .lan import (
     _build_socket,
     _drop_group,
     _join_group,
+    _ScanProtocol,
+    _send_scan,
+    _send_targets,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -423,6 +426,8 @@ class GoveeLanClient:
         # tolerates a batch read and a one-off read overlapping on the same IP;
         # both collectors receive the reply. Empty when no read is outstanding.
         self._pending_reads: dict[str, list[_ReadCollector]] = {}
+        # Collects scan replies while :meth:`async_scan` is running.
+        self._scan_collector: _ScanProtocol | None = None
 
     @property
     def available(self) -> bool:
@@ -559,6 +564,10 @@ class GoveeLanClient:
             src_ip: The datagram's source IP address.
             raw: The raw datagram bytes.
         """
+        if self._scan_collector is not None:
+            # A rescan is running on this socket; its collector keeps only
+            # well-formed scan replies and ignores everything else.
+            self._scan_collector.datagram_received(raw, (src_ip, LAN_RESPONSE_PORT))
         try:
             payload = json.loads(raw.decode("utf-8", errors="replace"))
         except (ValueError, RecursionError):
@@ -632,6 +641,40 @@ class GoveeLanClient:
             _LOGGER.debug("LAN send %s to %s:%d failed: %s", cmd, ip, LAN_COMMAND_PORT, protocol.last_error)
             return False
         return True
+
+    async def async_scan(
+        self,
+        *,
+        interface_ips: list[str],
+        extra_targets: list[str],
+        broadcast_targets: list[str],
+        timeout: float = 2.0,
+    ) -> list[dict[str, Any]]:
+        """Run a discovery scan through this client's own :4002 socket.
+
+        Same request, targets and result shape as
+        :func:`~.lan.async_scan_lan_devices`, but without binding a second
+        :4002 socket beside the persistent one. With two of our sockets in the
+        same ``SO_REUSEPORT`` group, Linux hashes each unicast reply to one of
+        them, so cross-VLAN scan replies could land on the persistent socket
+        and be dropped, and devStatus replies could land on the scan socket.
+
+        Raises:
+            OSError: The client is not running (callers treat it as no data).
+        """
+        if not self._available or self._recv_sock is None or self._recv_transport is None:
+            raise OSError("Govee LAN client is not running")
+        collector = _ScanProtocol()
+        self._scan_collector = collector
+        try:
+            _send_scan(self._recv_sock, self._recv_transport, list(interface_ips))
+            _send_targets(self._recv_transport, list(extra_targets))
+            _send_targets(self._recv_transport, list(broadcast_targets))
+            await asyncio.sleep(timeout)
+        finally:
+            if self._scan_collector is collector:
+                self._scan_collector = None
+        return list(collector.responses.values())
 
     async def async_read_one(self, ip: str, timeout: float = LAN_WRITE_CONFIRM_TIMEOUT) -> LanDevStatus | None:
         """Send one devStatus query to ``ip`` and await a parsed reply from it.

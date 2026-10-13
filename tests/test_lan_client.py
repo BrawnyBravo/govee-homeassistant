@@ -18,7 +18,7 @@ import socket
 
 import pytest
 
-from custom_components.govee.api import lan_client
+from custom_components.govee.api import lan, lan_client
 from custom_components.govee.api.lan_client import (
     GoveeLanClient,
     LanDevStatus,
@@ -1022,6 +1022,53 @@ class TestAsyncReadBatch:
 # ------------------------------------------------------------------------------
 # _handle_datagram — source-IP dispatch, solicited/unsolicited split, ignore
 # ------------------------------------------------------------------------------
+
+
+class TestAsyncScan:
+    """Rescans run on the client's own :4002 socket instead of a second one."""
+
+    @staticmethod
+    def _scan_reply(device: str, ip: str) -> bytes:
+        return json.dumps({"msg": {"cmd": "scan", "data": {"device": device, "ip": ip, "sku": "H6072"}}}).encode()
+
+    async def test_sends_from_the_4002_socket_and_collects_replies(self, monkeypatch):
+        client, pushes = await _start_client(monkeypatch)
+
+        async def _window(_timeout):
+            client._handle_datagram("10.0.0.5", self._scan_reply("AA:BB", "10.0.0.5"))
+            client._handle_datagram("10.0.0.6", b"garbage")
+            client._handle_datagram("10.0.0.7", _dev_status_bytes(brightness=40))
+
+        monkeypatch.setattr(lan_client.asyncio, "sleep", _window)
+
+        records = await client.async_scan(
+            interface_ips=["10.0.0.2"], extra_targets=["192.0.2.10"], broadcast_targets=["10.0.0.255"]
+        )
+
+        assert records == [{"device": "AA:BB", "ip": "10.0.0.5", "sku": "H6072"}]
+        sent = {addr for _data, addr in client._recv_transport.sent}
+        assert sent == {
+            (lan.LAN_MULTICAST_GROUP, lan.LAN_DISCOVERY_PORT),
+            ("192.0.2.10", lan.LAN_DISCOVERY_PORT),
+            ("10.0.0.255", lan.LAN_DISCOVERY_PORT),
+        }
+        assert client._send_transport.sent == []
+        # devStatus pushes keep flowing during the scan window.
+        assert [ip for ip, _ in pushes] == ["10.0.0.7"]
+        assert client._scan_collector is None
+
+    async def test_scan_replies_outside_a_scan_are_ignored(self, monkeypatch):
+        client, pushes = await _start_client(monkeypatch)
+
+        client._handle_datagram("10.0.0.5", self._scan_reply("AA:BB", "10.0.0.5"))
+
+        assert pushes == []
+
+    async def test_raises_when_not_running(self):
+        client = GoveeLanClient(lambda ip, status: None)
+
+        with pytest.raises(OSError):
+            await client.async_scan(interface_ips=[], extra_targets=[], broadcast_targets=[])
 
 
 class TestSourceIpDispatch:

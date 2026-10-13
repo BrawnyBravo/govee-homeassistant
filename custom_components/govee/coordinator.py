@@ -1640,7 +1640,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         try:
             interface_ips = await async_get_lan_interface_ips(self.hass)
             broadcast_targets = await async_get_lan_broadcast_addresses(self.hass)
-            scan = await async_scan_lan_devices(
+            # Scan through the running client's own :4002 socket: a second
+            # socket on :4002 would split unicast replies with it on Linux.
+            scan = await self._lan_client.async_scan(
                 interface_ips=interface_ips,
                 extra_targets=extra_targets,
                 broadcast_targets=broadcast_targets,

@@ -3248,6 +3248,13 @@ class _FakeReadClient:
         self.read_calls.append(list(ips))
         return {ip: self.batch[ip] for ip in ips if ip in self.batch}
 
+    async def async_scan(self, **kwargs: Any) -> list[dict[str, Any]]:
+        # Rescans run on the client's own socket; delegate to the (patched)
+        # module scan so each test controls what the scan returns.
+        import custom_components.govee.coordinator as coord_mod
+
+        return await coord_mod.async_scan_lan_devices(**kwargs)
+
 
 class TestLanReadPath:
     """Coordinator LAN read overlay, DHCP guard, demotion and rescan (LAN-011)."""
