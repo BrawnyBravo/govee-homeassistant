@@ -15,9 +15,9 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
-from custom_components.govee.api.auth import GoveeAuthClient
+from custom_components.govee.api.auth import GoveeAuthClient, is_connection_error
 from custom_components.govee.api.exceptions import GoveeApiError, GoveeAuthError, GoveeLoginRejectedError
-from tests.test_cov_auth import _bff_list, _leak, _response, _session, _thermo
+from tests.test_cov_auth import _bff_list, _leak, _login_body, _response, _session, _thermo
 
 
 def _non_json(status: int) -> MagicMock:
@@ -176,16 +176,46 @@ class TestLoginErrorParsing:
         with pytest.raises(GoveeApiError, match="HTTP 500"):
             await client.get_iot_key("tok", client_id="cid")
 
+    async def test_iot_key_401_inside_login_is_a_rejection_not_bad_credentials(self):
+        """The password was just accepted, so a 401 on the fresh token is not 'wrong password'."""
+        session = _session(post=[_response(200, _login_body())], get=[_response(401, {"message": "denied"})])
+        client = GoveeAuthClient(session=session)
+
+        with pytest.raises(GoveeLoginRejectedError, match="IoT key rejected") as exc_info:
+            await client.login("user@example.com", "pw")
+
+        assert not isinstance(exc_info.value, GoveeAuthError)
+
+
+class TestConnectionErrorClassification:
+    def test_only_network_failures_count(self):
+        wrapped = GoveeApiError("Connection error during login: dns")
+        wrapped.__cause__ = aiohttp.ClientConnectionError("dns")
+        timed_out = GoveeApiError("Connection error during login: TimeoutError")
+        timed_out.__cause__ = TimeoutError()
+
+        assert is_connection_error(wrapped)
+        assert is_connection_error(timed_out)
+        assert is_connection_error(TimeoutError())
+        assert not is_connection_error(GoveeApiError("No token in login response"))
+        assert not is_connection_error(RuntimeError("boom"))
+
 
 class TestVerificationCodeRequest:
     """HTTP 200 carrying an in-body error must not read as 'code sent' (CLOUD-9)."""
 
-    async def test_in_body_error_raises(self):
-        body = {"status": 429, "message": "Too many requests"}
+    @pytest.mark.parametrize("status", [429, "429"])
+    async def test_in_body_error_raises(self, status):
+        body = {"status": status, "message": "Too many requests"}
         client = GoveeAuthClient(session=_session(post=[_response(200, body)]))
 
-        with pytest.raises(GoveeApiError, match="Too many requests"):
+        with pytest.raises(GoveeLoginRejectedError, match="Too many requests"):
             await client.request_verification_code("user@example.com", "cid")
+
+    async def test_string_success_status_passes(self):
+        client = GoveeAuthClient(session=_session(post=[_response(200, {"status": "200"})]))
+
+        await client.request_verification_code("user@example.com", "cid")
 
     @pytest.mark.parametrize("body", [{"status": 200, "message": "success"}, {}])
     async def test_success_body_passes(self, body):

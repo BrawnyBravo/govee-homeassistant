@@ -381,6 +381,18 @@ async def _raise_if_unauthorized(response: aiohttp.ClientResponse, context: str)
     raise GoveeAuthError(f"{context} auth failed (401): {message}", code=401)
 
 
+def is_connection_error(err: BaseException) -> bool:
+    """Whether ``err`` is a network-level failure (DNS, refused, reset, timeout).
+
+    Those are worth retrying later. Anything else raised by a login (a
+    rejection, a malformed answer after Govee accepted the password) would
+    fail the same way again, and repeated password logins trip Govee's 2FA
+    hardening, so callers must not retry them on a timer.
+    """
+    network = (aiohttp.ClientError, TimeoutError)
+    return isinstance(err, network) or isinstance(err.__cause__, network)
+
+
 def _error_message(data: Any, status: int) -> str:
     """Body ``message`` when the body is a dict carrying one, else ``HTTP <status>``."""
     if isinstance(data, dict) and data.get("message"):
@@ -1507,12 +1519,11 @@ class GoveeAuthClient:
                 # as "code sent" leaves the user waiting for an email that
                 # never comes. A body that is not JSON keeps the old reading.
                 data = await _read_json_lenient(response)
-                if isinstance(data, dict) and data.get("status") not in (None, 200):
+                if isinstance(data, dict) and _safe_int(data.get("status")) not in (None, 200):
                     message = _error_message(data, response.status)
-                    raise GoveeApiError(
-                        f"Failed to request verification code: {message}",
-                        code=_safe_int(data.get("status")),
-                    )
+                    # A rejection, not a network fault: the config flow shows
+                    # "Govee rejected the request; try again later".
+                    raise GoveeLoginRejectedError(f"Failed to request verification code: {message}")
                 _LOGGER.debug("Verification code requested")
         except (aiohttp.ClientError, TimeoutError) as err:
             raise GoveeApiError(
@@ -1625,8 +1636,14 @@ class GoveeAuthClient:
                 if not token:
                     raise GoveeApiError("No token in login response")
 
-                # Fetch IoT credentials from separate endpoint
-                iot_data = await self.get_iot_key(token)
+                # Fetch IoT credentials from separate endpoint. A 401 here is
+                # on a token issued a moment ago, so it is not bad credentials
+                # (the password was just accepted): report it as a rejected
+                # login, not as GoveeAuthError ("wrong email or password").
+                try:
+                    iot_data = await self.get_iot_key(token)
+                except GoveeAuthError as err:
+                    raise GoveeLoginRejectedError(f"IoT key rejected: {err}") from err
 
                 # Extract AWS IoT credentials (PEM or P12 format)
                 iot_endpoint = iot_data.get("endpoint", "aqm3wd1qlc3dy-ats.iot.us-east-1.amazonaws.com")
