@@ -46,9 +46,9 @@ from .const import (
     DEFAULT_POLL_INTERVAL,
     DEFAULT_SEGMENT_MODE,
     DOMAIN,
-    HUB_DEVICE_IDENTIFIER,
     KEY_IOT_CREDENTIALS,
     KEY_IOT_LOGIN_FAILED,
+    LEGACY_HUB_DEVICE_IDENTIFIER,
     SEGMENT_MODE_BOTH,
     SEGMENT_MODE_GROUPED,
     SEGMENT_MODE_INDIVIDUAL,
@@ -57,6 +57,7 @@ from .const import (
     SUFFIX_GROUPED_SEGMENT,
     SUFFIX_SCENE_SELECT,
     SUFFIX_SEGMENT,
+    hub_device_identifier,
 )
 from .coordinator import GoveeConfigEntry, GoveeCoordinator
 from .repairs import async_cleanup_legacy_issues, async_create_mqtt_issue
@@ -258,6 +259,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: GoveeConfigEntry) -> boo
     # Store coordinator in entry
     entry.runtime_data = coordinator
 
+    # Before cleanup, so the old shared diagnostics device is not mistaken
+    # for one this entry no longer owns.
+    _async_migrate_hub_device(hass, entry)
+
     # Clean up orphaned entities (e.g., groups that are now disabled)
     await _async_cleanup_orphaned_entities(hass, entry, coordinator)
 
@@ -387,8 +392,48 @@ def _owned_device_identifiers(entry: GoveeConfigEntry, coordinator: GoveeCoordin
     owned = set(coordinator.devices)
     owned.update(coordinator.leak_sensors)
     owned.update(coordinator.hub_device_ids)
-    owned.add(HUB_DEVICE_IDENTIFIER)
+    owned.add(hub_device_identifier(entry.entry_id))
     return owned
+
+
+def _async_migrate_hub_device(hass: HomeAssistant, entry: GoveeConfigEntry) -> None:
+    """Move this entry off the diagnostics device that every entry used to share.
+
+    The device used to be identified by one fixed id, so with two accounts both
+    entries' hub sensors landed on one merged device. When the entry is the
+    device's only owner, the device is re-identified in place, keeping its id,
+    area and name. When another entry still shares it, this entry's hub
+    sensors are moved to a device of their own (entity ids are unchanged; they
+    are keyed by the entry id) and the entry leaves the shared device, which
+    the last remaining entry then re-identifies the same way.
+    """
+    device_registry = dr.async_get(hass)
+    legacy = device_registry.async_get_device(identifiers={(DOMAIN, LEGACY_HUB_DEVICE_IDENTIFIER)})
+    if legacy is None or entry.entry_id not in legacy.config_entries:
+        return
+
+    new_identifiers = {(DOMAIN, hub_device_identifier(entry.entry_id))}
+    current = device_registry.async_get_device(identifiers=new_identifiers)
+    if legacy.config_entries == {entry.entry_id} and current is None:
+        device_registry.async_update_device(legacy.id, new_identifiers=new_identifiers)
+        _LOGGER.debug("Moved the diagnostics device to a per-entry identifier")
+        return
+
+    if current is None:
+        current = device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers=new_identifiers,
+            name=legacy.name,
+            manufacturer=legacy.manufacturer,
+            model=legacy.model,
+        )
+    entity_registry = er.async_get(hass)
+    for entity_entry in er.async_entries_for_device(entity_registry, legacy.id, include_disabled_entities=True):
+        if entity_entry.config_entry_id == entry.entry_id:
+            entity_registry.async_update_entity(entity_entry.entity_id, device_id=current.id)
+    # Entities were moved first: leaving the device would otherwise delete them.
+    device_registry.async_update_device(legacy.id, remove_config_entry_id=entry.entry_id)
+    _LOGGER.debug("Split this entry's diagnostics sensors off the shared diagnostics device")
 
 
 def _segment_index_out_of_range(suffix: str, segment_count: int) -> bool:
