@@ -432,10 +432,15 @@ class GoveeBLEDevice:
             finally:
                 self._reset_disconnect_timer()
 
-    def _reset_disconnect_timer(self) -> None:
-        """(Re)arm the idle disconnect for ``DISCONNECT_DELAY`` from now."""
+    def _cancel_disconnect_timer(self) -> None:
+        """Cancel a pending idle disconnect, if one is armed."""
         if self._disconnect_timer is not None:
             self._disconnect_timer.cancel()
+            self._disconnect_timer = None
+
+    def _reset_disconnect_timer(self) -> None:
+        """(Re)arm the idle disconnect for ``DISCONNECT_DELAY`` from now."""
+        self._cancel_disconnect_timer()
         self._disconnect_timer = asyncio.get_running_loop().call_later(DISCONNECT_DELAY, self._on_idle_timeout)
 
     def _on_idle_timeout(self) -> None:
@@ -520,9 +525,7 @@ class GoveeBLEDevice:
 
     async def stop(self) -> None:
         """Cleanly disconnect the ``BleakClient`` (idempotent)."""
-        if self._disconnect_timer is not None:
-            self._disconnect_timer.cancel()
-            self._disconnect_timer = None
+        self._cancel_disconnect_timer()
         task, self._disconnect_task = self._disconnect_task, None
         if task is not None:
             # Let an idle disconnect that already started finish: cancelling it
@@ -533,9 +536,7 @@ class GoveeBLEDevice:
         async with self._lock:
             # A write that was in flight when stop() began re-armed the timer
             # in its finally; clear it so nothing outlives the unload.
-            if self._disconnect_timer is not None:
-                self._disconnect_timer.cancel()
-                self._disconnect_timer = None
+            self._cancel_disconnect_timer()
             if self._client is not None and self._client.is_connected:
                 try:
                     await self._client.disconnect()

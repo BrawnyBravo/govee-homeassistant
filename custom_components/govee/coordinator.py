@@ -1606,6 +1606,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 LAN_READ_MISS_DEMOTE_THRESHOLD,
             )
 
+    def _lan_client_running(self) -> bool:
+        """Return whether a LAN client is running (re-read after an await)."""
+        return self._lan_client is not None
+
     async def _async_maybe_rescan_lan(self) -> None:
         """Re-scan + re-correlate LAN devices on a throttled cadence (issue #57).
 
@@ -1636,7 +1640,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 await self._async_setup_lan(retry=True)
             except Exception as err:  # noqa: BLE001 — never fail the poll
                 _LOGGER.debug("Govee LAN setup retry failed: %s", err)
-            if self._lan_client is None:
+            if not self._lan_client_running():
                 # Still nothing: back off so a cloud-only install isn't scanned
                 # every five minutes forever.
                 self._lan_retry_interval = min(self._lan_retry_interval * 2, LAN_SETUP_RETRY_MAX_INTERVAL)
