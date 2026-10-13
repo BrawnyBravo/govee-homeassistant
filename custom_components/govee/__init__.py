@@ -168,6 +168,9 @@ async def _async_attach_request_counts_store(
         store.async_delay_save(api_client.export_request_counts, REQUEST_COUNTS_SAVE_DELAY)
 
     async def _flush() -> None:
+        # Detach first: a late request on this unloaded client (an in-flight
+        # service call) must not schedule a save over the next client's counts.
+        api_client.set_request_listener(None)
         await store.async_save(api_client.export_request_counts())
 
     api_client.set_request_listener(_schedule_save)

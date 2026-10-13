@@ -94,9 +94,13 @@ async def test_request_count_survives_a_reload(
         first = entry.runtime_data._api_client.requests_today
         first_24h = entry.runtime_data._api_client.requests_last_24h
         assert first > 0
+        old_client = entry.runtime_data._api_client
 
         assert await hass.config_entries.async_reload(entry.entry_id)
         await hass.async_block_till_done()
+        # The unloaded client no longer schedules saves: a late request on it
+        # (an in-flight service call) must not overwrite the new client's file.
+        assert old_client._request_listener is None
         # The second setup spends the same requests again, on top of the first.
         assert entry.runtime_data._api_client.requests_today == 2 * first
         assert entry.runtime_data._api_client.requests_last_24h == 2 * first_24h
