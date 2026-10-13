@@ -837,6 +837,34 @@ class TestIdleDisconnect:
         assert device._client is None
 
     @pytest.mark.asyncio
+    async def test_idle_disconnect_after_a_link_drop_is_a_noop(self):
+        device = GoveeBLEDevice(_make_ble_device())
+        client = _install_fake_client(device)
+        client.is_connected = False
+
+        await device._async_idle_disconnect()
+
+        client.disconnect.assert_not_awaited()
+        assert device._client is None
+
+    @pytest.mark.asyncio
+    async def test_stop_cancels_an_idle_disconnect_waiting_for_the_lock(self):
+        import asyncio
+
+        device = GoveeBLEDevice(_make_ble_device())
+        client = _install_fake_client(device)
+
+        async with device._lock:
+            device._on_idle_timeout()
+            task = device._disconnect_task
+            await asyncio.sleep(0)  # the task is now blocked on the lock
+        await device.stop()
+        await asyncio.sleep(0.01)
+
+        assert task.cancelled()
+        client.disconnect.assert_awaited_once()  # by stop() only
+
+    @pytest.mark.asyncio
     async def test_stale_idle_disconnect_skips_a_link_reused_meanwhile(self):
         """A disconnect queued behind a write must not drop the link it just used."""
         device = GoveeBLEDevice(_make_ble_device())
