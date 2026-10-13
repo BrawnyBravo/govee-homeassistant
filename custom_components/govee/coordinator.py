@@ -3721,6 +3721,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # skip: the skip changes from cycle to cycle as devices' runs come due,
         # and sizing on it would swing the interval with them.
         pacing_size = len(pollable)
+        # Whether any device left could ever make a fresh cloud read. If none
+        # can (the device that drew a 429 was removed and only groups, H5054s or
+        # BFF thermometers remain), nothing would ever clear a 429 back-off.
+        has_cloud_readable = any(
+            not self._makes_no_cloud_read(device_id, device) for device_id, device in pollable.items()
+        )
         locally_fresh = self._locally_fresh_devices(pollable)
         if locally_fresh:
             _LOGGER.debug(
@@ -3792,8 +3798,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     outage_errors.append(result)
 
         # Clear rate limit issue and restore poll interval once real reads
-        # succeed in a cycle where no device was refused with a 429.
-        if successful_updates > 0 and self._rate_limited and not self._cycle_rate_limited:
+        # succeed in a cycle where no device was refused with a 429, or once
+        # no device is left that reads from the cloud at all.
+        if self._rate_limited and not self._cycle_rate_limited and (successful_updates > 0 or not has_cloud_readable):
             self._rate_limited = False
             self.update_interval = self._original_update_interval
             _LOGGER.info(
@@ -4164,6 +4171,13 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             )
             self.update_interval = paced
 
+    def _makes_no_cloud_read(self, device_id: str, device: GoveeDevice) -> bool:
+        """True for a device whose poll is always answered from held state.
+
+        Mirrors the shortcuts at the top of :meth:`_fetch_device_state`.
+        """
+        return device.is_group or device.supports_water_leak_event or device_id in self._bff_thermometer_ids
+
     def _mark_cached_result(self, device_id: str) -> None:
         """Note that this cycle's state for a device is held state, not a fresh read."""
         self._cycle_cached_ids = self._cycle_cached_ids | {device_id}
@@ -4440,8 +4454,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             if not self._rate_limited:
                 self._rate_limited = True
                 reset_time = "unknown"
-                # Back off: increase poll interval to retry_after or 120s
+                # Back off: increase poll interval to retry_after or 120s, but
+                # never below the current one. Budget pacing may already have
+                # stretched it further, and a 429 is no reason to poll faster.
                 backoff_seconds = int(err.retry_after) if err.retry_after else 120
+                if self.update_interval is not None:
+                    backoff_seconds = max(backoff_seconds, int(self.update_interval.total_seconds()))
                 self.update_interval = timedelta(seconds=backoff_seconds)
                 _LOGGER.warning(
                     "Rate limited, increasing poll interval to %ds",

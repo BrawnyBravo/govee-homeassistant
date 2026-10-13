@@ -214,6 +214,20 @@ async def test_rate_limit_on_one_device_is_not_cleared_by_another(coordinator, r
     deleted.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_rate_limit_backoff_never_speeds_up_a_paced_poll(coordinator, rate_limit_issues):
+    """A 429 without Retry-After must not shorten an interval budget pacing already stretched."""
+    coordinator._api_client.rate_limit_remaining = 100
+    coordinator._api_client.rate_limit_reset_in = 0
+    coordinator.update_interval = timedelta(seconds=600)  # paced well past the 120 s default
+    coordinator._api_client.get_device_state = AsyncMock(side_effect=GoveeRateLimitError("429"))
+
+    await coordinator._async_update_data()
+
+    assert coordinator._rate_limited is True
+    assert coordinator.update_interval >= timedelta(seconds=600)
+
+
 # --- Devices that make no cloud request must not hide a total outage --------
 
 GROUP_ID = "11825917"
@@ -311,3 +325,24 @@ async def test_rate_limit_alongside_failures_is_not_an_outage(coordinator, rate_
     states = await coordinator._async_update_data()
 
     assert set(states) == {DEV_A, DEV_B}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["group", "water_detector", "bff_thermometer"])
+async def test_rate_limit_clears_when_no_cloud_read_device_is_left(
+    coordinator, light_capabilities, rate_limit_issues, kind
+):
+    """The device that drew the 429 is gone; only held devices remain, so nothing could clear it."""
+    _created, deleted = rate_limit_issues
+    coordinator._devices = {}
+    coordinator._states = {}
+    _add_no_request_device(coordinator, kind, light_capabilities)
+    coordinator._rate_limited = True
+    coordinator.update_interval = timedelta(seconds=600)
+    coordinator._api_client.get_device_state = AsyncMock(side_effect=AssertionError("held devices are never polled"))
+
+    await coordinator._async_update_data()
+
+    assert coordinator._rate_limited is False
+    assert coordinator.update_interval == timedelta(seconds=60)
+    deleted.assert_called_once()
