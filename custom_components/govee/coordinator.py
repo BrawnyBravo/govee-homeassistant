@@ -5653,7 +5653,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         device = self._devices.get(device_id)
         if device is None:
             return
-        scenes = await self.async_get_scenes(device_id, refresh=True)
+        scenes = await self.async_get_scenes(device_id, refresh=True) if device.supports_scenes else []
         diy_scenes = await self.async_get_diy_scenes(device_id, refresh=True) if device.supports_diy_scenes else []
         async_dispatcher_send(self.hass, scenes_refreshed_signal(device_id), scenes, diy_scenes)
 

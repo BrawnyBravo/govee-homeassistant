@@ -1377,6 +1377,7 @@ class TestRefreshScenes:
     """The "Refresh scenes" button / govee.refresh_scenes path (ENT-5)."""
 
     _DIY = GoveeCapability(type="devices.capabilities.dynamic_scene", instance="diyScene", parameters={})
+    _SCENES = GoveeCapability(type="devices.capabilities.dynamic_scene", instance="lightScene", parameters={})
 
     def _ready(self, *caps: GoveeCapability) -> GoveeCoordinator:
         coord = _coordinator()
@@ -1387,7 +1388,7 @@ class TestRefreshScenes:
 
     @pytest.mark.asyncio
     async def test_refreshes_both_catalogs_and_tells_the_entities(self):
-        coord = self._ready(self._DIY)
+        coord = self._ready(self._SCENES, self._DIY)
 
         with patch.object(coord_mod, "async_dispatcher_send") as send:
             await coord.async_refresh_scenes(DEV)
@@ -1410,6 +1411,17 @@ class TestRefreshScenes:
 
         coord.async_get_diy_scenes.assert_not_awaited()
         assert send.call_args[0][3] == []
+
+    @pytest.mark.asyncio
+    async def test_device_without_scenes_skips_that_fetch(self):
+        coord = self._ready(self._DIY)
+
+        with patch.object(coord_mod, "async_dispatcher_send") as send:
+            await coord.async_refresh_scenes(DEV)
+
+        coord.async_get_scenes.assert_not_awaited()
+        coord.async_get_diy_scenes.assert_awaited_once_with(DEV, refresh=True)
+        assert send.call_args[0][2] == []
 
     @pytest.mark.asyncio
     async def test_unknown_device_does_nothing(self):
