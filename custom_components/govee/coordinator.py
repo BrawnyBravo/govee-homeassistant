@@ -5709,15 +5709,15 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         # None means no command applies to this device (neither RGB nor colour
         # temperature), which is not a rejection.
-        success: bool | None = None
+        result: bool | None = None
         if color and device.supports_rgb:
-            success = await self.async_control_device(device_id, ColorCommand(color=color))
+            result = await self.async_control_device(device_id, ColorCommand(color=color))
         elif color_temp and device.supports_color_temp:
-            success = await self.async_control_device(device_id, ColorTempCommand(kelvin=color_temp))
+            result = await self.async_control_device(device_id, ColorTempCommand(kelvin=color_temp))
         elif device.supports_rgb:
             # Prefer RGB white — Govee API reflects this value reliably
             # (colorRgb=16777215), unlike color_temp which may return 0.
-            success = await self.async_control_device(device_id, ColorCommand(color=RGBColor(255, 255, 255)))
+            result = await self.async_control_device(device_id, ColorCommand(color=RGBColor(255, 255, 255)))
         elif device.supports_color_temp:
             # Fallback for color-temp-only devices
             ct_range = device.color_temp_range
@@ -5725,14 +5725,14 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 midpoint = (ct_range.min_kelvin + ct_range.max_kelvin) // 2
             else:
                 midpoint = 4000
-            success = await self.async_control_device(device_id, ColorTempCommand(kelvin=midpoint))
+            result = await self.async_control_device(device_id, ColorTempCommand(kelvin=midpoint))
 
-        if success:
+        if result:
             # ColorCommand/ColorTempCommand already clear active_scene via optimistic handlers,
             # but we also need to clear active_diy_scene explicitly.
             self.clear_scene(device_id)
             self.clear_diy_scene(device_id)
-        return success is not False
+        return result is not False
 
     def clear_scene(self, device_id: str) -> None:
         """Clear active scene for a device."""
