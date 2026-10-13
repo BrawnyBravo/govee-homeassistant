@@ -330,7 +330,8 @@ class GoveeSceneSelectEntity(_GoveeSelectBase):
         """
         if option == SCENE_NONE:
             # Send a color/color_temp command to exit the scene on the device
-            await self.coordinator.async_clear_scene(self._device_id)
+            if not await self.coordinator.async_clear_scene(self._device_id):
+                raise self._command_failed()
             self.async_write_ha_state()
             return
 
@@ -426,7 +427,8 @@ class GoveeDIYSceneSelectEntity(_GoveeSelectBase):
         """
         if option == SCENE_NONE:
             # Send a color/color_temp command to exit the scene on the device
-            await self.coordinator.async_clear_scene(self._device_id)
+            if not await self.coordinator.async_clear_scene(self._device_id):
+                raise self._command_failed()
             self.async_write_ha_state()
             return
 

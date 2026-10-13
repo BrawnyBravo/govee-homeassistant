@@ -5656,22 +5656,26 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         device = self._devices.get(device_id)
         return await self._scene_cache.async_get_diy_scenes(device_id, device, refresh)
 
-    async def async_clear_scene(self, device_id: str) -> None:
+    async def async_clear_scene(self, device_id: str) -> bool:
         """Clear active scene by sending a color/color_temp command to exit it on the device.
 
         Brightness commands don't exit scenes, so we must send a color or color_temp
         command. Restores the last known color/color_temp when available.
+
+        Returns:
+            False when Govee rejected the command that exits the scene; True
+            otherwise, including when there was nothing to clear.
         """
         state = self._states.get(device_id)
         device = self._devices.get(device_id)
         if not state or not device:
-            return
+            return True
 
         # Nothing to clear if no scene is active
         if not state.active_scene and not state.active_diy_scene:
             self.clear_scene(device_id)
             self.clear_diy_scene(device_id)
-            return
+            return True
 
         # HDMI sync boxes (e.g., H6604 AI Sync Box) have no meaningful "static
         # color" to restore — their default mode is video sync of the live HDMI
@@ -5691,7 +5695,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             if success:
                 self.clear_scene(device_id)
                 self.clear_diy_scene(device_id)
-            return
+            return success
 
         # Resolve the color to restore. Skip RGBColor(0,0,0) — the API returns
         # colorRgb=0 when a scene is running, which is not a meaningful restore target.
@@ -5703,7 +5707,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             color = None
         color_temp = state.color_temp_kelvin or state.last_color_temp_kelvin
 
-        success = False
+        # None means no command applies to this device (neither RGB nor colour
+        # temperature), which is not a rejection.
+        success: bool | None = None
         if color and device.supports_rgb:
             success = await self.async_control_device(device_id, ColorCommand(color=color))
         elif color_temp and device.supports_color_temp:
@@ -5726,6 +5732,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # but we also need to clear active_diy_scene explicitly.
             self.clear_scene(device_id)
             self.clear_diy_scene(device_id)
+        return success is not False
 
     def clear_scene(self, device_id: str) -> None:
         """Clear active scene for a device."""

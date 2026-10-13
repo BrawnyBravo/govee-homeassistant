@@ -119,7 +119,7 @@ def _coordinator(device: GoveeDevice, state: GoveeDeviceState | None) -> MagicMo
     coordinator.last_update_success = True
     coordinator.get_state = MagicMock(return_value=state)
     coordinator.async_control_device = AsyncMock(return_value=True)
-    coordinator.async_clear_scene = AsyncMock()
+    coordinator.async_clear_scene = AsyncMock(return_value=True)
     coordinator.async_send_diy_scene = AsyncMock(return_value=True)
     coordinator.async_get_scenes = AsyncMock(return_value=[])
     coordinator.async_get_diy_scenes = AsyncMock(return_value=[])
@@ -211,6 +211,14 @@ class TestSceneSelect:
         scene_select.coordinator.async_control_device.assert_not_awaited()
         scene_select.async_write_ha_state.assert_called_once()
 
+    async def test_select_none_rejected_raises(self, scene_select):
+        scene_select.coordinator.async_clear_scene = AsyncMock(return_value=False)
+
+        with pytest.raises(HomeAssistantError):
+            await scene_select.async_select_option(SCENE_NONE)
+
+        scene_select.async_write_ha_state.assert_not_called()
+
     async def test_unknown_option_raises_validation_error(self, scene_select):
         with pytest.raises(ServiceValidationError):
             await scene_select.async_select_option("Disco")
@@ -297,6 +305,14 @@ class TestDIYSceneSelect:
         diy_select.coordinator.async_clear_scene.assert_awaited_once_with(diy_device.device_id)
         diy_select.coordinator.async_send_diy_scene.assert_not_awaited()
         diy_select.async_write_ha_state.assert_called_once()
+
+    async def test_select_none_rejected_raises(self, diy_select):
+        diy_select.coordinator.async_clear_scene = AsyncMock(return_value=False)
+
+        with pytest.raises(HomeAssistantError):
+            await diy_select.async_select_option(SCENE_NONE)
+
+        diy_select.async_write_ha_state.assert_not_called()
 
     async def test_unknown_option_raises_validation_error(self, diy_select):
         with pytest.raises(ServiceValidationError):

@@ -1376,7 +1376,7 @@ class TestClearScene:
         coord = _coordinator()
         coord.async_control_device = AsyncMock(return_value=True)
 
-        await coord.async_clear_scene("nope")
+        assert await coord.async_clear_scene("nope") is True
 
         coord.async_control_device.assert_not_awaited()
 
@@ -1388,7 +1388,7 @@ class TestClearScene:
         state.active_scene_name = "stale"
         state.source = "api"
 
-        await coord.async_clear_scene(DEV)
+        assert await coord.async_clear_scene(DEV) is True
 
         coord.async_control_device.assert_not_awaited()
         assert state.active_scene_name is None
@@ -1399,7 +1399,7 @@ class TestClearScene:
         coord, state = self._ready()
         state.color = RGBColor(10, 20, 30)
 
-        await coord.async_clear_scene(DEV)
+        assert await coord.async_clear_scene(DEV) is True
 
         assert self._commands(coord) == [ColorCommand(color=RGBColor(10, 20, 30))]
         assert state.active_scene is None
@@ -1455,7 +1455,8 @@ class TestClearScene:
     async def test_device_without_colour_capabilities_sends_nothing(self):
         coord, state = self._ready(_device(caps=(_POWER, _BRIGHTNESS)))
 
-        await coord.async_clear_scene(DEV)
+        # Nothing could be sent, which is not a rejection.
+        assert await coord.async_clear_scene(DEV) is True
 
         coord.async_control_device.assert_not_awaited()
         assert state.active_scene == "7"
@@ -1465,7 +1466,7 @@ class TestClearScene:
         coord, state = self._ready()
         coord.async_control_device = AsyncMock(return_value=False)
 
-        await coord.async_clear_scene(DEV)
+        assert await coord.async_clear_scene(DEV) is False
 
         assert state.active_scene == "7"
         assert state.active_diy_scene == "9"
