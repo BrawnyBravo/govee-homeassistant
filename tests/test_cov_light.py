@@ -291,6 +291,16 @@ class TestMainLightConstruction:
         # Inherits the device's brightness scaling.
         assert entity._ha_to_device_brightness(255) == 100
 
+    def test_name_comes_from_translation_not_device_name(self):
+        # The master light uses the bare device name; the panel must not, or
+        # both entities show up as just "<Device>".
+        entity = _main_light()
+        entity.platform = MagicMock(platform_name="govee", domain="light")
+        translations = {"component.govee.entity.light.govee_main_light_panel.name": "Main light"}
+
+        assert entity._name_internal(None, translations) == "Main light"
+        assert entity.use_device_name is False
+
     def test_is_on_reads_black_as_off(self):
         assert _main_light(color=(0, 0, 0)).is_on is False
         assert _main_light(color=(255, 0, 0)).is_on is True

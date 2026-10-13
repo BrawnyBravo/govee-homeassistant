@@ -460,6 +460,10 @@ class GoveeMainLightEntity(GoveeLightEntity):
     def __init__(self, coordinator: GoveeCoordinator, device: GoveeDevice) -> None:
         """Initialize the main-panel entity."""
         super().__init__(coordinator, device, enable_scenes=False)
+        # The parent names itself after the device (_attr_name = None), and HA
+        # returns _attr_name before it looks at the translation key — without
+        # this the panel would carry the bare device name too.
+        del self._attr_name
         self._attr_unique_id = f"{device.device_id}{SUFFIX_MAIN_LIGHT_TOGGLE}"
 
         # What to return to on turn_on. Only ever holds a non-black colour.
