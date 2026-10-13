@@ -13,7 +13,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.govee.api.exceptions import GoveeApiError, GoveeConnectionError
+import custom_components.govee.coordinator as coordinator_module
+from custom_components.govee.api.exceptions import GoveeApiError, GoveeConnectionError, GoveeRateLimitError
 from custom_components.govee.const import DEFAULT_DAILY_REQUEST_BUDGET
 from custom_components.govee.coordinator import GoveeCoordinator
 from custom_components.govee.models import GoveeDevice, GoveeDeviceState
@@ -127,3 +128,87 @@ async def test_rejected_requests_are_not_an_outage(coordinator):
     states = await coordinator._async_update_data()
 
     assert set(states) == {DEV_A, DEV_B}
+
+
+# --- A 429 back-off must hold until a real read succeeds ------------------
+
+
+@pytest.fixture
+def rate_limit_issues(monkeypatch):
+    """Capture the repair-issue calls the coordinator makes."""
+    created = MagicMock()
+    deleted = MagicMock()
+    monkeypatch.setattr(coordinator_module, "async_create_rate_limit_issue", created)
+    monkeypatch.setattr(coordinator_module, "async_delete_rate_limit_issue", deleted)
+    return created, deleted
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("headers", [None, (0, 600)], ids=["no_headers", "remaining_reset_headers"])
+async def test_rate_limit_backoff_holds_until_a_real_read(coordinator, rate_limit_issues, headers):
+    """A cycle where every device answers 429 keeps the back-off and the issue.
+
+    The 429 branch hands back the held state; that must not count as a
+    successful read, or the back-off and the repair issue are undone in the
+    same poll that set them.
+    """
+    created, deleted = rate_limit_issues
+    coordinator._api_client.rate_limit_remaining = 100
+    coordinator._api_client.rate_limit_reset_in = 0
+
+    async def refuse(device_id, sku):
+        # The headers, when Govee sends them, arrive on the 429 itself.
+        if headers is not None:
+            coordinator._api_client.rate_limit_remaining, coordinator._api_client.rate_limit_reset_in = headers
+        raise GoveeRateLimitError("429", retry_after=600)
+
+    coordinator._api_client.get_device_state = AsyncMock(side_effect=refuse)
+
+    await coordinator._async_update_data()
+
+    assert coordinator._rate_limited is True
+    assert coordinator.update_interval == timedelta(seconds=600)
+    assert created.call_count == 1
+    deleted.assert_not_called()
+
+    # Once the back-off window has passed the next cycle polls again (no extra
+    # header deferral on top of the 429 wait) and, still limited, keeps waiting.
+    calls_before = coordinator._api_client.get_device_state.await_count
+    await coordinator._async_update_data()
+    assert coordinator._api_client.get_device_state.await_count - calls_before == 2
+    assert coordinator._rate_limited is True
+    assert coordinator.update_interval == timedelta(seconds=600)
+    assert created.call_count == 1
+    deleted.assert_not_called()
+
+    # A real read clears it, restores the interval and removes the issue.
+    coordinator._api_client.rate_limit_remaining = 100
+    coordinator._api_client.rate_limit_reset_in = 0
+    coordinator._api_client.get_device_state = AsyncMock(
+        side_effect=lambda device_id, sku: GoveeDeviceState.create_empty(device_id)
+    )
+    await coordinator._async_update_data()
+    assert coordinator._rate_limited is False
+    assert coordinator.update_interval == timedelta(seconds=60)
+    deleted.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_on_one_device_is_not_cleared_by_another(coordinator, rate_limit_issues):
+    """One device's 429 is not undone by another device's success in the same cycle."""
+    created, deleted = rate_limit_issues
+    coordinator._api_client.rate_limit_remaining = 100
+    coordinator._api_client.rate_limit_reset_in = 0
+
+    async def fetch(device_id, sku):
+        if device_id == DEV_A:
+            raise GoveeRateLimitError("429", retry_after=300)
+        return GoveeDeviceState.create_empty(device_id)
+
+    coordinator._api_client.get_device_state = AsyncMock(side_effect=fetch)
+    await coordinator._async_update_data()
+
+    assert coordinator._rate_limited is True
+    assert coordinator.update_interval == timedelta(seconds=300)
+    created.assert_called_once()
+    deleted.assert_not_called()

@@ -296,6 +296,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     # coordinators that skip __init__ working.
     _budget_pacing_announced = False
     _header_deferred = False
+    # Per poll cycle: devices whose "read" handed back held state instead of a
+    # fresh cloud answer, and whether any device answered 429. Reset at the
+    # start of every cycle; class defaults for the same reason as above.
+    _cycle_cached_ids: frozenset[str] = frozenset()
+    _cycle_rate_limited = False
 
     def __init__(
         self,
@@ -3736,7 +3741,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # the requests that would earn a 429. A deferred cycle is an empty one:
         # it still runs the tail below, and does not re-pace over the interval
         # the deferral just chose.
-        deferred = bool(pollable) and self._defer_for_rate_limit_headers(len(pollable))
+        # While a 429 back-off is in force it owns the interval: the headers
+        # it came with are stale by the time it has been waited out, and
+        # deferring on them would double the wait.
+        deferred = bool(pollable) and not self._rate_limited and self._defer_for_rate_limit_headers(len(pollable))
         if deferred:
             pollable = {}
 
@@ -3748,16 +3756,22 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # the rest of the cycle (transport health, LAN rescan, pacing) still runs.
         tasks = [self._fetch_device_state_bounded(device_id, device) for device_id, device in pollable.items()]
 
+        self._cycle_cached_ids = frozenset()
+        self._cycle_rate_limited = False
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        cached_ids = self._cycle_cached_ids
 
-        # Process results
+        # Process results. Held state handed back without a fresh cloud read
+        # (a 429, a group, ...) is kept but is not a successful update: it
+        # says nothing about whether the cloud is answering.
         successful_updates = 0
         outage_errors: list[Exception] = []
         for device_id, result in zip(pollable.keys(), results):
             if isinstance(result, GoveeDeviceState):
                 self._note_state_change(device_id, result)
                 self._states[device_id] = result
-                successful_updates += 1
+                if device_id not in cached_ids:
+                    successful_updates += 1
             elif isinstance(result, GoveeAuthError):
                 raise ConfigEntryAuthFailed("Invalid API key") from result
             elif isinstance(result, Exception):
@@ -3770,8 +3784,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 if _is_outage_error(result):
                     outage_errors.append(result)
 
-        # Clear rate limit issue and restore poll interval if we got successful updates
-        if successful_updates > 0 and self._rate_limited:
+        # Clear rate limit issue and restore poll interval once real reads
+        # succeed in a cycle where no device was refused with a 429.
+        if successful_updates > 0 and self._rate_limited and not self._cycle_rate_limited:
             self._rate_limited = False
             self.update_interval = self._original_update_interval
             _LOGGER.info(
@@ -4133,6 +4148,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             )
             self.update_interval = paced
 
+    def _mark_cached_result(self, device_id: str) -> None:
+        """Note that this cycle's state for a device is held state, not a fresh read."""
+        self._cycle_cached_ids = self._cycle_cached_ids | {device_id}
+
     async def _fetch_device_state_bounded(
         self,
         device_id: str,
@@ -4395,6 +4414,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         except GoveeRateLimitError as err:
             _LOGGER.warning("Rate limit hit, keeping previous state")
+            self._cycle_rate_limited = True
+            self._mark_cached_result(device_id)
             # Create rate limit repair issue and back off (only once)
             if not self._rate_limited:
                 self._rate_limited = True
