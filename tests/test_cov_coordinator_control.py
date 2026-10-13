@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 from dataclasses import replace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -1371,6 +1371,55 @@ class TestPtrealSegmentTier:
 # --------------------------------------------------------------------------- #
 # Scene clearing and the small state helpers
 # --------------------------------------------------------------------------- #
+
+
+class TestRefreshScenes:
+    """The "Refresh scenes" button / govee.refresh_scenes path (ENT-5)."""
+
+    _DIY = GoveeCapability(type="devices.capabilities.dynamic_scene", instance="diyScene", parameters={})
+
+    def _ready(self, *caps: GoveeCapability) -> GoveeCoordinator:
+        coord = _coordinator()
+        _add(coord, _device(caps=(_POWER, *caps)))
+        coord.async_get_scenes = AsyncMock(return_value=[{"name": "Aurora", "value": {"id": 9}}])
+        coord.async_get_diy_scenes = AsyncMock(return_value=[{"name": "Glow", "value": 7}])
+        return coord
+
+    @pytest.mark.asyncio
+    async def test_refreshes_both_catalogs_and_tells_the_entities(self):
+        coord = self._ready(self._DIY)
+
+        with patch.object(coord_mod, "async_dispatcher_send") as send:
+            await coord.async_refresh_scenes(DEV)
+
+        coord.async_get_scenes.assert_awaited_once_with(DEV, refresh=True)
+        coord.async_get_diy_scenes.assert_awaited_once_with(DEV, refresh=True)
+        send.assert_called_once_with(
+            coord.hass,
+            f"govee_scenes_refreshed_{DEV}",
+            [{"name": "Aurora", "value": {"id": 9}}],
+            [{"name": "Glow", "value": 7}],
+        )
+
+    @pytest.mark.asyncio
+    async def test_device_without_diy_scenes_skips_that_fetch(self):
+        coord = self._ready()
+
+        with patch.object(coord_mod, "async_dispatcher_send") as send:
+            await coord.async_refresh_scenes(DEV)
+
+        coord.async_get_diy_scenes.assert_not_awaited()
+        assert send.call_args[0][3] == []
+
+    @pytest.mark.asyncio
+    async def test_unknown_device_does_nothing(self):
+        coord = self._ready()
+
+        with patch.object(coord_mod, "async_dispatcher_send") as send:
+            await coord.async_refresh_scenes("nope")
+
+        coord.async_get_scenes.assert_not_awaited()
+        send.assert_not_called()
 
 
 class TestClearScene:

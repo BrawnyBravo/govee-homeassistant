@@ -10,12 +10,15 @@ fallbacks, and every entity-creation branch of ``async_setup_entry``.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from custom_components.govee import select as select_mod
+from custom_components.govee.entity import GoveeEntity
+from custom_components.govee.scene_cache import scenes_refreshed_signal
 from custom_components.govee.models import (
     GoveeCapability,
     GoveeDevice,
@@ -211,6 +214,23 @@ class TestSceneSelect:
         scene_select.coordinator.async_control_device.assert_not_awaited()
         scene_select.async_write_ha_state.assert_called_once()
 
+    async def test_refresh_rebuilds_the_options(self, scene_select, mock_light_device):
+        scene_select.hass = MagicMock()
+        scene_select.hass.data = {}
+        with patch.object(GoveeEntity, "async_added_to_hass", new_callable=AsyncMock):
+            await scene_select.async_added_to_hass()
+        signal = scenes_refreshed_signal(mock_light_device.device_id)
+
+        # A failed fetch (empty catalog) keeps what is there.
+        async_dispatcher_send(scene_select.hass, signal, [], [])
+        assert scene_select.options == [SCENE_NONE, "Sunrise", "Sunset", "Party", "Movie"]
+        scene_select.async_write_ha_state.assert_not_called()
+
+        async_dispatcher_send(scene_select.hass, signal, [{"name": "Aurora", "value": {"id": 9}}], [])
+        assert scene_select.options == [SCENE_NONE, "Aurora"]
+        assert scene_select._scene_map["Aurora"] == (9, "Aurora")
+        scene_select.async_write_ha_state.assert_called_once()
+
     async def test_select_none_rejected_raises(self, scene_select):
         scene_select.coordinator.async_clear_scene = AsyncMock(return_value=False)
 
@@ -305,6 +325,22 @@ class TestDIYSceneSelect:
         diy_select.coordinator.async_clear_scene.assert_awaited_once_with(diy_device.device_id)
         diy_select.coordinator.async_send_diy_scene.assert_not_awaited()
         diy_select.async_write_ha_state.assert_called_once()
+
+    async def test_refresh_rebuilds_the_options_from_the_diy_catalog(self, diy_select, diy_device):
+        diy_select.hass = MagicMock()
+        diy_select.hass.data = {}
+        with patch.object(GoveeEntity, "async_added_to_hass", new_callable=AsyncMock):
+            await diy_select.async_added_to_hass()
+
+        async_dispatcher_send(
+            diy_select.hass,
+            scenes_refreshed_signal(diy_device.device_id),
+            [{"name": "Not DIY", "value": {"id": 1}}],
+            [{"name": "Glow", "value": 7}],
+        )
+
+        assert diy_select.options == [SCENE_NONE, "Glow"]
+        assert diy_select._scene_map["Glow"] == (7, "Glow")
 
     async def test_select_none_rejected_raises(self, diy_select):
         diy_select.coordinator.async_clear_scene = AsyncMock(return_value=False)

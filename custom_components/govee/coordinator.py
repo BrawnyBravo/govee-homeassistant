@@ -187,7 +187,7 @@ from .models.device import (
     PUMP_DEHUMIDIFIER_SKUS,
 )
 from .models.device import GoveeLeakSensor, GoveeLeakSensorState
-from .scene_cache import SceneCacheManager
+from .scene_cache import SceneCacheManager, scenes_refreshed_signal
 from .repairs import (
     async_create_mqtt_issue,
     async_create_rate_limit_issue,
@@ -5643,6 +5643,19 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """
         device = self._devices.get(device_id)
         return await self._scene_cache.async_get_scenes(device_id, device, refresh)
+
+    async def async_refresh_scenes(self, device_id: str) -> None:
+        """Force-refresh a device's scene and DIY scene catalogs and tell the entities.
+
+        Backs the "Refresh scenes" button and ``govee.refresh_scenes``; the
+        selects and the light's effect list rebuild from the signal.
+        """
+        device = self._devices.get(device_id)
+        if device is None:
+            return
+        scenes = await self.async_get_scenes(device_id, refresh=True)
+        diy_scenes = await self.async_get_diy_scenes(device_id, refresh=True) if device.supports_diy_scenes else []
+        async_dispatcher_send(self.hass, scenes_refreshed_signal(device_id), scenes, diy_scenes)
 
     async def async_get_diy_scenes(
         self,

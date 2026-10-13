@@ -278,6 +278,8 @@ class TestLightGroupRestore:
         entity.coordinator.restore_group_state.assert_not_called()
 
     async def test_regular_light_never_touches_group_restore(self, light):
+        light.hass = MagicMock()
+        light.hass.data = {}
         await self._add(light, State("light.living_room_light", "on", {"brightness": 255}))
 
         light.coordinator.restore_group_state.assert_not_called()

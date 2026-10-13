@@ -25,8 +25,9 @@ from homeassistant.components.light import (  # type: ignore[attr-defined]
     LightEntity,
     LightEntityFeature,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoredExtraData, RestoreEntity
 
@@ -60,6 +61,7 @@ from .models import (
 from .models.device import INSTANCE_MAIN_LIGHT_TOGGLE, INSTANCE_NIGHT_LIGHT
 from .platforms.grouped_segment import GoveeGroupedSegmentEntity
 from .platforms.segment import GoveeSegmentEntity
+from .scene_cache import scenes_refreshed_signal
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -418,6 +420,22 @@ class GoveeLightEntity(GoveeEntity, LightEntity, RestoreEntity):
             scenes = await self.coordinator.async_get_scenes(self._device_id)
             if scenes:
                 self._build_effect_mapping(scenes)
+            # A "Refresh scenes" press rebuilds the effect list too.
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass,
+                    scenes_refreshed_signal(self._device_id),
+                    self._handle_scenes_refreshed,
+                )
+            )
+
+    @callback
+    def _handle_scenes_refreshed(self, scenes: list[dict[str, Any]], diy_scenes: list[dict[str, Any]]) -> None:
+        """Rebuild the effect list from a refreshed catalog; an empty one keeps it."""
+        if not scenes:
+            return
+        self._build_effect_mapping(scenes)
+        self.async_write_ha_state()
 
 
 class GoveeMainLightEntity(GoveeLightEntity):
