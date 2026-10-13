@@ -112,21 +112,21 @@ class GoveeGroupedSegmentEntity(GoveeEntity, LightEntity, RestoreEntity):
         return self._rgb_color
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the segments on with optional parameters."""
-        # Update brightness if provided
-        if ATTR_BRIGHTNESS in kwargs:
-            self._brightness = kwargs[ATTR_BRIGHTNESS]
+        """Turn the segments on with optional parameters.
 
-        # Update color if provided
-        if ATTR_RGB_COLOR in kwargs:
-            self._rgb_color = kwargs[ATTR_RGB_COLOR]
+        The optimistic values are only stored once the write is accepted (see
+        the same method in segment.py).
+        """
+        brightness = kwargs.get(ATTR_BRIGHTNESS, self._brightness)
+        rgb_color = tuple(kwargs.get(ATTR_RGB_COLOR, self._rgb_color))
 
-        # Create segment color command with all segment indices
-        r, g, b = self._rgb_color
+        r, g, b = rgb_color
         color = RGBColor(r=r, g=g, b=b)
 
         await self._async_send_command(SegmentColorCommand(segment_indices=self._segment_indices, color=color))
 
+        self._brightness = brightness
+        self._rgb_color = (r, g, b)
         self._is_on = True
         self.async_write_ha_state()
         async_dispatcher_send(

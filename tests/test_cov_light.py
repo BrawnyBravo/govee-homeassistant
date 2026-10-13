@@ -776,6 +776,16 @@ class TestMainPanelControl:
 
         entity.coordinator.async_set_main_panel.assert_awaited_once_with(H1232_ID, rgb=None, brightness=1)
 
+    async def test_ptreal_failure_keeps_the_previous_colour_and_brightness(self):
+        entity = _panel(toggled=True)
+        entity.coordinator.async_set_main_panel = AsyncMock(return_value=False)
+
+        with pytest.raises(HomeAssistantError):
+            await entity.async_turn_on(rgb_color=(1, 2, 3), brightness=10)
+
+        assert entity.rgb_color == (255, 255, 255)
+        assert entity.brightness == 255
+
     async def test_ptreal_failure_raises(self):
         entity = _panel(toggled=True)
         entity.coordinator.async_set_main_panel = AsyncMock(return_value=False)

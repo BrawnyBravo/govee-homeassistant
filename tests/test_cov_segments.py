@@ -142,6 +142,18 @@ class TestSegmentTurnOn:
         assert entity.is_on is False
         entity.async_write_ha_state.assert_not_called()
 
+    async def test_rejected_turn_on_keeps_the_previous_colour_and_brightness(self, mock_rgbic_device):
+        # The unsent values must not reach HA on the next coordinator update,
+        # nor be persisted by RestoreEntity.
+        entity = _segment(mock_rgbic_device)
+        entity.coordinator.async_control_device = AsyncMock(return_value=False)
+
+        with pytest.raises(HomeAssistantError):
+            await entity.async_turn_on(brightness=10, rgb_color=(1, 2, 3))
+
+        assert entity.rgb_color == (255, 255, 255)
+        assert entity.brightness == 255
+
     async def test_turn_off_raises_when_rejected(self, mock_rgbic_device):
         entity = _segment(mock_rgbic_device)
         entity.coordinator.async_control_device = AsyncMock(return_value=False)
@@ -254,6 +266,16 @@ class TestGroupedSegmentEntityInit:
 
         assert entity.is_on is False
         entity.async_write_ha_state.assert_not_called()
+
+    async def test_rejected_turn_on_keeps_the_previous_colour_and_brightness(self, mock_rgbic_device):
+        entity = _grouped(mock_rgbic_device)
+        entity.coordinator.async_control_device = AsyncMock(return_value=False)
+
+        with pytest.raises(HomeAssistantError):
+            await entity.async_turn_on(brightness=10, rgb_color=(1, 2, 3))
+
+        assert entity.rgb_color == (255, 255, 255)
+        assert entity.brightness == 255
 
 
 class TestGroupedSegmentAddedToHass:

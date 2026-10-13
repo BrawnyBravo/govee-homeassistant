@@ -814,17 +814,22 @@ class GoveeMainPanelLight(GoveeEntity, LightEntity, RestoreEntity):
         rgb: RGBColor | None = None
         if ATTR_RGB_COLOR in kwargs:
             r, g, b = kwargs[ATTR_RGB_COLOR]
-            self._rgb_color = (r, g, b)
             rgb = RGBColor(r=r, g=g, b=b)
 
+        ha_brightness: int | None = kwargs.get(ATTR_BRIGHTNESS)
         device_brightness: int | None = None
-        if ATTR_BRIGHTNESS in kwargs:
-            self._brightness = kwargs[ATTR_BRIGHTNESS]
-            device_brightness = ha_to_device_brightness(MAIN_PANEL_BRIGHTNESS_RANGE, self._brightness)
+        if ha_brightness is not None:
+            device_brightness = ha_to_device_brightness(MAIN_PANEL_BRIGHTNESS_RANGE, ha_brightness)
 
         if rgb is not None or device_brightness is not None:
             if not await self.coordinator.async_set_main_panel(self._device_id, rgb=rgb, brightness=device_brightness):
                 raise self._command_failed()
+
+        # Only keep the optimistic values once the panel accepted them.
+        if rgb is not None:
+            self._rgb_color = rgb.as_tuple
+        if ha_brightness is not None:
+            self._brightness = ha_brightness
 
         self.async_write_ha_state()
 
