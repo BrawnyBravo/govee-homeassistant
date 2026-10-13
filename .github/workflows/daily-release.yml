@@ -95,7 +95,12 @@ jobs:
           if [ "$(TZ=America/New_York date -d "$PUBLISHED" +%F)" = "$TODAY" ]; then
             echo "No release: $TAG already went out today ($TODAY ET)" | tee -a "$GITHUB_STEP_SUMMARY"; proceed false; exit 0
           fi
-          CHANGED=$(git diff --name-only "$TAG"..HEAD -- custom_components/ ':(exclude)custom_components/govee/manifest.json')
+          MANIFEST=custom_components/govee/manifest.json
+          CHANGED=$(git diff --name-only "$TAG"..HEAD -- custom_components/ ":(exclude)$MANIFEST")
+          # The manifest counts unless only its version changed (requirements, bluetooth matchers ...).
+          if [ "$(git show "$TAG:$MANIFEST" | jq -S 'del(.version)')" != "$(jq -S 'del(.version)' "$MANIFEST")" ]; then
+            CHANGED="$CHANGED $MANIFEST"
+          fi
           if [ -z "$CHANGED" ]; then
             echo "No release: no changes under custom_components/ since $TAG" | tee -a "$GITHUB_STEP_SUMMARY"; proceed false; exit 0
           fi
