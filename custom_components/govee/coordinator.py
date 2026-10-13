@@ -296,6 +296,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     # coordinators that skip __init__ working.
     _budget_pacing_announced = False
     _header_deferred = False
+    # Set by async_shutdown. Timer callbacks run as untracked hass tasks, so
+    # one that was mid-await when the entry unloaded must not re-arm itself
+    # or open a second MQTT session on the dead coordinator.
+    _shut_down = False
 
     def __init__(
         self,
@@ -1761,7 +1765,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
     async def _start_mqtt(self) -> None:
         """Start MQTT client for real-time updates."""
-        if not self._iot_credentials:
+        if not self._iot_credentials or self._shut_down:
             return
 
         self._mqtt_client = GoveeAwsIotClient(
@@ -2692,6 +2696,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Schedule the next BFF poll in 5 minutes."""
         if self._bff_poll_unsub:
             self._bff_poll_unsub()
+            self._bff_poll_unsub = None
+        if self._shut_down:
+            return
         self._bff_poll_unsub = async_call_later(self.hass, BFF_POLL_INTERVAL, self._bff_poll_callback)
 
     async def _bff_poll_callback(self, _now: Any = None) -> None:
@@ -2835,6 +2842,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Schedule the next standalone water-detector leak poll."""
         if self._wd_poll_unsub:
             self._wd_poll_unsub()
+            self._wd_poll_unsub = None
+        if self._shut_down:
+            return
         self._wd_poll_unsub = async_call_later(
             self.hass,
             self._water_detector_poll_interval,
@@ -3097,6 +3107,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Schedule the next probe read, replacing any pending timer."""
         if self._probe_poll_unsub:
             self._probe_poll_unsub()
+            self._probe_poll_unsub = None
+        if self._shut_down:
+            return
         self._probe_poll_unsub = async_call_later(self.hass, self._probe_poll_interval, self._probe_poll_callback)
 
     async def _probe_poll_callback(self, _now: Any = None) -> None:
@@ -3205,7 +3218,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if self._status_poll_unsub:
             self._status_poll_unsub()
             self._status_poll_unsub = None
-        if not self._mqtt_status_poll_enabled:
+        if not self._mqtt_status_poll_enabled or self._shut_down:
             return
         self._status_poll_unsub = async_call_later(
             self.hass, self._mqtt_status_poll_interval, self._status_poll_callback
@@ -5760,6 +5773,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and cleanup resources."""
+        self._shut_down = True
         # Cancel BFF polling
         if self._bff_poll_unsub:
             self._bff_poll_unsub()
