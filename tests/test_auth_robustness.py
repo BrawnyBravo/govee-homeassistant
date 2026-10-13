@@ -157,6 +157,13 @@ class TestLoginErrorParsing:
         with pytest.raises(GoveeLoginRejectedError):
             await client.login("user@example.com", "pw")
 
+    async def test_null_client_block_is_a_missing_token(self):
+        body = {"status": 200, "message": "success", "client": None}
+        client = GoveeAuthClient(session=_session(post=[_response(200, body)]))
+
+        with pytest.raises(GoveeApiError, match="No token"):
+            await client.login("user@example.com", "pw")
+
     async def test_http_401_with_non_json_body_is_bad_credentials(self):
         client = GoveeAuthClient(session=_session(post=[_non_json(401)]))
 
