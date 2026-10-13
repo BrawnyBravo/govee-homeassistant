@@ -160,9 +160,9 @@ def _seed(registry: er.EntityRegistry, entry: MockConfigEntry, *specs: tuple[str
     }
 
 
-def _coordinator(device_ids, *, incomplete: bool = False) -> SimpleNamespace:
+def _coordinator(device_ids, *, incomplete: bool = False, segment_count: int = 15) -> SimpleNamespace:
     return SimpleNamespace(
-        devices={did: object() for did in device_ids},
+        devices={did: SimpleNamespace(segment_count=segment_count) for did in device_ids},
         leak_sensors={},
         hub_device_ids=set(),
         discovery_incomplete=incomplete,

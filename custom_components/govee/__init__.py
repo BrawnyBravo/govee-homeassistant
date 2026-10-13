@@ -391,6 +391,12 @@ def _owned_device_identifiers(entry: GoveeConfigEntry, coordinator: GoveeCoordin
     return owned
 
 
+def _segment_index_out_of_range(suffix: str, segment_count: int) -> bool:
+    """True when a ``_segment_N`` suffix names a segment the device no longer has."""
+    index = suffix[len(SUFFIX_SEGMENT) :]
+    return index.isdigit() and int(index) >= segment_count
+
+
 async def _async_cleanup_orphaned_entities(
     hass: HomeAssistant,
     entry: GoveeConfigEntry,
@@ -485,6 +491,11 @@ async def _async_cleanup_orphaned_entities(
                 if segment_mode not in (SEGMENT_MODE_INDIVIDUAL, SEGMENT_MODE_BOTH):
                     should_remove = True
                     removal_reason = "individual segments disabled"
+                elif _segment_index_out_of_range(suffix, coordinator.devices[owner_id].segment_count):
+                    # Left over from before a lower count applied (SKU override
+                    # or size.max clamp); the light platform no longer creates it.
+                    should_remove = True
+                    removal_reason = "segment beyond device segment count"
             elif suffix == SUFFIX_SCENE_SELECT and not enable_scenes:
                 should_remove = True
                 removal_reason = "scenes disabled"

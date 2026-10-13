@@ -173,9 +173,9 @@ def _seed(registry: er.EntityRegistry, entry: MockConfigEntry, *specs: tuple[str
     }
 
 
-def _coordinator(device_ids, *, leak_ids=(), hub_ids=(), incomplete=False) -> SimpleNamespace:
+def _coordinator(device_ids, *, leak_ids=(), hub_ids=(), incomplete=False, segment_count=15) -> SimpleNamespace:
     return SimpleNamespace(
-        devices={did: object() for did in device_ids},
+        devices={did: SimpleNamespace(segment_count=segment_count) for did in device_ids},
         leak_sensors={lid: object() for lid in leak_ids},
         hub_device_ids=set(hub_ids),
         discovery_incomplete=incomplete,
@@ -265,6 +265,34 @@ async def test_cleanup_applies_feature_toggles(hass: HomeAssistant, mock_light_d
     await _async_cleanup_orphaned_entities(hass, entry, _coordinator([device_id]))
     assert registry.async_get(ids[f"{device_id}{SUFFIX_SEGMENT}0"]) is None
     assert registry.async_get(ids[f"{device_id}{SUFFIX_GROUPED_SEGMENT}"]) is not None
+
+
+async def test_cleanup_removes_segments_beyond_the_segment_count(hass: HomeAssistant, mock_light_device) -> None:
+    """Segment entities left over from a higher count (before a SKU override) are removed."""
+    device_id = mock_light_device.device_id
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: API_KEY}, options={})
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    ids = _seed(
+        registry,
+        entry,
+        *(("light", f"{device_id}{SUFFIX_SEGMENT}{index}") for index in range(5)),
+        ("binary_sensor", f"{LEAK_ID}_leak"),
+        ("binary_sensor", f"{HUB_ID}_hub_online"),
+    )
+
+    await _async_cleanup_orphaned_entities(
+        hass, entry, _coordinator([device_id], leak_ids=[LEAK_ID], hub_ids=[HUB_ID], segment_count=3)
+    )
+
+    survived = {uid for uid, eid in ids.items() if registry.async_get(eid) is not None}
+    assert survived == {
+        f"{device_id}{SUFFIX_SEGMENT}0",
+        f"{device_id}{SUFFIX_SEGMENT}1",
+        f"{device_id}{SUFFIX_SEGMENT}2",
+        f"{LEAK_ID}_leak",
+        f"{HUB_ID}_hub_online",
+    }
 
 
 async def test_cleanup_keeps_owned_devices_without_entities(hass: HomeAssistant, mock_light_device) -> None:
