@@ -168,3 +168,25 @@ class TestLoginErrorParsing:
 
         with pytest.raises(GoveeApiError, match="HTTP 500"):
             await client.get_iot_key("tok", client_id="cid")
+
+
+class TestVerificationCodeRequest:
+    """HTTP 200 carrying an in-body error must not read as 'code sent' (CLOUD-9)."""
+
+    async def test_in_body_error_raises(self):
+        body = {"status": 429, "message": "Too many requests"}
+        client = GoveeAuthClient(session=_session(post=[_response(200, body)]))
+
+        with pytest.raises(GoveeApiError, match="Too many requests"):
+            await client.request_verification_code("user@example.com", "cid")
+
+    @pytest.mark.parametrize("body", [{"status": 200, "message": "success"}, {}])
+    async def test_success_body_passes(self, body):
+        client = GoveeAuthClient(session=_session(post=[_response(200, body)]))
+
+        await client.request_verification_code("user@example.com", "cid")
+
+    async def test_non_json_200_still_counts_as_sent(self):
+        client = GoveeAuthClient(session=_session(post=[_non_json(200)]))
+
+        await client.request_verification_code("user@example.com", "cid")

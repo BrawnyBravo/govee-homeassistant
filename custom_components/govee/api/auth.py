@@ -1502,6 +1502,17 @@ class GoveeAuthClient:
             ) as response:
                 if response.status != 200:
                     raise GoveeApiError(f"Failed to request verification code: HTTP {response.status}")
+                # Govee also answers some failures (rate limit and the like)
+                # with HTTP 200 and an error status in the body; treating that
+                # as "code sent" leaves the user waiting for an email that
+                # never comes. A body that is not JSON keeps the old reading.
+                data = await _read_json_lenient(response)
+                if isinstance(data, dict) and data.get("status") not in (None, 200):
+                    message = _error_message(data, response.status)
+                    raise GoveeApiError(
+                        f"Failed to request verification code: {message}",
+                        code=_safe_int(data.get("status")),
+                    )
                 _LOGGER.debug("Verification code requested")
         except (aiohttp.ClientError, TimeoutError) as err:
             raise GoveeApiError(
