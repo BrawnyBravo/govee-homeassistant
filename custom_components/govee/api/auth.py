@@ -367,6 +367,30 @@ def _error_message(data: Any, status: int) -> str:
     return f"HTTP {status}"
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    """A BFF sub-object (``deviceExt``, ``deviceSettings`` ...) as a dict.
+
+    Govee sends these as objects or as JSON text; anything else (``null``, the
+    string ``"null"``, a number, a list, broken JSON) becomes ``{}`` so one odd
+    device can never raise out of a whole account's device list.
+    """
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _bff_devices(data: Any) -> list[dict[str, Any]]:
+    """The ``data.devices`` list of a BFF device-list body, dict entries only."""
+    inner = data.get("data") if isinstance(data, dict) else None
+    devices = inner.get("devices") if isinstance(inner, dict) else None
+    if not isinstance(devices, list):
+        return []
+    return [device for device in devices if isinstance(device, dict)]
+
+
 def _derive_client_id(email: str) -> str:
     """Derive a stable client_id from the account email.
 
@@ -628,26 +652,13 @@ class GoveeAuthClient:
         """
         topics: dict[str, str] = {}
         for device in devices:
+            if not isinstance(device, dict):
+                continue
             device_id = device.get("device")
             if not device_id:
                 continue
 
-            device_ext = device.get("deviceExt", {})
-            if isinstance(device_ext, str):
-                try:
-                    device_ext = json.loads(device_ext)
-                except (json.JSONDecodeError, TypeError):
-                    device_ext = {}
-
-            device_settings = device_ext.get("deviceSettings", {})
-            if isinstance(device_settings, str):
-                try:
-                    device_settings = json.loads(device_settings)
-                except (json.JSONDecodeError, TypeError):
-                    device_settings = {}
-            if not isinstance(device_settings, dict):
-                continue
-
+            device_settings = _as_dict(_as_dict(device.get("deviceExt")).get("deviceSettings"))
             topic = device_settings.get("topic")
             if topic:
                 topics[device_id] = topic
@@ -668,28 +679,13 @@ class GoveeAuthClient:
         """
         routes: dict[str, dict[str, str]] = {}
         for device in devices:
+            if not isinstance(device, dict):
+                continue
             device_id = device.get("device")
             if not device_id:
                 continue
 
-            device_ext = device.get("deviceExt", {})
-            if isinstance(device_ext, str):
-                try:
-                    device_ext = json.loads(device_ext)
-                except (json.JSONDecodeError, TypeError):
-                    device_ext = {}
-            if not isinstance(device_ext, dict):
-                continue
-
-            device_settings = device_ext.get("deviceSettings", {})
-            if isinstance(device_settings, str):
-                try:
-                    device_settings = json.loads(device_settings)
-                except (json.JSONDecodeError, TypeError):
-                    device_settings = {}
-            if not isinstance(device_settings, dict):
-                continue
-
+            device_settings = _as_dict(_as_dict(device.get("deviceExt")).get("deviceSettings"))
             gateway_info = device_settings.get("gatewayInfo", {})
             if not isinstance(gateway_info, dict):
                 continue
@@ -731,7 +727,7 @@ class GoveeAuthClient:
                 message = data.get("message", f"HTTP {response.status}")
                 raise GoveeApiError(f"BFF device list failed: {message}", code=response.status)
             _raise_for_bff_status(data, "device topics")
-            devices = data.get("data", {}).get("devices", [])
+            devices = _bff_devices(data)
             self._gateway_routes = self._extract_gateway_routes(devices)
             return self._extract_topics_from_devices(devices)
 
@@ -788,8 +784,8 @@ class GoveeAuthClient:
                 # from the BFF device list, which additionally carries them for
                 # gateway-attached (BLE-over-H5044) devices the legacy endpoint
                 # omits — e.g. the H5901 Smart Water Timer (issue #135).
-                devices = data.get("devices", [])
-                device_topics = self._extract_topics_from_devices(devices)
+                devices = data.get("devices") if isinstance(data, dict) else None
+                device_topics = self._extract_topics_from_devices(devices if isinstance(devices, list) else [])
                 legacy_count = len(device_topics)
 
                 added = 0
@@ -867,9 +863,9 @@ class GoveeAuthClient:
                     )
 
                 _raise_for_bff_status(data, "thermo-hygrometer list")
-                devices = data.get("data", {}).get("devices", [])
+                devices = _bff_devices(data)
                 # Retain for the diagnostics census (#87 / #86 triage).
-                self._last_bff_raw_devices = devices if isinstance(devices, list) else []
+                self._last_bff_raw_devices = devices
                 self._last_bff_raw_response = data
 
                 sensors: list[dict[str, Any]] = []
@@ -888,31 +884,10 @@ class GoveeAuthClient:
                     device_id = device.get("device", "")
                     name = device.get("deviceName", sku)
 
-                    device_ext = device.get("deviceExt", {})
-                    if isinstance(device_ext, str):
-                        try:
-                            device_ext = json.loads(device_ext)
-                        except (json.JSONDecodeError, TypeError):
-                            device_ext = {}
-
-                    settings = device_ext.get("deviceSettings", {})
-                    if isinstance(settings, str):
-                        try:
-                            settings = json.loads(settings)
-                        except (json.JSONDecodeError, TypeError):
-                            settings = {}
-                    settings = settings if isinstance(settings, dict) else {}
-
-                    ld = device_ext.get("lastDeviceData", {})
-                    if isinstance(ld, str):
-                        try:
-                            ld = json.loads(ld)
-                        except (json.JSONDecodeError, TypeError):
-                            ld = {}
-                    ld = ld if isinstance(ld, dict) else {}
-
-                    gateway_info = settings.get("gatewayInfo", {})
-                    gateway_info = gateway_info if isinstance(gateway_info, dict) else {}
+                    device_ext = _as_dict(device.get("deviceExt"))
+                    settings = _as_dict(device_ext.get("deviceSettings"))
+                    ld = _as_dict(device_ext.get("lastDeviceData"))
+                    gateway_info = _as_dict(settings.get("gatewayInfo"))
 
                     # fahOpen / temCali / humCali change the *displayed* reading
                     # in the Govee app, but we have no ground-truth confirming
@@ -1037,9 +1012,9 @@ class GoveeAuthClient:
 
                 sensors: list[dict[str, Any]] = []
                 _raise_for_bff_status(data, "leak-sensor list")
-                devices = data.get("data", {}).get("devices", [])
+                devices = _bff_devices(data)
                 # Retain for the diagnostics census + skeleton (PII-free; #87).
-                self._last_bff_raw_devices = devices if isinstance(devices, list) else []
+                self._last_bff_raw_devices = devices
                 self._last_bff_raw_response = data
                 for device in devices:
                     sku = device.get("sku", "")
@@ -1051,21 +1026,9 @@ class GoveeAuthClient:
 
                     # Extract settings for sno and gateway info
                     # deviceExt fields may be JSON strings that need parsing
-                    device_ext = device.get("deviceExt", {})
-                    if isinstance(device_ext, str):
-                        try:
-                            device_ext = json.loads(device_ext)
-                        except (json.JSONDecodeError, TypeError):
-                            device_ext = {}
+                    device_settings = _as_dict(_as_dict(device.get("deviceExt")).get("deviceSettings"))
 
-                    device_settings = device_ext.get("deviceSettings", {})
-                    if isinstance(device_settings, str):
-                        try:
-                            device_settings = json.loads(device_settings)
-                        except (json.JSONDecodeError, TypeError):
-                            device_settings = {}
-
-                    sno = device_settings.get("sno")
+                    sno = _safe_int(device_settings.get("sno"))
                     if sno is None:
                         _LOGGER.debug(
                             "Leak sensor %s (%s) has no sno, skipping",
@@ -1075,7 +1038,7 @@ class GoveeAuthClient:
                         continue
 
                     # Get gateway (hub) device ID
-                    gateway_info = device_settings.get("gatewayInfo", {})
+                    gateway_info = _as_dict(device_settings.get("gatewayInfo"))
                     hub_device_id = gateway_info.get("device", "")
 
                     sensors.append(
@@ -1084,7 +1047,7 @@ class GoveeAuthClient:
                             "name": name,
                             "sku": sku,
                             "hub_device_id": hub_device_id,
-                            "sno": int(sno),
+                            "sno": sno,
                             "battery": device_settings.get("battery"),
                             "hw_version": device_settings.get("versionHard", ""),
                             "sw_version": device_settings.get("versionSoft", ""),
@@ -1098,19 +1061,7 @@ class GoveeAuthClient:
                     if sku not in LEAK_SENSOR_SKUS:
                         continue
                     device_id = device.get("device", "")
-                    device_ext = device.get("deviceExt", {})
-                    if isinstance(device_ext, str):
-                        try:
-                            device_ext = json.loads(device_ext)
-                        except (json.JSONDecodeError, TypeError):
-                            device_ext = {}
-                    ld = device_ext.get("lastDeviceData", {})
-                    if isinstance(ld, str):
-                        try:
-                            ld = json.loads(ld)
-                        except (json.JSONDecodeError, TypeError):
-                            ld = {}
-                    device_state_map[device_id] = ld
+                    device_state_map[device_id] = _as_dict(_as_dict(device.get("deviceExt")).get("lastDeviceData"))
 
                 # Attach state to sensor dicts
                 for sensor in sensors:
@@ -1159,35 +1110,19 @@ class GoveeAuthClient:
                     device_id = device.get("device", "")
                     if not device_id:
                         continue
-                    device_ext = device.get("deviceExt", {})
-                    if isinstance(device_ext, str):
-                        try:
-                            device_ext = json.loads(device_ext)
-                        except (json.JSONDecodeError, TypeError):
-                            device_ext = {}
-                    ld = device_ext.get("lastDeviceData", {})
-                    if isinstance(ld, str):
-                        try:
-                            ld = json.loads(ld)
-                        except (json.JSONDecodeError, TypeError):
-                            ld = {}
-                    ld = ld if isinstance(ld, dict) else {}
+                    device_ext = _as_dict(device.get("deviceExt"))
+                    ld = _as_dict(device_ext.get("lastDeviceData"))
                     # Battery lives in deviceSettings (same place the leak +
                     # H5301 paths read it), NOT lastDeviceData. The Developer API
                     # doesn't expose battery for these BLE-bridged thermometers
                     # (H5110 via H5151), so the BFF list is the only source (#83).
-                    settings = device_ext.get("deviceSettings", {})
-                    if isinstance(settings, str):
-                        try:
-                            settings = json.loads(settings)
-                        except (json.JSONDecodeError, TypeError):
-                            settings = {}
-                    battery = settings.get("battery") if isinstance(settings, dict) else None
+                    settings = _as_dict(device_ext.get("deviceSettings"))
+                    battery = settings.get("battery")
                     # Dehumidifier (H7150/H7152) water-tank-full flag (0/1). The
                     # developer /device/state poll never carries the
                     # waterFullEvent value, so the BFF deviceSettings is the only
                     # readable source (issue #118).
-                    water_full = settings.get("waterFull") if isinstance(settings, dict) else None
+                    water_full = settings.get("waterFull")
                     tem = ld.get("tem")
                     hum = ld.get("hum")
                     if tem is not None or hum is not None or battery is not None or water_full is not None:
@@ -1266,29 +1201,13 @@ class GoveeAuthClient:
                     raise GoveeApiError(f"BFF device list failed: {message}", code=response.status)
 
                 _raise_for_bff_status(data, "device list")
-                for device in data.get("data", {}).get("devices", []):
-                    raw_id = device.get("device", "")
-                    key = raw_id.replace(":", "").upper()
+                for device in _bff_devices(data):
+                    key = str(device.get("device") or "").replace(":", "").upper()
                     if key not in wanted:
                         continue
-                    device_ext = device.get("deviceExt", {})
-                    if isinstance(device_ext, str):
-                        try:
-                            device_ext = json.loads(device_ext)
-                        except (json.JSONDecodeError, TypeError):
-                            device_ext = {}
-                    settings = device_ext.get("deviceSettings", {})
-                    if isinstance(settings, str):
-                        try:
-                            settings = json.loads(settings)
-                        except (json.JSONDecodeError, TypeError):
-                            settings = {}
-                    ld = device_ext.get("lastDeviceData", {})
-                    if isinstance(ld, str):
-                        try:
-                            ld = json.loads(ld)
-                        except (json.JSONDecodeError, TypeError):
-                            ld = {}
+                    device_ext = _as_dict(device.get("deviceExt"))
+                    settings = _as_dict(device_ext.get("deviceSettings"))
+                    ld = _as_dict(device_ext.get("lastDeviceData"))
                     result[wanted[key]] = {
                         "online": bool(ld.get("online", True)),
                         "gateway_online": bool(ld.get("gwonline", True)),
