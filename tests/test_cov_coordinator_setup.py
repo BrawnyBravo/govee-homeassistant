@@ -733,6 +733,107 @@ class TestLanRescan:
         assert coord.lan_unmatched_count == 1
 
 
+class TestLanSetupRetry:
+    """LAN that found nothing at setup must come back without a reload."""
+
+    @pytest.mark.asyncio
+    async def test_empty_first_scan_is_retried_on_a_later_poll(self, monkeypatch):
+        coord = _coordinator()
+        _add(coord, _light(DEV))
+        _patch_lan(monkeypatch, scan=[], client=_FakeLanClient())
+        await coord._async_setup_lan()
+        assert coord._lan_client is None
+
+        # The lights' Wi-Fi comes up after Home Assistant did.
+        client = _FakeLanClient()
+        _patch_lan(monkeypatch, scan=[{"device": DEV, "ip": "10.0.0.5", "sku": "H6072"}], client=client)
+        coord._last_lan_rescan = float("-inf")  # throttle elapsed
+        await coord._async_maybe_rescan_lan()
+
+        assert coord._lan_client is client
+        assert coord._lan_devices[DEV].ip == "10.0.0.5"
+
+    @pytest.mark.asyncio
+    async def test_retry_is_throttled(self, monkeypatch):
+        coord = _coordinator()
+        _add(coord, _light(DEV))
+        seen: dict[str, Any] = {}
+        _patch_lan(monkeypatch, scan=[], client=_FakeLanClient(), seen=seen)
+        await coord._async_setup_lan()
+        assert seen["scans"] == 1
+
+        # The failed setup counts as the latest attempt: polls right after it
+        # must not rescan.
+        await coord._async_maybe_rescan_lan()
+        await coord._async_maybe_rescan_lan()
+        assert seen["scans"] == 1
+
+        coord._last_lan_rescan = float("-inf")
+        await coord._async_maybe_rescan_lan()
+        await coord._async_maybe_rescan_lan()
+        assert seen["scans"] == 2
+
+    @pytest.mark.asyncio
+    async def test_off_never_retries(self, monkeypatch):
+        coord = _coordinator(options={CONF_LAN_TARGETS: "off"})
+        _add(coord, _light(DEV))
+        seen: dict[str, Any] = {}
+        _patch_lan(monkeypatch, scan=[], client=_FakeLanClient(), seen=seen)
+        coord._last_lan_rescan = float("-inf")
+
+        await coord._async_maybe_rescan_lan()
+
+        assert "scans" not in seen
+        assert coord._lan_client is None
+
+    @pytest.mark.asyncio
+    async def test_retry_failure_never_raises_into_the_poll(self, monkeypatch):
+        coord = _coordinator()
+        _add(coord, _light(DEV))
+        _patch_lan(monkeypatch, scan=[], client=_FakeLanClient())
+
+        async def _boom(hass: Any) -> list[str]:
+            raise RuntimeError("adapter lookup failed")
+
+        monkeypatch.setattr(coord_mod, "async_get_lan_interface_ips", _boom)
+        coord._last_lan_rescan = float("-inf")
+
+        await coord._async_maybe_rescan_lan()
+
+        assert coord._lan_client is None
+
+    @pytest.mark.asyncio
+    async def test_retry_after_unload_opens_no_socket(self, monkeypatch):
+        coord = _coordinator()
+        _add(coord, _light(DEV))
+        client = _FakeLanClient()
+        _patch_lan(monkeypatch, scan=[{"device": DEV, "ip": "10.0.0.5", "sku": "H6072"}], client=client)
+        coord._lan_closed = True
+
+        await coord._async_setup_lan(retry=True)
+
+        assert coord._lan_client is None
+        assert client.start_calls == 0
+
+    @pytest.mark.asyncio
+    async def test_unload_during_bind_releases_the_socket(self, monkeypatch):
+        coord = _coordinator()
+        _add(coord, _light(DEV))
+
+        class _UnloadWhileStarting(_FakeLanClient):
+            async def async_start(self, interface_ips: list[str]) -> None:
+                await super().async_start(interface_ips)
+                coord._lan_closed = True
+
+        client = _UnloadWhileStarting()
+        _patch_lan(monkeypatch, scan=[{"device": DEV, "ip": "10.0.0.5", "sku": "H6072"}], client=client)
+
+        await coord._async_setup_lan(retry=True)
+
+        assert coord._lan_client is None
+        assert client.stop_calls == 1
+
+
 # --------------------------------------------------------------------------- #
 # Device topics and the BFF token retry
 # --------------------------------------------------------------------------- #
