@@ -360,6 +360,27 @@ async def _read_json(response: aiohttp.ClientResponse, context: str) -> Any:
         raise GoveeApiError(f"{context} returned invalid JSON", code=response.status) from err
 
 
+async def _read_json_lenient(response: aiohttp.ClientResponse) -> Any:
+    """The body as JSON, or None when it is not JSON (an HTML/plain-text error page)."""
+    try:
+        return await response.json()
+    except (ValueError, aiohttp.ContentTypeError):
+        return None
+
+
+async def _raise_if_unauthorized(response: aiohttp.ClientResponse, context: str) -> None:
+    """Raise GoveeAuthError for HTTP 401, before the body is decoded.
+
+    An expired token must reach the caller as GoveeAuthError so the #132
+    re-login runs; decoding first turned a non-JSON 401 body into a generic
+    connection error, and some callers mapped any non-200 to GoveeApiError.
+    """
+    if response.status != 401:
+        return
+    message = _error_message(await _read_json_lenient(response), 401)
+    raise GoveeAuthError(f"{context} auth failed (401): {message}", code=401)
+
+
 def _error_message(data: Any, status: int) -> str:
     """Body ``message`` when the body is a dict carrying one, else ``HTTP <status>``."""
     if isinstance(data, dict) and data.get("message"):
@@ -617,11 +638,12 @@ class GoveeAuthClient:
                 GOVEE_IOT_KEY_URL,
                 headers=headers,
             ) as response:
-                data = await response.json()
                 _LOGGER.debug("Govee IoT key HTTP response: status=%d", response.status)
+                await _raise_if_unauthorized(response, "IoT key request")
+                data = await response.json()
 
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     _LOGGER.warning(
                         "Govee IoT key request failed: status=%d message='%s' response=%s",
                         response.status,
@@ -722,9 +744,10 @@ class GoveeAuthClient:
             GOVEE_BFF_DEVICE_LIST_URL,
             headers=headers,
         ) as response:
+            await _raise_if_unauthorized(response, "BFF device list")
             data = await response.json()
             if response.status != 200:
-                message = data.get("message", f"HTTP {response.status}")
+                message = _error_message(data, response.status)
                 raise GoveeApiError(f"BFF device list failed: {message}", code=response.status)
             _raise_for_bff_status(data, "device topics")
             devices = _bff_devices(data)
@@ -763,10 +786,11 @@ class GoveeAuthClient:
                 headers=headers,
                 json={},  # Empty body required for POST
             ) as response:
+                await _raise_if_unauthorized(response, "Device list")
                 data = await response.json()
 
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     raise GoveeApiError(f"Failed to get device list: {message}", code=response.status)
 
                 # Same in-body error envelope the BFF paths guard against
@@ -849,14 +873,11 @@ class GoveeAuthClient:
                 GOVEE_BFF_DEVICE_LIST_URL,
                 headers=headers,
             ) as response:
+                await _raise_if_unauthorized(response, "BFF API")
                 data = await response.json()
 
-                if response.status == 401:
-                    message = data.get("message", "Unauthorized")
-                    raise GoveeAuthError(f"BFF API auth failed (401): {message}")
-
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     raise GoveeApiError(
                         f"BFF device list failed: {message}",
                         code=response.status,
@@ -997,14 +1018,11 @@ class GoveeAuthClient:
                 GOVEE_BFF_DEVICE_LIST_URL,
                 headers=headers,
             ) as response:
+                await _raise_if_unauthorized(response, "BFF API")
                 data = await response.json()
 
-                if response.status == 401:
-                    message = data.get("message", "Unauthorized")
-                    raise GoveeAuthError(f"BFF API auth failed (401): {message}")
-
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     raise GoveeApiError(
                         f"BFF device list failed: {message}",
                         code=response.status,
@@ -1193,11 +1211,10 @@ class GoveeAuthClient:
                 GOVEE_BFF_DEVICE_LIST_URL,
                 headers=headers,
             ) as response:
+                await _raise_if_unauthorized(response, "BFF API")
                 data = await response.json()
-                if response.status == 401:
-                    raise GoveeAuthError("BFF API auth failed (401)")
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     raise GoveeApiError(f"BFF device list failed: {message}", code=response.status)
 
                 _raise_for_bff_status(data, "device list")
@@ -1544,18 +1561,21 @@ class GoveeAuthClient:
                 json=payload,
                 headers=headers,
             ) as response:
-                data = await response.json()
                 _LOGGER.debug("Govee login HTTP response: status=%d", response.status)
 
                 if response.status == 401:
+                    # Checked before decoding: a non-JSON 401 body is still
+                    # bad credentials, not a connection error.
+                    data = await _read_json_lenient(response)
                     _LOGGER.debug(
                         "Govee login failed with HTTP 401. Response: %s",
                         (_sanitize_response_for_logging(data) if isinstance(data, dict) else data),
                     )
                     raise GoveeAuthError("Invalid email or password", code=401)
 
+                data = await response.json()
                 if response.status != 200:
-                    message = data.get("message", f"HTTP {response.status}")
+                    message = _error_message(data, response.status)
                     _LOGGER.warning(
                         "Govee login failed with HTTP %d: %s. Response: %s",
                         response.status,
@@ -1564,10 +1584,13 @@ class GoveeAuthClient:
                     )
                     raise GoveeLoginRejectedError(f"Login rejected (HTTP {response.status}): {message}")
 
+                if not isinstance(data, dict):
+                    raise GoveeLoginRejectedError("Login rejected: unexpected response body")
+
                 # Check response status code within JSON
                 status = data.get("status")
                 if status != 200:
-                    message = data.get("message", "Login failed")
+                    message = str(data.get("message") or "Login failed")
                     _LOGGER.warning(
                         "Govee login error: status=%s message='%s' response=%s",
                         status,
@@ -1582,7 +1605,9 @@ class GoveeAuthClient:
                         raise GoveeAuthError(message, code=status)
                     raise GoveeLoginRejectedError(f"Login rejected (status {status}): {message}")
 
-                client_data = data.get("client", {})
+                client_data = data.get("client")
+                if not isinstance(client_data, dict):
+                    client_data = {}
 
                 # Get token from login response
                 token = client_data.get("token", "")

@@ -16,6 +16,7 @@ import aiohttp
 import pytest
 
 from custom_components.govee.api.auth import GoveeAuthClient
+from custom_components.govee.api.exceptions import GoveeApiError, GoveeAuthError, GoveeLoginRejectedError
 from tests.test_cov_auth import _bff_list, _leak, _response, _session, _thermo
 
 
@@ -89,3 +90,81 @@ class TestMalformedDeviceEntries:
         client = GoveeAuthClient(session=_session(get=[_response(200, {"data": "null"})]))
 
         assert await client.fetch_bff_thermo_hygrometers("tok") == []
+
+
+class TestHttp401IsAnAuthError:
+    """HTTP 401 means 'log in again', whatever the body (CLOUD-4)."""
+
+    async def test_legacy_device_list(self):
+        client = GoveeAuthClient(session=_session(post=[_non_json(401)]))
+
+        with pytest.raises(GoveeAuthError):
+            await client.fetch_device_topics("tok", client_id="cid")
+
+    async def test_legacy_device_list_json_401(self):
+        client = GoveeAuthClient(session=_session(post=[_response(401, {"message": "expired"})]))
+
+        with pytest.raises(GoveeAuthError, match="expired"):
+            await client.fetch_device_topics("tok", client_id="cid")
+
+    async def test_iot_key(self):
+        client = GoveeAuthClient(session=_session(get=[_non_json(401)]))
+
+        with pytest.raises(GoveeAuthError):
+            await client.get_iot_key("tok", client_id="cid")
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda c: c.fetch_bff_leak_sensors("tok"),
+            lambda c: c.fetch_bff_thermo_hygrometers("tok"),
+            lambda c: c.fetch_water_detector_states("tok", {"AA"}),
+            lambda c: c._fetch_bff_device_topics("tok"),
+        ],
+    )
+    async def test_bff_lists_with_non_json_body(self, call):
+        client = GoveeAuthClient(session=_session(get=[_non_json(401)]))
+
+        with pytest.raises(GoveeAuthError):
+            await call(client)
+
+    async def test_bff_list_non_dict_error_body(self):
+        client = GoveeAuthClient(session=_session(get=[_response(500, ["oops"])]))
+
+        with pytest.raises(GoveeApiError, match="HTTP 500"):
+            await client.fetch_bff_leak_sensors("tok")
+
+
+class TestLoginErrorParsing:
+    """A null message or a non-dict body is a rejection, not a crash (CLOUD-8)."""
+
+    async def test_in_body_error_with_null_message(self):
+        client = GoveeAuthClient(session=_session(post=[_response(200, {"status": 400, "message": None})]))
+
+        with pytest.raises(GoveeLoginRejectedError, match="status 400"):
+            await client.login("user@example.com", "pw")
+
+    async def test_in_body_error_with_non_string_message(self):
+        client = GoveeAuthClient(session=_session(post=[_response(200, {"status": 400, "message": 12})]))
+
+        with pytest.raises(GoveeLoginRejectedError):
+            await client.login("user@example.com", "pw")
+
+    @pytest.mark.parametrize("status", [200, 503])
+    async def test_non_dict_body(self, status):
+        client = GoveeAuthClient(session=_session(post=[_response(status, ["unexpected"])]))
+
+        with pytest.raises(GoveeLoginRejectedError):
+            await client.login("user@example.com", "pw")
+
+    async def test_http_401_with_non_json_body_is_bad_credentials(self):
+        client = GoveeAuthClient(session=_session(post=[_non_json(401)]))
+
+        with pytest.raises(GoveeAuthError):
+            await client.login("user@example.com", "pw")
+
+    async def test_iot_key_non_dict_error_body(self):
+        client = GoveeAuthClient(session=_session(get=[_response(500, ["oops"])]))
+
+        with pytest.raises(GoveeApiError, match="HTTP 500"):
+            await client.get_iot_key("tok", client_id="cid")
