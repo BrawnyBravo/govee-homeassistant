@@ -246,6 +246,51 @@ class TestControlDeviceTiers:
         assert DEV not in coord._segment_colors
 
     @pytest.mark.asyncio
+    async def test_rejected_segment_colour_is_not_left_for_the_ring_replay(self, monkeypatch):
+        # A colour Govee rejected must not be replayed by a later whole-device
+        # write (#131): the tracking returns to what it was before the send.
+        monkeypatch.setattr(coord_mod, "SEGMENT_COMMAND_PACING_SECONDS", 0)
+        coord = _coordinator()
+        _add(coord, _device(caps=(_POWER, _RGB, _SEGMENTS)))
+        coord.record_segment_color(DEV, 0, (0, 255, 0))
+        coord._api_client.control_device = AsyncMock(return_value=False)
+        command = SegmentColorCommand(segment_indices=(0, 1), color=RGBColor(255, 0, 0))
+
+        assert await coord.async_control_device(DEV, command) is False
+
+        assert coord._segment_colors[DEV] == {0: (0, 255, 0)}
+
+    @pytest.mark.asyncio
+    async def test_failed_segment_send_keeps_a_newer_concurrent_write(self, monkeypatch):
+        monkeypatch.setattr(coord_mod, "SEGMENT_COMMAND_PACING_SECONDS", 0)
+        coord = _coordinator()
+        _add(coord, _device(caps=(_POWER, _RGB, _SEGMENTS)))
+
+        async def rejected_after_a_newer_write(*_args):
+            coord.record_segment_color(DEV, 0, (0, 0, 255))
+            return False
+
+        coord._api_client.control_device = AsyncMock(side_effect=rejected_after_a_newer_write)
+        command = SegmentColorCommand(segment_indices=(0,), color=RGBColor(255, 0, 0))
+
+        assert await coord.async_control_device(DEV, command) is False
+
+        assert coord._segment_colors[DEV] == {0: (0, 0, 255)}
+
+    @pytest.mark.asyncio
+    async def test_segment_api_exception_rolls_back_the_tracking(self, monkeypatch):
+        monkeypatch.setattr(coord_mod, "SEGMENT_COMMAND_PACING_SECONDS", 0)
+        coord = _coordinator()
+        _add(coord, _device(caps=(_POWER, _RGB, _SEGMENTS)))
+        coord._api_client.control_device = AsyncMock(side_effect=GoveeAuthError("key revoked"))
+        command = SegmentColorCommand(segment_indices=(2,), color=RGBColor(255, 0, 0))
+
+        with pytest.raises(ConfigEntryAuthFailed):
+            await coord.async_control_device(DEV, command)
+
+        assert coord._segment_colors.get(DEV, {}) == {}
+
+    @pytest.mark.asyncio
     async def test_segment_rejection_records_a_failure(self, monkeypatch):
         monkeypatch.setattr(coord_mod, "SEGMENT_COMMAND_PACING_SECONDS", 0)
         coord = _coordinator()

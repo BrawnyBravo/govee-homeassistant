@@ -4616,6 +4616,52 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         Returns:
             True if command succeeded.
         """
+        if not isinstance(command, SegmentColorCommand) or device_id not in self._devices:
+            return await self._async_control_device(device_id, command)
+
+        # Remember what the segments were last set to, before the first await,
+        # so a later whole-device write can faithfully restore them. Recorded
+        # here rather than in the REST branch so it captures the command
+        # whichever transport tier ends up carrying it.
+        rgb = command.color.as_tuple
+        tracked = self._segment_colors.get(device_id, {})
+        previous = {index: tracked.get(index) for index in command.segment_indices}
+        for index in command.segment_indices:
+            self.record_segment_color(device_id, index, rgb)
+
+        success = False
+        try:
+            success = await self._async_control_device(device_id, command)
+            return success
+        finally:
+            if not success:
+                # The colour never reached the device: put the tracking back so
+                # a later whole-device write does not replay it (#131). Leave a
+                # segment alone if a newer write has replaced the value since.
+                self._restore_segment_colors(device_id, previous, rgb)
+
+    def _restore_segment_colors(
+        self,
+        device_id: str,
+        previous: dict[int, tuple[int, int, int] | None],
+        written: tuple[int, int, int],
+    ) -> None:
+        """Undo a failed segment write's colour tracking."""
+        tracked = self._segment_colors.get(device_id, {})
+        for index, old in previous.items():
+            if tracked.get(index) != written:
+                continue
+            if old is None:
+                tracked.pop(index, None)
+            else:
+                tracked[index] = old
+
+    async def _async_control_device(
+        self,
+        device_id: str,
+        command: DeviceCommand,
+    ) -> bool:
+        """Dispatch a command over the best transport (see ``async_control_device``)."""
         device = self._devices.get(device_id)
         if not device:
             _LOGGER.error("Unknown device: %s", device_id)
@@ -4626,15 +4672,6 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         is_power_off = isinstance(command, PowerCommand) and not command.power_on
         if is_power_off:
             self._pending_power_off.add(device_id)
-
-        # Remember what the segments were last set to, before the first await,
-        # so a later whole-device write can faithfully restore them. Recorded
-        # here rather than in the REST branch so it captures the command
-        # whichever transport tier ends up carrying it.
-        if isinstance(command, SegmentColorCommand):
-            rgb = command.color.as_tuple
-            for index in command.segment_indices:
-                self.record_segment_color(device_id, index, rgb)
 
         try:
             # BLE-first dispatch: if a BLE transport is available for this
