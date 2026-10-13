@@ -261,6 +261,10 @@ def _is_outage_error(err: Exception) -> bool:
 # poll cycle isn't correlated in time with the write under test).
 HUMIDITY_VERIFICATION_DELAY_SECONDS = 8
 
+# Minimum seconds between topic refetches triggered by one device whose MQTT
+# topic is missing from the account's lists.
+TOPIC_REFRESH_MIN_INTERVAL = 600
+
 
 @dataclasses.dataclass
 class _LanReadOverlay:
@@ -382,6 +386,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # Device-specific MQTT topics from undocumented API
         # Maps device_id -> MQTT topic for publishing commands
         self._device_topics: dict[str, str] = {}
+        # device_id -> monotonic time of the last topic refetch made because
+        # that device's topic was missing (see _ensure_device_topic).
+        self._topic_refresh_at: dict[str, float] = {}
         # device_id -> its gateway's {device, sku, topic}. Gateway-attached BLE
         # devices (e.g. an H5901 behind an H5044) ignore anything published to
         # their own topic; commands have to be relayed through the gateway
@@ -5215,8 +5222,15 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if topic is not None:
             return topic
 
-        # Topic missing - try one refresh
+        # Topic missing - try one refresh, at most once per window per device.
+        # A device the account's topic lists simply do not contain would
+        # otherwise cost two account-API calls on every command or probe packet.
+        now = time.monotonic()
+        last = self._topic_refresh_at.get(device_id)
+        if last is not None and now - last < TOPIC_REFRESH_MIN_INTERVAL:
+            return None
         if self._iot_credentials:
+            self._topic_refresh_at[device_id] = now
             _LOGGER.debug("Device topic missing for %s, refreshing from API", device_id)
             await self._fetch_device_topics()
             topic = self._device_topics.get(device_id)
