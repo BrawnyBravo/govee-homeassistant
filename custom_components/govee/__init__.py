@@ -436,8 +436,17 @@ def _async_migrate_hub_device(hass: HomeAssistant, entry: GoveeConfigEntry) -> N
     _LOGGER.debug("Split this entry's diagnostics sensors off the shared diagnostics device")
 
 
-def _segment_index_out_of_range(suffix: str, segment_count: int) -> bool:
-    """True when a ``_segment_N`` suffix names a segment the device no longer has."""
+def _segment_index_out_of_range(suffix: str, device: Any) -> bool:
+    """True when a ``_segment_N`` suffix names a segment the device no longer has.
+
+    Only a count lowered deliberately (a SKU override or the size.max clamp)
+    is trusted. A zero count or one taken straight from the API parser may be
+    a transient bad response, and acting on it would delete live entities.
+    """
+    segment_count = device.segment_count
+    resolution = device.segment_count_resolution
+    if segment_count <= 0 or not resolution or resolution.get("source") not in ("override", "size_max"):
+        return False
     index = suffix[len(SUFFIX_SEGMENT) :]
     return index.isdigit() and int(index) >= segment_count
 
@@ -536,7 +545,7 @@ async def _async_cleanup_orphaned_entities(
                 if segment_mode not in (SEGMENT_MODE_INDIVIDUAL, SEGMENT_MODE_BOTH):
                     should_remove = True
                     removal_reason = "individual segments disabled"
-                elif _segment_index_out_of_range(suffix, coordinator.devices[owner_id].segment_count):
+                elif remove_unknown and _segment_index_out_of_range(suffix, coordinator.devices[owner_id]):
                     # Left over from before a lower count applied (SKU override
                     # or size.max clamp); the light platform no longer creates it.
                     should_remove = True

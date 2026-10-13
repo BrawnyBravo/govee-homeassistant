@@ -175,9 +175,14 @@ def _seed(registry: er.EntityRegistry, entry: MockConfigEntry, *specs: tuple[str
     }
 
 
-def _coordinator(device_ids, *, leak_ids=(), hub_ids=(), incomplete=False, segment_count=15) -> SimpleNamespace:
+def _coordinator(
+    device_ids, *, leak_ids=(), hub_ids=(), incomplete=False, segment_count=15, segment_source="override"
+) -> SimpleNamespace:
     return SimpleNamespace(
-        devices={did: SimpleNamespace(segment_count=segment_count) for did in device_ids},
+        devices={
+            did: SimpleNamespace(segment_count=segment_count, segment_count_resolution={"source": segment_source})
+            for did in device_ids
+        },
         leak_sensors={lid: object() for lid in leak_ids},
         hub_device_ids=set(hub_ids),
         discovery_incomplete=incomplete,
@@ -269,7 +274,10 @@ async def test_cleanup_applies_feature_toggles(hass: HomeAssistant, mock_light_d
     assert registry.async_get(ids[f"{device_id}{SUFFIX_GROUPED_SEGMENT}"]) is not None
 
 
-async def test_cleanup_removes_segments_beyond_the_segment_count(hass: HomeAssistant, mock_light_device) -> None:
+@pytest.mark.parametrize("segment_source", ["override", "size_max"])
+async def test_cleanup_removes_segments_beyond_the_segment_count(
+    hass: HomeAssistant, mock_light_device, segment_source
+) -> None:
     """Segment entities left over from a higher count (before a SKU override) are removed."""
     device_id = mock_light_device.device_id
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: API_KEY}, options={})
@@ -284,7 +292,11 @@ async def test_cleanup_removes_segments_beyond_the_segment_count(hass: HomeAssis
     )
 
     await _async_cleanup_orphaned_entities(
-        hass, entry, _coordinator([device_id], leak_ids=[LEAK_ID], hub_ids=[HUB_ID], segment_count=3)
+        hass,
+        entry,
+        _coordinator(
+            [device_id], leak_ids=[LEAK_ID], hub_ids=[HUB_ID], segment_count=3, segment_source=segment_source
+        ),
     )
 
     survived = {uid for uid, eid in ids.items() if registry.async_get(eid) is not None}
@@ -295,6 +307,35 @@ async def test_cleanup_removes_segments_beyond_the_segment_count(hass: HomeAssis
         f"{LEAK_ID}_leak",
         f"{HUB_ID}_hub_online",
     }
+
+
+@pytest.mark.parametrize(
+    ("segment_count", "segment_source", "incomplete"),
+    [
+        (0, "override", False),  # a zero count is never trusted
+        (3, "api", False),  # a parser-only count may be a bad API response
+        (3, None, False),  # no resolution recorded at all
+        (3, "override", True),  # a startup discovery step failed
+    ],
+)
+async def test_cleanup_keeps_segments_when_the_count_is_not_trusted(
+    hass: HomeAssistant, mock_light_device, segment_count, segment_source, incomplete
+) -> None:
+    """High-index segment entities stay unless the lower count came from an override or clamp."""
+    device_id = mock_light_device.device_id
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: API_KEY}, options={})
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    ids = _seed(registry, entry, *(("light", f"{device_id}{SUFFIX_SEGMENT}{index}") for index in range(5)))
+    coordinator = _coordinator(
+        [device_id], segment_count=segment_count, segment_source=segment_source, incomplete=incomplete
+    )
+    if segment_source is None:
+        coordinator.devices[device_id].segment_count_resolution = None
+
+    await _async_cleanup_orphaned_entities(hass, entry, coordinator)
+
+    assert all(registry.async_get(eid) is not None for eid in ids.values())
 
 
 async def test_cleanup_keeps_owned_devices_without_entities(hass: HomeAssistant, mock_light_device) -> None:
