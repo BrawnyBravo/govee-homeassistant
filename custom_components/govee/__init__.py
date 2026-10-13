@@ -31,7 +31,7 @@ from .api import (
     GoveeIotCredentials,
     GoveeLoginRejectedError,
 )
-from .api.auth import GoveeAuthClient, _derive_client_id
+from .api.auth import GoveeAuthClient, _derive_client_id, is_connection_error
 from .const import (
     CONF_API_KEY,
     CONF_EMAIL,
@@ -236,13 +236,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: GoveeConfigEntry) -> boo
                 # configured account login: no push, no entity, no issue.
                 async_create_mqtt_issue(hass, entry, f"account sign-in failed: {err}")
             except Exception as err:  # noqa: BLE001 - account login must never block setup
-                # Network/DNS not ready, a Govee server error and the like are
-                # transient: store no failure marker (it would make every
-                # later setup skip the login for good) and let the coordinator
-                # retry in the background.
-                _LOGGER.warning("MQTT setup failed, will retry: %s", err)
                 async_create_mqtt_issue(hass, entry, f"account sign-in failed: {err}")
-                retry_account_login = True
+                if is_connection_error(err):
+                    # Network/DNS not ready at boot, connection reset, timeout:
+                    # store no failure marker (it would make every later setup
+                    # skip the login for good) and let the coordinator retry
+                    # in the background with backoff.
+                    _LOGGER.warning("MQTT setup failed, will retry: %s", err)
+                    retry_account_login = True
+                else:
+                    # Anything else got past the network (a malformed answer
+                    # after Govee accepted the password, an HTTP error, a bug)
+                    # and would fail the same way again; the fixable repair
+                    # lets the user retry by hand.
+                    _LOGGER.warning("MQTT setup failed: %s", err)
+                    _persist_iot_credentials(hass, entry, None, str(err))
 
     # Get options
     options = entry.options

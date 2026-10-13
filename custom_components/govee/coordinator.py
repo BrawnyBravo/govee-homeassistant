@@ -26,7 +26,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import (
-    Govee2FACodeInvalidError,
     Govee2FARequiredError,
     GoveeApiClient,
     GoveeApiError,
@@ -35,10 +34,9 @@ from .api import (
     GoveeConnectionError,
     GoveeDeviceNotFoundError,
     GoveeIotCredentials,
-    GoveeLoginRejectedError,
     GoveeRateLimitError,
 )
-from .api.auth import GoveeAuthClient, _derive_client_id
+from .api.auth import GoveeAuthClient, _derive_client_id, is_connection_error
 from .api.openapi_events import GoveeOpenApiEventClient
 from .ble_passthrough import BlePassthroughManager
 
@@ -73,6 +71,7 @@ from .api.lan_client import (
 from .api.lan_control import command_to_lan, lan_brightness_to_device
 from .const import (
     ACCOUNT_LOGIN_RETRY_INTERVAL,
+    ACCOUNT_LOGIN_RETRY_MAX_INTERVAL,
     CONF_API_TEMPERATURE_UNIT,
     CONF_EMAIL,
     CONF_ENABLE_MQTT_CONTROL,
@@ -348,6 +347,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         self._api_client = api_client
         self._iot_credentials = iot_credentials
         self._login_retry_unsub: CALLBACK_TYPE | None = None
+        # Delay before the next background login retry; doubles per failure.
+        self._login_retry_delay: float = ACCOUNT_LOGIN_RETRY_INTERVAL
         self._enable_groups = enable_groups
         # Opt-in: route power/brightness/color over MQTT instead of REST.
         self._enable_mqtt_control = config_entry.options.get(CONF_ENABLE_MQTT_CONTROL, DEFAULT_ENABLE_MQTT_CONTROL)
@@ -1966,9 +1967,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             self._login_retry_unsub = None
         if self._shut_down:
             return
-        self._login_retry_unsub = async_call_later(
-            self.hass, ACCOUNT_LOGIN_RETRY_INTERVAL, self._account_login_retry_callback
-        )
+        delay = self._login_retry_delay
+        self._login_retry_delay = min(delay * 2, ACCOUNT_LOGIN_RETRY_MAX_INTERVAL)
+        self._login_retry_unsub = async_call_later(self.hass, delay, self._account_login_retry_callback)
 
     async def _account_login_retry_callback(self, _now: Any = None) -> None:
         """Timer callback: retry the account login once."""
@@ -1976,15 +1977,16 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         await self._async_retry_account_login()
 
     async def _async_retry_account_login(self) -> None:
-        """Retry an account login that failed at setup for a transient reason.
+        """Retry an account login that failed at setup with a network error.
 
         A network or DNS error at boot used to leave real-time updates off
-        until the next restart. This retries on a timer until it gets an
-        answer: success stores the credentials and reloads the entry so MQTT,
-        device topics and the account-only sensors all start; a genuine
-        rejection (bad password, 2FA, login refused) stores the failure marker
-        and raises the repair, and stops retrying, since only the user can fix
-        those and repeated logins trip Govee's 2FA hardening.
+        until the next restart. This retries on a backing-off timer while the
+        failure stays network-level: success stores the credentials and
+        reloads the entry so MQTT, device topics and the account-only sensors
+        all start. Any other outcome (bad password, 2FA, login refused, a
+        malformed answer after the password was accepted) stores the failure
+        marker, raises the repair and stops retrying, since it would fail the
+        same way again and repeated logins trip Govee's 2FA hardening.
         """
         if self._iot_credentials:
             return
@@ -1993,6 +1995,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if not email or not password:
             return
 
+        credentials: GoveeIotCredentials | None = None
+        error: Exception | None = None
         try:
             async with GoveeAuthClient(hass=self.hass) as auth_client:
                 credentials = await auth_client.login(
@@ -2000,28 +2004,36 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     password,
                     client_id=_derive_client_id(email),
                 )
-        except Govee2FARequiredError:
+        except Exception as err:  # noqa: BLE001 - classified below
+            error = err
+
+        if self._shut_down:
+            # The entry unloaded (reload, reconfigure, removal) while the login
+            # was in flight. Whatever came back belongs to a dead coordinator:
+            # writing a marker or a repair, or reloading, would act on the new
+            # entry with a stale result, or resurrect a removed one.
+            return
+        if isinstance(error, Govee2FARequiredError):
             _LOGGER.warning(
                 "Govee account requires email verification (2FA). Use Reconfigure to "
                 "enter a verification code; continuing with polling-only mode"
             )
             self._persist_login_failed(LOGIN_FAILED_2FA)
             self._async_create_iot_reauth_issue("mqtt_2fa_required")
+            # The setup-time "sign-in failed" repair offers a retry that would
+            # only hit 2FA again; the 2FA repair replaces it.
+            async_delete_mqtt_issue(self.hass, self._config_entry)
             return
-        except (GoveeAuthError, GoveeLoginRejectedError, Govee2FACodeInvalidError) as err:
-            _LOGGER.warning("Failed to get MQTT credentials: %s", err)
-            self._persist_login_failed(str(err))
-            async_create_mqtt_issue(self.hass, self._config_entry, f"account sign-in failed: {err}")
-            return
-        except Exception as err:  # noqa: BLE001 - transient; try again later
-            _LOGGER.debug("Account login retry failed, will try again: %s", err)
+        if error is not None and is_connection_error(error):
+            _LOGGER.debug("Account login retry failed, will try again in %ds: %s", int(self._login_retry_delay), error)
             self.schedule_account_login_retry()
             return
-
-        if self._shut_down:
-            # The entry unloaded while the login was in flight; reloading it
-            # now could resurrect an entry the user removed or disabled.
+        if error is not None or credentials is None:
+            _LOGGER.warning("Failed to get MQTT credentials: %s", error)
+            self._persist_login_failed(str(error))
+            async_create_mqtt_issue(self.hass, self._config_entry, f"account sign-in failed: {error}")
             return
+
         _LOGGER.debug("Account login succeeded on retry; reloading to start real-time updates")
         self._persist_refreshed_credentials(credentials)
         self.hass.config_entries.async_schedule_reload(self._config_entry.entry_id)

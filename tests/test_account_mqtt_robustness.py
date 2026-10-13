@@ -14,6 +14,7 @@ import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import pytest
 
 import custom_components.govee.coordinator as coord_mod
@@ -27,6 +28,7 @@ from custom_components.govee.api.exceptions import (
 )
 from custom_components.govee.const import (
     ACCOUNT_LOGIN_RETRY_INTERVAL,
+    ACCOUNT_LOGIN_RETRY_MAX_INTERVAL,
     CONF_EMAIL,
     CONF_PASSWORD,
     KEY_IOT_CREDENTIALS,
@@ -144,6 +146,13 @@ class TestTimersStayDeadAfterShutdown:
         assert len(timers.calls) == 4
 
 
+def _network_error() -> GoveeApiError:
+    """The error login() raises for a DNS/connect failure (chained to the aiohttp error)."""
+    err = GoveeApiError("Connection error during login: Cannot connect to host")
+    err.__cause__ = aiohttp.ClientConnectionError("dns")
+    return err
+
+
 class TestSetupLoginRetry:
     """A transient setup login failure is retried in the background (SETUP-1)."""
 
@@ -155,20 +164,36 @@ class TestSetupLoginRetry:
         _patch_auth(monkeypatch, inner)
         monkeypatch.setattr(coord_mod.ir, "async_create_issue", MagicMock())
         monkeypatch.setattr(coord_mod, "async_create_mqtt_issue", MagicMock())
+        monkeypatch.setattr(coord_mod, "async_delete_mqtt_issue", MagicMock())
         coord = _coordinator(data=dict(ACCOUNT))
         return coord, timers, inner
 
     def _written(self, coord: Any) -> dict[str, Any]:
         return coord.hass.config_entries.async_update_entry.call_args.kwargs["data"]
 
-    def test_schedule_arms_one_timer(self, monkeypatch):
+    def test_schedule_arms_one_timer_with_growing_delay(self, monkeypatch):
         coord, timers, _ = self._coord(monkeypatch, CREDS)
 
         coord.schedule_account_login_retry()
         coord.schedule_account_login_retry()
 
-        assert [d for d, _ in timers.calls] == [ACCOUNT_LOGIN_RETRY_INTERVAL] * 2
+        assert [d for d, _ in timers.calls] == [ACCOUNT_LOGIN_RETRY_INTERVAL, ACCOUNT_LOGIN_RETRY_INTERVAL * 2]
         assert timers.cancelled == 1
+
+    @pytest.mark.asyncio
+    async def test_consecutive_network_failures_back_off_to_the_cap(self, monkeypatch):
+        """Every attempt that reaches Govee is a password login: never a fixed 5-minute loop."""
+        coord, timers, inner = self._coord(monkeypatch, _network_error())
+        coord.schedule_account_login_retry()
+
+        for _ in range(9):
+            await coord._account_login_retry_callback()
+
+        delays = [d for d, _ in timers.calls]
+        assert delays[:4] == [300, 600, 1200, 2400]
+        assert delays == sorted(delays)
+        assert delays[-1] == ACCOUNT_LOGIN_RETRY_MAX_INTERVAL
+        assert inner.login.await_count == 9
 
     @pytest.mark.asyncio
     async def test_success_stores_credentials_and_reloads(self, monkeypatch):
@@ -183,7 +208,7 @@ class TestSetupLoginRetry:
 
     @pytest.mark.asyncio
     async def test_transient_failure_rearms(self, monkeypatch):
-        coord, timers, _ = self._coord(monkeypatch, GoveeApiError("Connection error during login: dns"))
+        coord, timers, _ = self._coord(monkeypatch, _network_error())
 
         await coord._async_retry_account_login()
 
@@ -192,8 +217,16 @@ class TestSetupLoginRetry:
         coord.hass.config_entries.async_schedule_reload.assert_not_called()
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("error", [GoveeAuthError("wrong password"), GoveeLoginRejectedError("refused")])
-    async def test_rejection_stores_marker_and_stops(self, monkeypatch, error):
+    @pytest.mark.parametrize(
+        "error",
+        [
+            GoveeAuthError("wrong password"),
+            GoveeLoginRejectedError("refused"),
+            GoveeApiError("No token in login response"),
+            RuntimeError("boom"),
+        ],
+    )
+    async def test_non_network_failure_stores_marker_and_stops(self, monkeypatch, error):
         coord, timers, _ = self._coord(monkeypatch, error)
 
         await coord._async_retry_account_login()
@@ -210,6 +243,34 @@ class TestSetupLoginRetry:
 
         assert self._written(coord)[KEY_IOT_LOGIN_FAILED] == "2FA verification required"
         assert coord_mod.ir.async_create_issue.call_args.args[2] == "mqtt_2fa_required_cov_entry"
+        # The setup-time "sign-in failed, retry" repair would only hit 2FA again.
+        coord_mod.async_delete_mqtt_issue.assert_called_once()
+        assert timers.calls == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "outcome",
+        [CREDS, Govee2FARequiredError(), GoveeAuthError("wrong password"), "network"],
+    )
+    async def test_result_ignored_when_shut_down_during_login(self, monkeypatch, outcome):
+        """A login that lands after unload must not touch the (possibly new) entry."""
+        coord, timers, inner = self._coord(monkeypatch, CREDS)
+
+        async def _login(*_a: Any, **_k: Any) -> Any:
+            await _shut_down(coord)
+            if outcome == "network":
+                raise _network_error()
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        inner.login = AsyncMock(side_effect=_login)
+        await coord._async_retry_account_login()
+
+        coord.hass.config_entries.async_update_entry.assert_not_called()
+        coord.hass.config_entries.async_schedule_reload.assert_not_called()
+        coord_mod.async_create_mqtt_issue.assert_not_called()
+        coord_mod.ir.async_create_issue.assert_not_called()
         assert timers.calls == []
 
     @pytest.mark.asyncio

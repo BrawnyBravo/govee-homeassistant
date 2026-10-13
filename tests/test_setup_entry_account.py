@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -55,6 +56,13 @@ def _custom_integrations(hass: HomeAssistant, enable_custom_integrations: None) 
     """Let Home Assistant load the integration without starting Bluetooth."""
     hass.config.components.add("bluetooth_adapters")
     hass.config.components.add("network")
+
+
+def _network_error() -> GoveeApiError:
+    """What login() raises when DNS/connect fails: chained to the aiohttp error."""
+    err = GoveeApiError("Connection error during login: Cannot connect to host")
+    err.__cause__ = aiohttp.ClientConnectionError("dns")
+    return err
 
 
 def _api_client(device, state, *, devices_error: Exception | None = None) -> MagicMock:
@@ -230,7 +238,14 @@ async def test_two_factor_required_creates_issue_and_marker(hass, mock_light_dev
 
 
 @pytest.mark.parametrize(
-    "error", [GoveeAuthError("wrong password"), GoveeLoginRejectedError("Login rejected (status 400): no")]
+    "error",
+    [
+        GoveeAuthError("wrong password"),
+        GoveeLoginRejectedError("Login rejected (status 400): no"),
+        # Got past the network: would fail the same way on every retry.
+        GoveeApiError("No token in login response"),
+        RuntimeError("boom"),
+    ],
 )
 async def test_rejected_login_creates_mqtt_issue(hass, mock_light_device, mock_device_state, error) -> None:
     entry = _entry(hass)
@@ -245,9 +260,7 @@ async def test_rejected_login_creates_mqtt_issue(hass, mock_light_device, mock_d
     assert entry.runtime_data._login_retry_unsub is None
 
 
-@pytest.mark.parametrize(
-    "error", [GoveeApiError("Connection error during login: Cannot connect to host"), RuntimeError("boom")]
-)
+@pytest.mark.parametrize("error", [_network_error(), TimeoutError()])
 async def test_transient_login_failure_stores_no_marker_and_retries(
     hass, mock_light_device, mock_device_state, error
 ) -> None:
@@ -277,7 +290,7 @@ async def test_transient_login_failure_stores_no_marker_and_retries(
 async def test_network_down_at_boot_retries_login_with_setup(hass, mock_light_device, mock_device_state) -> None:
     """The not-ready retry in the same boot logs in again instead of skipping it."""
     entry = _entry(hass)
-    auth = _auth_client(login=GoveeApiError("Connection error during login: dns"))
+    auth = _auth_client(login=_network_error())
     api = _api_client(mock_light_device, mock_device_state, devices_error=GoveeConnectionError("dns"))
 
     assert not await _setup(hass, entry, api, auth)

@@ -492,9 +492,12 @@ CONFIG_VERSION: Final = 2
 # on every 5-minute poll.
 IOT_RELOGIN_MIN_INTERVAL: Final = 900  # 15 minutes
 
-# Gap between background retries of an account login that failed at setup for
-# a transient reason (network/DNS not ready at boot, Govee server error).
+# Background retry of an account login that failed at setup with a network
+# error (network/DNS not ready at boot, connection reset, timeout). Starts at
+# 5 minutes and doubles per failure up to 6 hours: every attempt that reaches
+# Govee is a full password login, and repeated logins trip its 2FA hardening.
 ACCOUNT_LOGIN_RETRY_INTERVAL: Final = 300  # 5 minutes
+ACCOUNT_LOGIN_RETRY_MAX_INTERVAL: Final = 6 * 3600  # 6 hours
 
 KEY_IOT_CREDENTIALS: Final = "iot_credentials"
 KEY_IOT_LOGIN_FAILED: Final = "iot_login_failed"
