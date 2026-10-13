@@ -14,7 +14,9 @@ name: Daily release
 
 on:
   schedule:
-    - cron: "0 3 * * *" # 11pm EDT / 10pm EST
+    # 10pm EDT / 9pm EST. GitHub can start scheduled runs an hour late, and the
+    # run's start time decides which Eastern day the release belongs to.
+    - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
