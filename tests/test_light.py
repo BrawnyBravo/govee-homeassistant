@@ -386,10 +386,11 @@ class TestBrightnessConversion:
     def test_device_to_ha_normal(self, mock_coordinator, mock_light_device):
         """Test normal brightness conversion from device (0-100) to HA (0-255)."""
         entity = GoveeLightEntity(mock_coordinator, mock_light_device, enable_scenes=False)
-        # Device range is (0, 100); device=50 → 50% → 127
-        assert entity._device_to_ha_brightness(50) == 127
+        # Device range is (0, 100); device=50 → 50% → 128 (reads back as 50 %)
+        assert entity._device_to_ha_brightness(50) == 128
         assert entity._device_to_ha_brightness(100) == 255
-        assert entity._device_to_ha_brightness(0) == 0
+        # A lit light never reports brightness 0.
+        assert entity._device_to_ha_brightness(0) == 1
 
     def test_device_to_ha_clamped_when_exceeding_range(self, mock_coordinator, mock_light_device):
         """Test brightness is clamped to 255 when device value exceeds declared range.
@@ -401,10 +402,10 @@ class TestBrightnessConversion:
         # Device claims range (0, 100) but API returns 254 → unclamped would be 647
         assert entity._device_to_ha_brightness(254) == 255
 
-    def test_device_to_ha_clamped_at_zero(self, mock_coordinator, mock_light_device):
-        """Test brightness is clamped to 0 for negative device values."""
+    def test_device_to_ha_clamped_at_lowest(self, mock_coordinator, mock_light_device):
+        """Test brightness is clamped to HA's lowest level for negative device values."""
         entity = GoveeLightEntity(mock_coordinator, mock_light_device, enable_scenes=False)
-        assert entity._device_to_ha_brightness(-10) == 0
+        assert entity._device_to_ha_brightness(-10) == 1
 
     def test_ha_to_device_clamped_to_device_range(self, mock_coordinator, mock_light_device):
         """Test HA-to-device conversion is clamped to device range."""
@@ -442,8 +443,8 @@ class TestBrightnessConversion:
         )
         entity = GoveeLightEntity(mock_coordinator, device, enable_scenes=False)
         assert entity._device_to_ha_brightness(254) == 255
-        assert entity._device_to_ha_brightness(127) == 127
-        assert entity._device_to_ha_brightness(0) == 0
+        assert entity._device_to_ha_brightness(127) == 128
+        assert entity._device_to_ha_brightness(0) == 1
 
 
 class TestSegmentModeSetup:
