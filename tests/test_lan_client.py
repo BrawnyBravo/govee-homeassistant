@@ -1064,6 +1064,22 @@ class TestAsyncScan:
 
         assert pushes == []
 
+    async def test_overlapping_scan_does_not_steal_the_running_scans_replies(self, monkeypatch):
+        client, _ = await _start_client(monkeypatch)
+        inner: dict[str, object] = {}
+
+        async def _window(_timeout):
+            if "result" not in inner:
+                inner["result"] = await client.async_scan(interface_ips=[], extra_targets=[], broadcast_targets=[])
+            client._handle_datagram("10.0.0.5", self._scan_reply("AA:BB", "10.0.0.5"))
+
+        monkeypatch.setattr(lan_client.asyncio, "sleep", _window)
+
+        records = await client.async_scan(interface_ips=[], extra_targets=[], broadcast_targets=[])
+
+        assert inner["result"] == []
+        assert records == [{"device": "AA:BB", "ip": "10.0.0.5", "sku": "H6072"}]
+
     async def test_raises_when_not_running(self):
         client = GoveeLanClient(lambda ip, status: None)
 

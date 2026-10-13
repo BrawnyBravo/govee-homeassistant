@@ -659,11 +659,18 @@ class GoveeLanClient:
         them, so cross-VLAN scan replies could land on the persistent socket
         and be dropped, and devStatus replies could land on the scan socket.
 
+        An overlapping call while a scan is running returns an empty list.
+
         Raises:
             OSError: The client is not running (callers treat it as no data).
         """
         if not self._available or self._recv_sock is None or self._recv_transport is None:
             raise OSError("Govee LAN client is not running")
+        if self._scan_collector is not None:
+            # One scan at a time: a second would replace the running scan's
+            # collector and that scan would lose its later replies.
+            _LOGGER.debug("Govee LAN scan already running; skipping overlapping scan")
+            return []
         collector = _ScanProtocol()
         self._scan_collector = collector
         try:
@@ -672,8 +679,7 @@ class GoveeLanClient:
             _send_targets(self._recv_transport, list(broadcast_targets))
             await asyncio.sleep(timeout)
         finally:
-            if self._scan_collector is collector:
-                self._scan_collector = None
+            self._scan_collector = None
         return list(collector.responses.values())
 
     async def async_read_one(self, ip: str, timeout: float = LAN_WRITE_CONFIRM_TIMEOUT) -> LanDevStatus | None:
