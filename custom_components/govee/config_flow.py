@@ -287,7 +287,10 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
                             await client.request_verification_code(email, self._client_id)
                     except GoveeApiError as err:
                         _LOGGER.warning("Failed to request verification code: %s", err)
-                        errors["base"] = "cannot_connect"
+                        # Govee refusing to send (rate limit ...) is not a network fault.
+                        errors["base"] = (
+                            "login_rejected" if isinstance(err, GoveeLoginRejectedError) else "cannot_connect"
+                        )
                     else:
                         return await self.async_step_verification_code()
                 except GoveeAuthError as err:
@@ -642,7 +645,9 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
                                     "Failed to request verification code: %s",
                                     err,
                                 )
-                                errors["base"] = "cannot_connect"
+                                errors["base"] = (
+                                    "login_rejected" if isinstance(err, GoveeLoginRejectedError) else "cannot_connect"
+                                )
                             else:
                                 return await self.async_step_verification_code()
                         except GoveeAuthError as err:
