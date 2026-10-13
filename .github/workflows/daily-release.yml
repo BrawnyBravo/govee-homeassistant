@@ -84,8 +84,13 @@ jobs:
           source "$RUNNER_TEMP/checks.sh"
           proceed() { echo "proceed=$1" >> "$GITHUB_OUTPUT"; }
           git fetch --tags --force origin
-          TAG=$(gh release list -L 1 --json tagName --jq '.[0].tagName')
-          PUBLISHED=$(gh release list -L 1 --json publishedAt --jq '.[0].publishedAt')
+          # Drafts never count: a draft has no publish date, and `date -d ""` is
+          # today, which would skip every night without an error.
+          TAG=$(gh release list --exclude-drafts -L 1 --json tagName --jq '.[0].tagName // ""')
+          PUBLISHED=$(gh release list --exclude-drafts -L 1 --json publishedAt --jq '.[0].publishedAt // ""')
+          if [ -z "$TAG" ] || [ -z "$PUBLISHED" ]; then
+            echo "::error::Could not read the latest published release (tag='$TAG' publishedAt='$PUBLISHED')"; exit 1
+          fi
           TODAY=$(TZ=America/New_York date +%F)
           if [ "$(TZ=America/New_York date -d "$PUBLISHED" +%F)" = "$TODAY" ]; then
             echo "No release: $TAG already went out today ($TODAY ET)" | tee -a "$GITHUB_STEP_SUMMARY"; proceed false; exit 0
