@@ -10,6 +10,7 @@ import time
 import uuid
 from collections import deque
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -67,6 +68,27 @@ REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
 
 # Ring-buffer size for the control-command history kept for diagnostics.
 COMMAND_BUFFER_SIZE = 30
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    """Seconds to wait from a ``Retry-After`` header, or None if unusable.
+
+    The header is either a number of seconds or an HTTP date; anything else,
+    or a date already past, gives None (the caller's default back-off).
+    """
+    if not value:
+        return None
+    try:
+        seconds = float(value)
+    except ValueError:
+        try:
+            when = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        seconds = (when - datetime.now(timezone.utc)).total_seconds()
+    return seconds if seconds > 0 else None
 
 
 class GoveeApiClient:
@@ -336,22 +358,28 @@ class GoveeApiClient:
         self._note_request()
         self._update_rate_limits(response.headers)
 
-        try:
-            data: dict[str, Any] = await response.json()
-        except aiohttp.ContentTypeError as err:
-            text = await response.text()
-            raise GoveeApiError(f"Invalid JSON response: {text[:200]}") from err
-
-        # Check HTTP status
+        # Status first: a 401 or 429 means the same thing whatever body (a
+        # proxy's HTML page, nothing at all) came with it.
         if response.status == 401:
             raise GoveeAuthError("Invalid API key")
 
         if response.status == 429:
-            retry_after = response.headers.get("Retry-After")
             raise GoveeRateLimitError(
                 "Rate limit exceeded",
-                retry_after=float(retry_after) if retry_after else None,
+                retry_after=_parse_retry_after(response.headers.get("Retry-After")),
             )
+
+        error_code = response.status if response.status >= 400 else None
+        try:
+            decoded: Any = await response.json(content_type=None)
+        except (aiohttp.ContentTypeError, ValueError) as err:
+            text = await response.text()
+            raise GoveeApiError(f"Invalid JSON response: {text[:200]}", code=error_code) from err
+        if not isinstance(decoded, dict):
+            if error_code is None:
+                raise GoveeApiError(f"Invalid JSON response: {str(decoded)[:200]}")
+            decoded = {}
+        data: dict[str, Any] = decoded
 
         if response.status == 400:
             # Govee API uses both "message" and "msg" for errors
