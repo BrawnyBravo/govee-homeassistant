@@ -212,3 +212,102 @@ async def test_rate_limit_on_one_device_is_not_cleared_by_another(coordinator, r
     assert coordinator.update_interval == timedelta(seconds=300)
     created.assert_called_once()
     deleted.assert_not_called()
+
+
+# --- Devices that make no cloud request must not hide a total outage --------
+
+GROUP_ID = "11825917"
+EXTRA_ID = "AA:BB:CC:DD:EE:FF:00:03"
+
+
+def _add_no_request_device(coordinator, kind: str, light_capabilities) -> None:
+    """Give the account one device whose poll never reaches the cloud."""
+    from custom_components.govee.models import GoveeCapability
+    from custom_components.govee.models.device import CAPABILITY_EVENT, INSTANCE_BODY_APPEARED_EVENT
+
+    if kind == "group":
+        device = GoveeDevice(
+            device_id=GROUP_ID,
+            sku="SameModeGroup",
+            name="Group",
+            device_type="devices.types.light",
+            capabilities=light_capabilities,
+            is_group=True,
+        )
+    elif kind == "water_detector":
+        device = GoveeDevice(
+            device_id=EXTRA_ID,
+            sku="H5054",
+            name="Leak Detector",
+            device_type="devices.types.sensor",
+            capabilities=(
+                GoveeCapability(type=CAPABILITY_EVENT, instance=INSTANCE_BODY_APPEARED_EVENT, parameters={}),
+            ),
+        )
+    else:  # bff_thermometer
+        device = _device(EXTRA_ID, light_capabilities)
+        coordinator._bff_thermometer_ids = {EXTRA_ID}
+    coordinator._devices[device.device_id] = device
+    coordinator._states[device.device_id] = GoveeDeviceState.create_empty(device.device_id)
+    coordinator._transport.ensure(device.device_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["group", "water_detector", "bff_thermometer"])
+async def test_no_request_devices_do_not_mask_a_total_outage(coordinator, light_capabilities, kind):
+    _add_no_request_device(coordinator, kind, light_capabilities)
+    coordinator._api_client.get_device_state = AsyncMock(
+        side_effect=GoveeConnectionError("Connection error: DNS failed")
+    )
+
+    with pytest.raises(UpdateFailed, match="unreachable for all 2 device"):
+        await coordinator._async_update_data()
+
+
+@pytest.mark.asyncio
+async def test_device_not_found_does_not_mask_a_total_outage(coordinator, light_capabilities):
+    from custom_components.govee.api.exceptions import GoveeDeviceNotFoundError
+
+    coordinator._devices[EXTRA_ID] = _device(EXTRA_ID, light_capabilities)
+    coordinator._states[EXTRA_ID] = GoveeDeviceState.create_empty(EXTRA_ID)
+    coordinator._transport.ensure(EXTRA_ID)
+
+    async def fetch(device_id, sku):
+        if device_id == EXTRA_ID:
+            raise GoveeDeviceNotFoundError("devices not exist")
+        raise GoveeConnectionError("Connection error: DNS failed")
+
+    coordinator._api_client.get_device_state = AsyncMock(side_effect=fetch)
+
+    with pytest.raises(UpdateFailed, match="unreachable for all 2 device"):
+        await coordinator._async_update_data()
+
+
+@pytest.mark.asyncio
+async def test_account_of_only_no_request_devices_is_never_an_outage(coordinator, light_capabilities):
+    coordinator._devices = {}
+    coordinator._states = {}
+    _add_no_request_device(coordinator, "group", light_capabilities)
+    coordinator._api_client.get_device_state = AsyncMock(side_effect=AssertionError("groups are never polled"))
+
+    states = await coordinator._async_update_data()
+
+    assert states[GROUP_ID].online is True
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_alongside_failures_is_not_an_outage(coordinator, rate_limit_issues):
+    """A 429 proves the cloud answered: no UpdateFailed even if the rest failed."""
+    coordinator._api_client.rate_limit_remaining = 100
+    coordinator._api_client.rate_limit_reset_in = 0
+
+    async def fetch(device_id, sku):
+        if device_id == DEV_A:
+            raise GoveeRateLimitError("429", retry_after=120)
+        raise GoveeConnectionError("Connection error: reset")
+
+    coordinator._api_client.get_device_state = AsyncMock(side_effect=fetch)
+
+    states = await coordinator._async_update_data()
+
+    assert set(states) == {DEV_A, DEV_B}

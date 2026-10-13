@@ -3821,14 +3821,23 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # Report a total cloud outage only AFTER local reads and health checks.
         # Cloud-dependent entities still follow coordinator failure; a main
         # light can use its independently refreshed LAN availability.
-        if results and successful_updates == 0 and len(outage_errors) == len(results):
+        # Devices answered from held state (groups, H5054, BFF thermometers,
+        # not-found) say nothing either way and are left out of the count; a
+        # 429 proves the cloud answered, so it is never an outage.
+        cloud_results = sum(1 for device_id in pollable if device_id not in cached_ids)
+        if (
+            cloud_results
+            and successful_updates == 0
+            and not self._cycle_rate_limited
+            and len(outage_errors) == cloud_results
+        ):
             if not self.last_update_success:
                 # HA notifies on the first failed refresh, but suppresses
                 # listeners on consecutive failures. Publish local state and
                 # health changes without declaring the cloud recovered.
                 self.async_update_listeners()
             raise UpdateFailed(
-                f"Govee cloud API unreachable for all {len(results)} device(s): " f"{outage_errors[0]}"
+                f"Govee cloud API unreachable for all {cloud_results} device(s): " f"{outage_errors[0]}"
             ) from outage_errors[0]
 
         return self._states
@@ -4203,6 +4212,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """
         # Skip API call for group devices - state fetch always fails with 400
         if device.is_group:
+            self._mark_cached_result(device_id)
             existing = self._states.get(device_id)
             if existing:
                 # Group devices are always "available"; return a new instance
@@ -4218,12 +4228,14 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # (_poll_water_detectors); a developer poll here would clobber it every
         # cycle. Preserve the BFF-managed state and skip the call (issue #62).
         if device.supports_water_leak_event:
+            self._mark_cached_result(device_id)
             return self._states.get(device_id) or GoveeDeviceState.create_empty(device_id)
 
         # BFF-discovered thermo-hygrometers (H5301) are absent from the Developer
         # API, so /device/state would 400/return empty and clobber the
         # BFF-managed reading. State is owned by _refresh_bff_thermometers (#86).
         if device_id in self._bff_thermometer_ids:
+            self._mark_cached_result(device_id)
             return self._states.get(device_id) or GoveeDeviceState.create_empty(device_id)
 
         try:
@@ -4406,6 +4418,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         except GoveeDeviceNotFoundError:
             # Expected for group devices - use existing/optimistic state
             _LOGGER.debug("State query failed for group device %s [expected]", device_id)
+            self._mark_cached_result(device_id)
             existing = self._states.get(device_id)
             if existing:
                 existing.online = True  # Group devices are always "available"
