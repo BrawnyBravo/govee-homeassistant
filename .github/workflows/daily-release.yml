@@ -107,6 +107,11 @@ jobs:
           wait_checks "$(git rev-parse HEAD)" || { echo "No release: CI is not green on main" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
           PREFIX="$(TZ=America/New_York date +%Y).$(TZ=America/New_York date +%-m)"
           if [[ "$TAG" == "v$PREFIX."* ]]; then VERSION="$PREFIX.$(( ${TAG##*.} + 1 ))"; else VERSION="$PREFIX.0"; fi
+          # Never push a bump for a version whose tag is taken: the release would fail
+          # after the bump is on main, and again every night after.
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists; release it or remove the tag by hand"; exit 1
+          fi
           {
             echo "tag=$TAG"; echo "version=$VERSION"
           } >> "$GITHUB_OUTPUT"
@@ -134,9 +139,14 @@ jobs:
           assert n == 1 and json.loads(s2)["version"] == os.environ["VERSION"]
           open(p, "w").write(s2)
           EOF
-          git add custom_components/govee/manifest.json
-          git commit -m "chore: Bump version to $VERSION"
-          git push origin HEAD:main
+          # Re-running after a failed night: the bump may already be on main.
+          if git diff --quiet -- custom_components/govee/manifest.json; then
+            echo "manifest.json already at $VERSION; no bump commit needed"
+          else
+            git add custom_components/govee/manifest.json
+            git commit -m "chore: Bump version to $VERSION"
+            git push origin HEAD:main
+          fi
           wait_checks "$(git rev-parse HEAD)"
 
       - name: Write release notes
