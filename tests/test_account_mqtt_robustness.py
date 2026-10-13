@@ -1,20 +1,22 @@
-"""Regression tests for account-login, MQTT and BFF robustness fixes.
+"""Regression tests for account-login and MQTT robustness fixes.
 
-Covers timers re-arming on a shut-down coordinator, the water-detector poll's
-token recovery, defensive BFF parsing, HTTP 401 mapping, the OpenAPI events
-SUBACK/backoff handling, topic redaction in MQTT debug logs, and login error
-parsing. Every network client is an in-process fake.
+Covers timers re-arming on a shut-down coordinator, the background retry of a
+setup login that failed transiently, the water-detector poll's token
+recovery, the OpenAPI events SUBACK/backoff handling and topic redaction in
+MQTT debug logs. Every network client is an in-process fake.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 import custom_components.govee.coordinator as coord_mod
+from custom_components.govee.api.mqtt import GoveeAwsIotClient
 from custom_components.govee.api.exceptions import (
     Govee2FARequiredError,
     GoveeApiError,
@@ -37,6 +39,8 @@ from tests.test_cov_coordinator_setup import (
     _TimerCapture,
     _water_detector,
 )
+
+from tests.test_cov_mqtt import _creds, _msg
 
 ACCOUNT = {CONF_EMAIL: "user@example.com", CONF_PASSWORD: "pw"}
 
@@ -263,3 +267,19 @@ class TestWaterDetectorTokenRecovery:
         inner.login.assert_awaited_once()
         assert seen_tokens == ["tok", "fresh"]
         assert state.battery == 77
+
+
+class TestInboundTopicIsTruncatedInLogs:
+    """Debug logs get pasted into public issues; the account topic must not (CLOUD-7)."""
+
+    @pytest.mark.asyncio
+    async def test_full_account_topic_never_logged(self, caplog):
+        account_topic = "GA/0123456789abcdef0123456789abcdef-secret-tail"
+        client = GoveeAwsIotClient(_creds(account_topic=account_topic), on_state_update=MagicMock())
+
+        with caplog.at_level(logging.DEBUG, logger="custom_components.govee.api.mqtt"):
+            await client._handle_message(_msg({"sku": "H6072", "state": {"onOff": 1}}, topic=account_topic))
+
+        logged = " ".join(r.getMessage() for r in caplog.records)
+        assert "inbound topic=" in logged
+        assert "secret-tail" not in logged
