@@ -439,6 +439,7 @@ async def test_hub_device_splits_when_two_entries_share_it(hass: HomeAssistant) 
     legacy, entity_ids = _legacy_hub(hass, first, second)
     device_registry = dr.async_get(hass)
     entity_registry = er.async_get(hass)
+    device_registry.async_update_device(legacy.id, area_id="living_room", name_by_user="Govee Cloud")
 
     _async_migrate_hub_device(hass, first)
 
@@ -446,6 +447,9 @@ async def test_hub_device_splits_when_two_entries_share_it(hass: HomeAssistant) 
     assert first_device is not None
     assert first_device.id != legacy.id
     assert first_device.config_entries == {first.entry_id}
+    # The user's area and rename follow the entry onto its own device.
+    assert first_device.area_id == "living_room"
+    assert first_device.name_by_user == "Govee Cloud"
     first_entity = entity_registry.async_get(entity_ids[first.entry_id])
     assert first_entity is not None
     assert first_entity.device_id == first_device.id

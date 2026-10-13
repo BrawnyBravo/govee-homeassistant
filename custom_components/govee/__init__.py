@@ -427,6 +427,8 @@ def _async_migrate_hub_device(hass: HomeAssistant, entry: GoveeConfigEntry) -> N
             manufacturer=legacy.manufacturer,
             model=legacy.model,
         )
+        # Carry the user's area and rename over to the entry's own device.
+        device_registry.async_update_device(current.id, area_id=legacy.area_id, name_by_user=legacy.name_by_user)
     entity_registry = er.async_get(hass)
     for entity_entry in er.async_entries_for_device(entity_registry, legacy.id, include_disabled_entities=True):
         if entity_entry.config_entry_id == entry.entry_id:
