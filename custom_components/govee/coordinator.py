@@ -2952,59 +2952,63 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if not detectors or not self._iot_credentials:
             return
 
-        token = self._iot_credentials.token
         device_ids = {d.device_id for d in detectors}
         sku_by_id = {d.device_id: d.sku for d in detectors}
 
+        # Through _async_bff_call so an expired account token is replaced by a
+        # re-login (#132) instead of failing every tick in silence.
+        async def _op(auth_client: GoveeAuthClient, token: str) -> bool:
+            states = await auth_client.fetch_water_detector_states(token, device_ids)
+            changed = False
+            for device_id, info in states.items():
+                state = self._states.get(device_id)
+                if state is None:
+                    continue
+
+                clear_gen = self._water_leak_clear_gen.get(device_id, 0)
+                online = bool(info.get("online", True)) and bool(info.get("gateway_online", True))
+                last_time = info.get("last_time") or 0
+                prev_time = self._water_leak_last_time.get(device_id, 0)
+
+                # Only hit warnMessage when there's something new to learn:
+                # a fresh report, or a currently-wet sensor that may have
+                # been cleared in the app.
+                if last_time > prev_time or state.water_leak:
+                    try:
+                        is_wet = await auth_client.fetch_leak_warning(token, device_id, sku_by_id[device_id])
+                    except Exception as err:  # noqa: BLE001
+                        _LOGGER.debug("warnMessage poll failed for %s: %s", device_id, err)
+                        is_wet = bool(state.water_leak)
+                    # A clear that landed while warnMessage was in flight
+                    # wins; the next tick reads the alert again.
+                    if self._water_leak_clear_gen.get(device_id, 0) == clear_gen and state.water_leak != is_wet:
+                        state.water_leak = is_wet
+                        changed = True
+                if last_time and self._water_leak_clear_gen.get(device_id, 0) == clear_gen:
+                    self._water_leak_last_time[device_id] = last_time
+
+                if state.online != online:
+                    state.online = online
+                    changed = True
+                # Battery (%) rides along in the same BFF device/list poll —
+                # surface it so the H5054 gets a battery sensor (issue #145).
+                battery = info.get("battery")
+                if battery is not None and state.battery != battery:
+                    state.battery = battery
+                    changed = True
+                state.source = "api"
+                _LOGGER.debug(
+                    "Water-detector %s: online=%s water_leak=%s battery=%s " "last_time=%s",
+                    device_id,
+                    online,
+                    state.water_leak,
+                    state.battery,
+                    last_time,
+                )
+            return changed
+
         try:
-            async with GoveeAuthClient(hass=self.hass) as auth_client:
-                states = await auth_client.fetch_water_detector_states(token, device_ids)
-                changed = False
-                for device_id, info in states.items():
-                    state = self._states.get(device_id)
-                    if state is None:
-                        continue
-
-                    clear_gen = self._water_leak_clear_gen.get(device_id, 0)
-                    online = bool(info.get("online", True)) and bool(info.get("gateway_online", True))
-                    last_time = info.get("last_time") or 0
-                    prev_time = self._water_leak_last_time.get(device_id, 0)
-
-                    # Only hit warnMessage when there's something new to learn:
-                    # a fresh report, or a currently-wet sensor that may have
-                    # been cleared in the app.
-                    if last_time > prev_time or state.water_leak:
-                        try:
-                            is_wet = await auth_client.fetch_leak_warning(token, device_id, sku_by_id[device_id])
-                        except Exception as err:  # noqa: BLE001
-                            _LOGGER.debug("warnMessage poll failed for %s: %s", device_id, err)
-                            is_wet = bool(state.water_leak)
-                        # A clear that landed while warnMessage was in flight
-                        # wins; the next tick reads the alert again.
-                        if self._water_leak_clear_gen.get(device_id, 0) == clear_gen and state.water_leak != is_wet:
-                            state.water_leak = is_wet
-                            changed = True
-                    if last_time and self._water_leak_clear_gen.get(device_id, 0) == clear_gen:
-                        self._water_leak_last_time[device_id] = last_time
-
-                    if state.online != online:
-                        state.online = online
-                        changed = True
-                    # Battery (%) rides along in the same BFF device/list poll —
-                    # surface it so the H5054 gets a battery sensor (issue #145).
-                    battery = info.get("battery")
-                    if battery is not None and state.battery != battery:
-                        state.battery = battery
-                        changed = True
-                    state.source = "api"
-                    _LOGGER.debug(
-                        "Water-detector %s: online=%s water_leak=%s battery=%s " "last_time=%s",
-                        device_id,
-                        online,
-                        state.water_leak,
-                        state.battery,
-                        last_time,
-                    )
+            changed = bool(await self._async_bff_call(_op, "water-detector poll"))
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug("Water-detector poll failed: %s", err)
             return

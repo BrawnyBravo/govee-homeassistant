@@ -8,6 +8,7 @@ parsing. Every network client is an in-process fake.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -27,7 +28,15 @@ from custom_components.govee.const import (
     KEY_IOT_CREDENTIALS,
     KEY_IOT_LOGIN_FAILED,
 )
-from tests.test_cov_coordinator_setup import CREDS, _coordinator, _patch_auth, _TimerCapture
+from tests.test_cov_coordinator_setup import (
+    CREDS,
+    WD,
+    _add,
+    _coordinator,
+    _patch_auth,
+    _TimerCapture,
+    _water_detector,
+)
 
 ACCOUNT = {CONF_EMAIL: "user@example.com", CONF_PASSWORD: "pw"}
 
@@ -225,3 +234,32 @@ class TestSetupLoginRetry:
         coord.schedule_account_login_retry()
         await coord._async_retry_account_login()
         assert len(timers.calls) == 1
+
+
+class TestWaterDetectorTokenRecovery:
+    """An expired token on the H5054 poll triggers the #132 re-login (COORD-5)."""
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_relogs_in_and_retries(self, monkeypatch):
+        coord = _coordinator(iot=CREDS, data=dict(ACCOUNT))
+        state = _add(coord, _water_detector())
+        fresh = dataclasses.replace(CREDS, token="fresh")
+        seen_tokens: list[str] = []
+
+        async def _states(token: str, _ids: Any) -> dict[str, Any]:
+            seen_tokens.append(token)
+            if token == "tok":
+                raise GoveeAuthError("token expired", code=401)
+            return {WD: {"online": True, "gateway_online": True, "last_time": 0, "battery": 77}}
+
+        inner = MagicMock()
+        inner.fetch_water_detector_states = AsyncMock(side_effect=_states)
+        inner.login = AsyncMock(return_value=fresh)
+        _patch_auth(monkeypatch, inner)
+        coord._start_mqtt = AsyncMock()
+
+        await coord._poll_water_detectors()
+
+        inner.login.assert_awaited_once()
+        assert seen_tokens == ["tok", "fresh"]
+        assert state.battery == 77
