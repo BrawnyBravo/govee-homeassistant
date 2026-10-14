@@ -105,6 +105,16 @@ class TestUpdatePowerMonitoringFromFrames:
         assert state.update_power_monitoring_from_frames([short]) is False
         assert state.voltage is None
 
+    def test_reply_to_the_govee_app_is_ignored(self):
+        """Captured at 22:25:55: 354 s of on-time and 7.2 Wh, while the plug
+        had been on for 80749 s and used 772.1 Wh that day."""
+        state = GoveeDeviceState.create_empty(DEVICE_ID)
+        state.update_power_monitoring_from_frames([FRAME_OUTLET_1], {"stc": "19_0_70_325070_1"})
+        bogus = bytes.fromhex("aa190001620000482fd400860020fd3400000000")
+        assert state.update_power_monitoring_from_frames([bogus], {"stc": "0_0_70_325070_1"}) is False
+        assert state.energy_total == pytest.approx(0.0033)
+        assert state.on_time == 17082
+
     def test_picks_the_right_frame_out_of_a_full_push(self):
         state = GoveeDeviceState.create_empty(DEVICE_ID)
         frames = [FRAME_UNRELATED, FRAME_OUTLET_1]

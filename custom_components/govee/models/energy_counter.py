@@ -39,21 +39,37 @@ ON_TIME_NOISE_SECONDS = 300
 RESTORE_TIMEOUT = timedelta(minutes=10)
 
 
+def _stc_numbers(sta: Any) -> list[str]:
+    """The numbers in ``sta.stc``, which reads like ``19_0_77_40_1``.
+
+    Their meaning is inferred from captures; Govee doesn't document it.
+    """
+    stc = sta.get("stc") if isinstance(sta, dict) else None
+    return stc.split("_") if isinstance(stc, str) else []
+
+
 def uptime_from_sta(sta: Any) -> int | None:
     """The plug's uptime in seconds, from the ``sta`` field of its status.
 
-    ``sta.stc`` reads like ``19_0_77_40_1``. The fourth number restarts on a
-    reboot and runs about 6% slow, in steps of 10 seconds. Inferred from
-    captures; Govee doesn't document it.
+    The fourth number in ``sta.stc`` restarts on a reboot and runs about 6%
+    slow, in steps of 10 seconds.
     """
-    stc = sta.get("stc") if isinstance(sta, dict) else None
-    if not isinstance(stc, str):
-        return None
-    parts = stc.split("_")
     try:
-        return int(parts[3])
+        return int(_stc_numbers(sta)[3])
     except (IndexError, ValueError):
         return None
+
+
+def answers_other_client(sta: Any) -> bool:
+    """Whether a status push answers another client's status query.
+
+    The first number in ``sta.stc`` is 19 in replies to our status queries,
+    but 0 in replies to the Govee app's, and 0 or 1 right after a reboot.
+    Once a day, a reply to the app carries a small energy counter that
+    isn't today's, which would look like a reset.
+    """
+    numbers = _stc_numbers(sta)
+    return bool(numbers) and numbers[0] != "19"
 
 
 @dataclass

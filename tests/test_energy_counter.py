@@ -15,7 +15,7 @@ from homeassistant.components.sensor import SensorStateClass
 from custom_components.govee.coordinator import GoveeCoordinator
 from custom_components.govee.entity import GoveeEntity
 from custom_components.govee.models import GoveeDeviceState
-from custom_components.govee.models.energy_counter import EnergyCounter, uptime_from_sta
+from custom_components.govee.models.energy_counter import EnergyCounter, answers_other_client, uptime_from_sta
 from custom_components.govee.sensor import GoveeEnergySensor
 
 from .test_power_monitoring import DEVICE_ID, _h5086
@@ -31,6 +31,19 @@ class TestUptimeFromSta:
     @pytest.mark.parametrize("sta", [None, 5, {}, {"stc": 5}, {"stc": "19_0_77"}, {"stc": "19_0_77_x_1"}])
     def test_other_shapes(self, sta):
         assert uptime_from_sta(sta) is None
+
+
+class TestAnswersOtherClient:
+    def test_reply_to_our_query(self):
+        assert not answers_other_client({"stc": "19_0_77_40_1"})
+
+    @pytest.mark.parametrize("stc", ["0_0_70_325070_1", "1_0_80_20_1"])
+    def test_reply_to_the_govee_app_or_right_after_a_reboot(self, stc):
+        assert answers_other_client({"stc": stc})
+
+    @pytest.mark.parametrize("sta", [None, {}, {"stc": 5}])
+    def test_without_stc(self, sta):
+        assert not answers_other_client(sta)
 
 
 class TestResets:

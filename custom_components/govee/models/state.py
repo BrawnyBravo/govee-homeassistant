@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from collections.abc import Iterable
 from typing import Any, Protocol
 
-from .energy_counter import uptime_from_sta
+from .energy_counter import answers_other_client, uptime_from_sta
 
 # Candidate keys a thermometer/hygrometer reading may hide behind. The Govee
 # state shape varies by SKU and transport: REST returns either a plain number
@@ -1083,7 +1083,9 @@ class GoveeDeviceState:
 
         The plug's uptime comes along in the push's ``sta`` field, which
         lets the energy sensor tell a reboot from a reset (see
-        :mod:`.energy_counter`).
+        :mod:`.energy_counter`). Replies to another client's status query
+        are ignored, as they can carry a bogus energy counter; our next
+        query gets the real readings.
 
         Args:
             frames: Decoded (not base64) frames from ``op.command``.
@@ -1092,6 +1094,8 @@ class GoveeDeviceState:
         Returns:
             True if the frame was recognised.
         """
+        if answers_other_client(sta):
+            return False
         for raw in frames:
             if len(raw) >= 16 and raw[0] == 0xAA and raw[1] == 0x19:
                 self.on_time = int.from_bytes(raw[2:5], "big")
