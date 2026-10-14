@@ -341,11 +341,15 @@ class TestMainLightConstruction:
         # The master light uses the bare device name; the panel must not, or
         # both entities show up as just "<Device>".
         entity = _main_light()
-        entity.platform = MagicMock(platform_name="govee", domain="light")
+        # Older HA reads the translation key's prefix from platform, newer
+        # from platform_data; set both so the test runs on either.
+        entity.platform = entity.platform_data = MagicMock(platform_name="govee", domain="light")
         translations = {"component.govee.entity.light.govee_main_light_panel.name": "Main light"}
 
         assert entity._name_internal(None, translations) == "Main light"
-        assert entity.use_device_name is False
+        # HA returns _attr_name before the translation; use_device_name, which
+        # also read it, is gone in newer HA.
+        assert not hasattr(entity, "_attr_name")
 
     def test_is_on_reads_black_as_off(self):
         assert _main_light(color=(0, 0, 0)).is_on is False
