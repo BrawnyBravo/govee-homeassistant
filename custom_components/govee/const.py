@@ -331,6 +331,14 @@ MQTT_STATUS_QUERY_SPACING: Final = 1.0
 # before that device is quarantined from the sweep. Two, so a coincidental
 # network drop during a sweep does not cost a device its status queries.
 MQTT_STATUS_QUERY_QUARANTINE_STRIKES: Final = 2
+# How many different SKUs the session has to drop right after querying, with
+# no status query answered in between, before the drops are put down to the
+# account rather than to any one device: AWS IoT is then refusing every status
+# query the account publishes. Quarantining devices one at a time would cost
+# two session drops per device, each reconnect backing off further, before
+# push state settled. Counted per SKU, so several units of one model that
+# refuses its query (the six H5075s above) still look like one model.
+MQTT_STATUS_QUERY_ACCOUNT_REFUSAL_SKUS: Final = 3
 # SKUs left out of the sweep outright, rather than learning the hard way via
 # the quarantine above. Every one here is a BLE/LoRa gateway-bridged sensor
 # (see FAHRENHEIT_REPORTING_SKUS): it has an AWS IoT topic on the account but

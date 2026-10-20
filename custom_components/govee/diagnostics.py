@@ -271,6 +271,9 @@ def _runtime_diag(coordinator: GoveeCoordinator) -> dict[str, Any]:
             # Devices the session dropped right after a status query to, and
             # which of them the sweep has quarantined (#195).
             "status_query_strikes": coordinator.mqtt_status_query_strikes,
+            # Whether the sweep stopped because AWS IoT refuses every status
+            # query on the account, not one device's.
+            "status_queries_refused": coordinator.mqtt_status_queries_refused,
             # Every inbound account-topic message, counted before any
             # filtering, and the last device-attributed state message — lets
             # a download tell a completely silent session (no inbound at
