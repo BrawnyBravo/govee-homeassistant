@@ -15,3 +15,5 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-23T13:28:07Z review T-001 ok=false failed="main-thread review" tail="Write(path) rules never match in Claude Code (docs: use Edit(path)); notes.md would never be written, and the release breaks after the bump push"
 ## 2026-10-23T13:29:18Z verify T-001 ok=true (fix round 1: Edit(//) rule, notes before bump, dedupe/cap/PR-close; actionlint clean)
 - Note: dry_run stops before the Claude steps, so the Edit(//...) rule is first exercised on a real release night; a failure there now stops before the bump.
+## 2026-10-23T13:29:35Z build T-002 start (attempt 1); scope+ .github/workflows/*.yml|yaml (pins, badge permissions, delete rebase_dependencies.yml) per its notes
+## 2026-10-23T13:31:05Z verify T-002 ok=true (all action SHAs cross-checked upstream; actionlint clean; no tracked .claude/settings)
