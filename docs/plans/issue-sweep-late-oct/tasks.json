@@ -1,0 +1,1355 @@
+{
+  "$schema": "blitz-tasks/1.0",
+  "plan": "issue-sweep-late-oct",
+  "updated": "2026-10-23T13:29:06Z",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "Harden daily-release.yml: Claude steps write only notes/replies files with a read-only token; shell posts and closes",
+      "role": "infra",
+      "files": [
+        ".github/workflows/daily-release.yml",
+        "scripts/release_replies.py",
+        "tests/test_release_workflow.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "test $(grep -c -- '--setting-sources user' .github/workflows/daily-release.yml) -ge 2",
+          "timeout": 10
+        },
+        {
+          "cmd": "! grep -nE 'Bash\\((git push|git commit|gh issue close|gh issue comment|gh pr comment)' .github/workflows/daily-release.yml",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'persist-credentials: false' .github/workflows/daily-release.yml",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'def allowed_targets' scripts/release_replies.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_release_workflow.py",
+          "timeout": 120
+        }
+      ],
+      "passes": true,
+      "status": "done",
+      "blocked_reason": null,
+      "attempts": 1,
+      "last_verify": {
+        "ts": "2026-10-23T13:29:06Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "test $(grep -c -- '--setting-sources user' .github/workflows/daily-release.yml) -ge 2",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:29:04Z"
+          },
+          {
+            "cmd": "! grep -nE 'Bash\\((git push|git commit|gh issue close|gh issue comment|gh pr comment)' .github/workflows/daily-release.yml",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:29:04Z"
+          },
+          {
+            "cmd": "grep -q 'persist-credentials: false' .github/workflows/daily-release.yml",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:29:04Z"
+          },
+          {
+            "cmd": "grep -q 'def allowed_targets' scripts/release_replies.py",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:29:04Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_release_workflow.py",
+            "exit": 0,
+            "duration_ms": 1343,
+            "tail": "/home/lasswellt/Projects/govee-homeassistant/.cc-sessions/venv312/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.7.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, respx-0.21.1, picked-0.5.0, aiohttp-1.0.5, socket-0.7.0, homeassistant-custom-component-0.13.205, anyio-4.15.1, syrupy-4.8.0, pytest_freezer-0.4.8, timeout-2.3.1, sugar-1.0.0, asyncio-0.24.0, requests-mock-1.12.1, github-actions-annotate-failures-0.2.0, cov-6.0.0, platformdirs-4.13.5, xdist-3.6.1\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 30 items\n\ntests/test_release_workflow.py ..............................            [100%]\n\n============================== 30 passed in 0.13s ==============================",
+            "recorded_at": "2026-10-23T13:29:06Z"
+          }
+        ]
+      },
+      "origin": "plan",
+      "notes": "security-ci.md C1/H1/H2 + validate-plan B2/m9. (1) Both claude-code-action steps: claude_args add '--setting-sources user'; allowedTools = Read plus Write confined to $RUNNER_TEMP/out/** only; no Edit, no Bash(git commit/push), no gh comment/close. Notes step writes $RUNNER_TEMP/out/notes.md; reply step writes $RUNNER_TEMP/out/replies.json [{number, body}]. Pin the action to its full SHA (# v1 comment). (2) Claude steps get a read-only token (secrets.GITHUB_TOKEN with contents/issues/pull-requests: read); GH_TOKEN moves from job env to the shell steps that need it; checkout persist-credentials: false; the bump step pushes with an explicit token. (3) New scripts/release_replies.py (stdlib only): computes allowed targets = '#N' in ALL commit subjects tag..HEAD (not path-limited, so merge commits and PR threads count) + '## #N' queue entries; rejects replies to any other number; strips HTML comments/zero-width chars from fetched thread text; closes only queue entries with close: yes|duplicate|declined (duplicate/declined -> --reason 'not planned', PR numbers via gh pr close); clears the queue and commits it. (4) Reject notes containing URLs outside github.com/lasswellt/govee-homeassistant and my.home-assistant.io, or shell code fences -> fail the publish step. (5) Update docs/release-replies.md header for the new close values. Keep the 03:00 UTC cron (PR #256 is held, T-026). After merge: run the workflow by hand with dry_run and record the result in progress.md. tests/test_release_workflow.py parses the YAML and asserts these properties; tests for release_replies.py in the same file."
+    },
+    {
+      "id": "T-002",
+      "title": "Repo hardening files: SECURITY.md, CODEOWNERS, SHA-pinned actions, least-privilege badge workflows, drop the dead rebase workflow",
+      "role": "infra",
+      "files": [
+        "SECURITY.md",
+        ".github/CODEOWNERS",
+        ".github/dependabot.yml"
+      ],
+      "depends_on": [
+        "T-001"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'security/advisories/new' SECURITY.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE '^/\\.claude/' .github/CODEOWNERS && grep -qE '^/\\.github/' .github/CODEOWNERS",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'package-ecosystem: \"?github-actions' .github/dependabot.yml",
+          "timeout": 10
+        },
+        {
+          "cmd": "! test -e .github/workflows/rebase_dependencies.yml",
+          "timeout": 10
+        },
+        {
+          "cmd": "! grep -rnE 'uses: [^ ]+@(v[0-9.]+|main|master)[[:space:]]*$' .github/workflows",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'contents: read' .github/workflows/uptime.yml && grep -q 'contents: read' .github/workflows/install-stats.yml",
+          "timeout": 10
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "security-ci.md H2/M1/M2/L3/L4. SECURITY.md -> private vulnerability reporting (github.com/lasswellt/govee-homeassistant/security/advisories/new). CODEOWNERS: @lasswellt on /.github/, /.claude/, /CLAUDE.md, /scripts/, /docs/release-replies.md. Pin every 'uses:' in .github/workflows to a full commit SHA with a '# vX' comment (hacs/action@main, hassfest@master, codecov@v4, checkout, setup-python). dependabot.yml: add package-ecosystem github-actions. install-stats.yml and uptime.yml: workflow-level permissions contents: read, contents: write only on the publish job, checkout persist-credentials: false. Delete .github/workflows/rebase_dependencies.yml. Also (security-ci.md H2, optional): a CI step in style.yml that fails a PR adding .claude/settings*.json."
+    },
+    {
+      "id": "T-003",
+      "title": "MAINTAINER (manual): rotate RELEASE_TOKEN, v* tag ruleset, immutable releases, Dependabot alerts, approval for all outside contributors",
+      "role": "infra",
+      "files": [
+        ".github/workflows/daily-release.yml"
+      ],
+      "depends_on": [
+        "T-001",
+        "T-002"
+      ],
+      "verify": [
+        {
+          "cmd": "test \"$(gh api 'repos/{owner}/{repo}/rulesets' --jq '[.[] | select(.target==\"tag\")] | length')\" -ge 1",
+          "timeout": 30
+        },
+        {
+          "cmd": "test \"$(gh api 'repos/{owner}/{repo}/immutable-releases' --jq .enabled)\" = true",
+          "timeout": 30
+        },
+        {
+          "cmd": "gh api -i 'repos/{owner}/{repo}/vulnerability-alerts' 2>/dev/null | head -1 | grep -q 204",
+          "timeout": 30
+        },
+        {
+          "cmd": "test \"$(gh api 'repos/{owner}/{repo}/actions/secrets/RELEASE_TOKEN' --jq .updated_at)\" \\> 2026-10-23T00:00:00Z",
+          "timeout": 30
+        },
+        {
+          "cmd": "test \"$(gh api 'repos/{owner}/{repo}/actions/permissions/fork-pr-contributor-approval' --jq .approval_policy)\" = all_external_contributors",
+          "timeout": 30
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Repo settings only the maintainer can change (security-ci.md H3/L2/L3). Do after T-001 lands: (1) rotate RELEASE_TOKEN (it was readable by the model on every release night since 2026-09-28); better, replace it with a GitHub App token minted per run; (2) tag ruleset on refs/tags/v* blocking update+delete with no bypass for the release identity; (3) enable immutable releases; (4) enable Dependabot alerts and secret_scanning_non_provider_patterns; (5) Actions > fork PR approval: all external contributors (while merging this wave). Every merge task depends on this one. Verify needs gh (sandbox disabled). (6) Reply privately to the #249 reporter (BrawnyBravo) that the private reporting form is live and ask them to file there; T-026..T-028 wait on reading it."
+    },
+    {
+      "id": "T-004",
+      "title": "Merge PR #238 (H5108 sweep exclusion, #237) then PR #259 (account-wide status-query refusal); keep #237 open",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/const.py",
+        "custom_components/govee/coordinator.py",
+        "tests/test_issue_195.py"
+      ],
+      "depends_on": [
+        "T-003"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/238 HEAD && git merge-base --is-ancestor refs/pr/259 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #238' && git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #259'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'MQTT_STATUS_QUERY_EXCLUDED_SKUS.*\"H5108\"' custom_components/govee/const.py && grep -rq 'def mqtt_status_queries_refused' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": "test \"$(gh issue view 237 --json state -q .state)\" = OPEN",
+          "timeout": 30
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_195.py tests/test_translations.py tests/test_mqtt_connection.py tests/test_diagnostics.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. #237 is the top-priority thread (H5086 safety monitoring blind ~35 min per restart). #238 x #259 conflict only in tests/test_issue_195.py. #259 changed strings.json/en.json only: add any other translation files the repo carries. #238 'fixes #237' auto-closes it on merge: edit the PR body to 'refs #237' first, or reopen right after (CLAUDE.md: open until the reporter validates). Security review: clean. docs/research/2026-10-23_issue-sweep-late-oct-prs.md"
+    },
+    {
+      "id": "T-005",
+      "title": "Merge PR #253 (heater restore) and PR #257 (leak latch) with the wet-dry-wet flap fix",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/number.py",
+        "custom_components/govee/binary_sensor.py",
+        "tests/test_water_leak.py"
+      ],
+      "depends_on": [
+        "T-004"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/253 HEAD && git merge-base --is-ancestor refs/pr/257 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #253' && git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #257'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'def test_leak_flap_lost_second_wet' tests",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_heater.py tests/test_heater_autostop.py tests/test_water_leak.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. security-prs.md #257 LOW (safety): wet->dry->wet within 60 s with the second wet MQTT lost shows dry while wet; require mqtt_dry_ms > max(mqtt_wet_ms, last_wet) and add a test named test_leak_flap_lost_second_wet. #253 optional INFO: skip a non-finite restored value (math.isfinite) instead of failing the entity add."
+    },
+    {
+      "id": "T-006",
+      "title": "Gate PR #248 (H8057 4th-segment ptReal) locally and merge",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/const.py",
+        "tests/test_segment.py"
+      ],
+      "depends_on": [
+        "T-005"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/248 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #248'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '_control_h8057_segment_color' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Fork PR, CI never ran: full suite + flake8 + mypy + black on the merge result. SKU-scoped unverified fix, accepted per hacs-reporters-cannot-test-branches. Security: clean."
+    },
+    {
+      "id": "T-007",
+      "title": "Merge PR #250 (429 hold, send-once, persisted request counts) with Store and Retry-After hardening",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/__init__.py",
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/request_budget.py"
+      ],
+      "depends_on": [
+        "T-006"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/250 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #250'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'MAX_RETRY_AFTER_SECONDS' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_request_budget.py tests/test_daily_request_spend.py tests/test_rate_limit_header_backoff.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Conflict hub: lands before #255 and #247. security-prs.md #250 LOWs, apply in a follow-up commit: reject request-count buckets dated in the future; guard store.async_load() so a wrong-version/corrupt file falls back to empty instead of failing setup; cap Retry-After (MAX_RETRY_AFTER_SECONDS) and reject inf/NaN (OverflowError today)."
+    },
+    {
+      "id": "T-008",
+      "title": "Merge PR #255 (segment modes on options save, per-entry diagnostics device, state merge)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/__init__.py",
+        "custom_components/govee/config_flow.py",
+        "custom_components/govee/scene_cache.py"
+      ],
+      "depends_on": [
+        "T-007"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/255 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #255'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'def _async_migrate_hub_device' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+          "timeout": 900
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Conflicts with #250 in coordinator.py (and with #251 in __init__.py later, T-028). Check _async_migrate_hub_device moves or removes the old 'hub' diagnostics device; update CLAUDE.md's orphan-cleanup note if the protected identifier changes. #255 adds production device_registry.async_get_device calls (__init__.py ~411/416), deprecated in HA 2026.10: T-013 replaces them. config_flow.py stays 100 %."
+    },
+    {
+      "id": "T-009",
+      "title": "Gate PR #247 (H5086 energy resets, #200) locally and merge; refusal stop guards the H5086 tick",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/sensor.py",
+        "custom_components/govee/const.py"
+      ],
+      "depends_on": [
+        "T-008"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/247 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #247'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'POWER_MONITORING_STATUS_INTERVAL' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Fork PR, no CI. Conflicts with #250 in coordinator.py. Keep the _status_queries_refused check (#259) in the top guard of _poll_mqtt_status so it also stops the 60 s H5086 tick (security-prs.md merge note), and the tick must skip MQTT_STATUS_QUERY_EXCLUDED_SKUS. Risk to note in the merge body: energy sensor state_class total_increasing -> total + last_reset for existing users. Optional LOW: tolerate naive datetimes in restored extra data."
+    },
+    {
+      "id": "T-010",
+      "title": "Gate and merge kettle layers #229-#231 (#228): stale temperature, water heater, brew mode; keep #228 open",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/kettle/manager.py",
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/water_heater.py"
+      ],
+      "depends_on": [
+        "T-009"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/231 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #231'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'KETTLE_FOLLOWUP_DELAYS' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": "git rev-parse -q --verify 'refs/pr/235^{commit}' >/dev/null && ! git merge-base --is-ancestor refs/pr/235 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "test \"$(gh issue view 228 --json state -q .state)\" = OPEN",
+          "timeout": 30
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Stacked fork PRs, no CI: merge refs/pr/231 (contains 229+230) after reviewing each increment (git diff refs/pr/229 refs/pr/230 ...). #231 splits async_control_device into a wrapper + _async_control_device (kettle follow-up): later tasks T-017/T-020/T-023 and #254 edit the same region. #229 'closes #228': edit to 'refs' or reopen. Fetch #235 (head 5aeef68) so the not-merged check is meaningful; #235 is declined. Security: clean; optional LOW: follow-up reads skip status queries when the re-query option is 0. Move docs/_research/2026-09-30_h7175-kettle.md to docs/research/."
+    },
+    {
+      "id": "T-011",
+      "title": "Gate and merge kettle layers #232 (slot labels) and #233 (on-base sensor, frame capture)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/config_flow.py",
+        "custom_components/govee/binary_sensor.py",
+        "custom_components/govee/kettle/manager.py"
+      ],
+      "depends_on": [
+        "T-010"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/233 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #233'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'class GoveeKettleOnBaseBinarySensor' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+          "timeout": 900
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. #232 adds options-flow steps: config_flow.py stays 100 %. Security: clean; optional LOW (#233): cap the number of frame kinds kept in the capture history."
+    },
+    {
+      "id": "T-012",
+      "title": "Merge kettle layer #234 (govee.request_status) with rate limit, admin-only and excluded/quarantined-SKU guards",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/services.py",
+        "custom_components/govee/coordinator.py",
+        "tests/test_services.py"
+      ],
+      "depends_on": [
+        "T-011"
+      ],
+      "verify": [
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/234 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #234'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'class StatusBurst' custom_components/govee && grep -q '^request_status:' custom_components/govee/services.yaml",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'REQUEST_STATUS_MIN_INTERVAL' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'async_register_admin_service\\(' custom_components/govee/services.py && grep -B2 -A6 'async_register_admin_service(' custom_components/govee/services.py | grep -q 'request_status'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+          "timeout": 900
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. security-kettle-ported.md F-01/F-02 (MEDIUM), fix in this task before push: (1) govee.request_status registered admin-only (async_register_admin_service) in async_setup_services, never per entry; (2) a per-device + global rate limit that holds across sequential calls and restarts of a burst (REQUEST_STATUS_MIN_INTERVAL); (3) every status query goes through one throttled path that skips MQTT_STATUS_QUERY_EXCLUDED_SKUS, #195-quarantined devices and #259's account-wide refusal, and marks the query in flight for the spacing window so a session drop is attributed to the right device. #245's confirmer (T-022) reuses this path. #234 conflicts with #255 in config_flow.py (resolve; 100 %). #234 adds a production async_get_device call (config_flow.py ~959): T-013 replaces it."
+    },
+    {
+      "id": "T-013",
+      "title": "Device-registry compat helper (HA 2026.10 deprecation) and the two Python 3.14 test fixes",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/__init__.py",
+        "custom_components/govee/config_flow.py",
+        "tests/test_setup_entry_account.py"
+      ],
+      "depends_on": [
+        "T-008",
+        "T-012"
+      ],
+      "verify": [
+        {
+          "cmd": "! grep -rnE '\\.async_get_device\\(' custom_components/govee tests | grep -v '_registry_device'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q --no-cov -p no:cacheprovider -o addopts= tests",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+          "timeout": 900
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "validate-plan B1. HA 2026.10 deprecates device_registry.async_get_device (removed 2027.8; raises in tests); async_get_device_by_identifier does not exist on HA 2025.1 (CI lane). Add a helper _registry_device(...) preferring async_get_device_by_identifier with a fallback, use it at every call site (#255 __init__.py, #234 config_flow.py, tests). Fix tests/test_dual_probe.py (_attr_translation_key is a class property on HA 2026.10: compare on instances). Reported by holger-dunst on #223. The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#223)"
+    },
+    {
+      "id": "T-014",
+      "title": "#243: classify groups by type, not by an all-digit device ID",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/models/device.py",
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/api/lan_client.py"
+      ],
+      "depends_on": [
+        "T-012"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'def looks_like_group_id' custom_components/govee/models/device.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "! grep -nE 'device_id\\.isdigit\\(\\)' custom_components/govee/coordinator.py custom_components/govee/api/lan_client.py && ! grep -nE 'or \\(?device_id\\.isdigit' custom_components/govee/models/device.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#243)'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_243.py tests/test_lan_client.py tests/test_models.py tests/test_water_leak.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-10-23_issue-sweep-late-oct-codebase.md #243: models/device.py:1326 ') or (device_id.isdigit())', coordinator.py:4880, api/lan_client.py:226. Add looks_like_group_id(device_id, device_type): explicit group types True; else isdigit() and len < 12. Update CLAUDE.md 'Device ID Detection'. Tests tests/test_issue_243.py (18-digit H5054 sensor gets leak/battery/connectivity entities; 11825917 light is a group). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#243)"
+    },
+    {
+      "id": "T-015",
+      "title": "#236: read H5111 temperature/humidity from the account (BFF) data",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/models/device.py",
+        "tests/test_issue_236.py"
+      ],
+      "depends_on": [
+        "T-014"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -qE 'THERMO_HYGRO_BFF_READ_SKUS.*\"H5111\"' custom_components/govee/models/device.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#236)'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_236.py tests/test_thermometer.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-10-23_issue-sweep-late-oct-codebase.md #236: add H5111 to THERMO_HYGRO_BFF_READ_SKUS (models/device.py:71). Fixture from the freezer diagnostics: lastDeviceData {tem:-2090, hum:6000} -> -20.9 C / 60 %. The #151 guard keeps a sensor with no BFF tem/hum on the Developer poll (fridge) - test it. Serialized after T-014 (same file). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#236)"
+    },
+    {
+      "id": "T-016",
+      "title": "#222: mqtt_silent repair when status queries go unanswered on a connected session",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/repairs.py",
+        "custom_components/govee/strings.json"
+      ],
+      "depends_on": [
+        "T-012"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'mqtt_silent' custom_components/govee/strings.json && grep -q 'mqtt_silent' custom_components/govee/translations/en.json && grep -q 'mqtt_silent' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'def test_sweep_refused_no_repair' tests/test_issue_222.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#222)'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_222.py tests/test_repairs.py tests/test_translations.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "validate-plan M4: arm only when status queries were published and none came back since connect (re-query on, not refused by #259) or the account has push-reporting sensors; never on a quiet all-lights account with the sweep off. Then: one forced reconnect, then repair mqtt_silent (Reconfigure re-login refreshes IoT certs); clear on the first inbound message. Also edits translations/en.json and tests/test_issue_222.py (case 'sweep refused -> no repair'). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#222)"
+    },
+    {
+      "id": "T-017",
+      "title": "#242: Govee's 'Device is offline' control reply -> GoveeDeviceOfflineError and a translated error",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/exceptions.py",
+        "custom_components/govee/api/client.py",
+        "custom_components/govee/coordinator.py"
+      ],
+      "depends_on": [
+        "T-016"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'class GoveeDeviceOfflineError' custom_components/govee/api/exceptions.py && grep -q '\"device_offline\"' custom_components/govee/strings.json",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#242)'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_242.py tests/test_api_client.py tests/test_translations.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Reporter follow-up: POST /device/control -> HTTP 200, body code 400, msg 'Device is offline. Please check the Wi-Fi connection.' Map msg/capability.state to GoveeDeviceOfflineError(GoveeApiError); async_control_device sets state.online=False, notifies, returns False; entity failure uses exceptions key device_offline. Also edits entity.py, strings.json, translations/en.json, tests/test_issue_242.py. Serialized after T-016 (strings.json) and first in the async_control_device chain T-017 -> T-020 -> T-023 (validate-plan M2). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#242)"
+    },
+    {
+      "id": "T-018",
+      "title": "#242: device_reachable - online flag OR healthy LAN/BLE OR an MQTT frame in the last 10 min",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/entity.py",
+        "tests/test_issue_242_reachable.py"
+      ],
+      "depends_on": [
+        "T-017"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'def device_reachable' custom_components/govee/coordinator.py && grep -q 'device_reachable' custom_components/govee/entity.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '_allow_lan_availability' custom_components/govee/light.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_242_reachable.py tests/test_lan_availability.py tests/test_coordinator_outage.py tests/test_light.py tests/test_thermometer.py tests/test_water_leak.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "User chose reachable-if-any-transport. validate-plan M3 rule, exactly: GoveeEntity.available = super().available and (is_group or coordinator.device_reachable(id)). Leave light.py's pre-coordinator LAN bypass (_allow_lan_availability) untouched, so #226 holds: a total cloud outage still makes cloud-dependent entities unavailable, a LAN-healthy whole-device light stays available. BFF thermometers / water detectors keep their own mixins (#97/#145). device_reachable uses transport health, not BLE back-off state. No assume_online option."
+    },
+    {
+      "id": "T-019",
+      "title": "#258: Last measurement timestamp and Reported online diagnostic for BFF thermometers",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/sensor.py",
+        "custom_components/govee/binary_sensor.py"
+      ],
+      "depends_on": [
+        "T-018"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'class GoveeLastMeasurementSensor' custom_components/govee/sensor.py && grep -q 'def bff_last_measurement_at' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '\"last_measurement\"' custom_components/govee/strings.json && grep -q '\"reported_online\"' custom_components/govee/strings.json",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#258)'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_258.py tests/test_thermometer.py tests/test_translations.py tests/test_diagnostic_entities.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-10-23_issue-sweep-late-oct-codebase.md #258: lastTime already parsed (api/auth.py ~958). bff_last_measurement_at(); GoveeLastMeasurementSensor (TIMESTAMP, DIAGNOSTIC, key last_measurement, unique id {id}_last_measurement); GoveeReportedOnlineBinarySensor (CONNECTIVITY, DIAGNOSTIC, key reported_online) overriding available like GoveeDeviceConnectivity (binary_sensor.py:341-349) so it shows off, not unavailable, when the cloud says offline (validate-plan m13). Also strings.json, translations/en.json, icons.json, tests/test_issue_258.py. The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#258)"
+    },
+    {
+      "id": "T-020",
+      "title": "#223: H1252 zone switch, colour-temperature frame, aa 30 decode, async_set_ring and kelvin on the main panel",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/ble_packet.py",
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/models/state.py"
+      ],
+      "depends_on": [
+        "T-017"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'def build_light_zone_ptreal' custom_components/govee/api/ble_packet.py && grep -qE 'PTREAL_LIGHT_ZONE_SKUS.*H1252' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'def update_light_zones_from_frames' custom_components/govee/models && grep -q 'def async_set_ring' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'def test_ring_write_never_sets_panel_bit' tests/test_ceiling_light_zones.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%B v2026.10.0..HEAD | grep -qi 'Co-authored-by: holger-dunst'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_ceiling_light_zones.py tests/test_ble_packet.py tests/test_main_light.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Port holger-dunst's verified patch (#223 comment 2026-10-03) by hand, never applied wholesale. Porting checklist (security-kettle-ported.md): code/strings/icons/tests only, DROP its docs/release-replies.md hunk; H1252 only, H1232 unchanged; ring mask fixed to bits 0-15 (never the panel bit 16); clamp kelvin in the frame builder; decode aa 30 only from 20-byte frames with a valid checksum; golden frames from the comment as fixtures; tests that a ring write never sets bit 16 and a panel write never sets bits 0-15. Adds build_light_zone_ptreal, build_segment_color_temp_ptreal, PTREAL_LIGHT_ZONE_SKUS, update_light_zones_from_frames, coordinator.async_set_ring and kelvin= on async_set_main_panel (validate-plan M9), zone ToggleCommand via the passthrough with REST fallback. Also const.py, tests/test_ceiling_light_zones.py. Credit: Co-authored-by trailer (gh api users/holger-dunst for the noreply id). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#223)"
+    },
+    {
+      "id": "T-021",
+      "title": "#223: H1252 ring light entity and colour temperature on the main panel light",
+      "role": "frontend",
+      "files": [
+        "custom_components/govee/light.py",
+        "custom_components/govee/strings.json",
+        "custom_components/govee/icons.json"
+      ],
+      "depends_on": [
+        "T-020",
+        "T-018"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'class GoveeRingLight' custom_components/govee/light.py && grep -q 'govee_ring_light' custom_components/govee/strings.json",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_ceiling_light_zones.py tests/test_cov_light.py tests/test_main_light.py tests/test_translations.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "GoveeRingLight (H1252 only, key govee_ring_light, unique id suffix _ring, _allow_lan_availability = False) sharing implementation with GoveeMainPanelLight; main panel gains COLOR_TEMP. Zone colour/brightness optimistic. Also translations/en.json, tests/test_ceiling_light_zones.py, tests/test_cov_light.py. Known future conflict: PR #254 rewrites GoveeMainPanelLight.async_turn_on (light.py ~798-823) - T-031 resolves it. The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#223)"
+    },
+    {
+      "id": "T-022",
+      "title": "#245: CommandConfirmer module (lights only, budgeted, one resend, cancellable)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/command_confirm.py",
+        "tests/test_command_confirm.py"
+      ],
+      "depends_on": [
+        "T-012"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'class CommandConfirmer' custom_components/govee/command_confirm.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "test -f custom_components/govee/command_confirm.py && ! grep -nE 'TODO|NotImplementedError' custom_components/govee/command_confirm.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'def test_never_resends_to_appliance' tests/test_command_confirm.py && grep -q 'def test_single_resend_not_reconfirmed' tests/test_command_confirm.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_command_confirm.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Design: issue #245 + docs/research/2026-10-23_issue-sweep-late-oct-codebase.md #245. Security constraints (security-kettle-ported.md F-03 HIGH / F-04): confirm and resend ONLY light commands (power/brightness/colour/CT on light devices); never resend to kettles, heaters, humidifiers, fans or any appliance, and never resend power-on; resend only if a frame received AFTER the command still shows the old value. At most one status query, one resend and one /device/state read per command; a resend is never itself confirmed. Status queries go through T-012's throttled path (skips excluded/quarantined SKUs, #259 refusal, re-query 0). Spend from the request budget, keep the 20/min reserve, back off after a 429. Latest command per field supersedes; cancel_all() for unload. Pure module; wiring is T-023."
+    },
+    {
+      "id": "T-023",
+      "title": "#245: wire CommandConfirmer into async_control_device behind confirm_commands (default off)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/config_flow.py",
+        "custom_components/govee/const.py"
+      ],
+      "depends_on": [
+        "T-022",
+        "T-020"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'CONF_CONFIRM_COMMANDS' custom_components/govee/const.py && grep -q 'CommandConfirmer' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#245)'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+          "timeout": 900
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Last in the async_control_device chain (T-017 -> T-020 -> T-023). Hook after MQTT-tier and REST success via hass.async_create_background_task; cancel_all() on unload. CONF_CONFIRM_COMMANDS default False (+ strings.json/translations/en.json). Service-call latency unchanged. config_flow.py 100 %. The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#245)"
+    },
+    {
+      "id": "T-024",
+      "title": "#245: command-confirm counters in diagnostics and a README section",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/diagnostics.py",
+        "README.md",
+        "tests/test_diagnostics.py"
+      ],
+      "depends_on": [
+        "T-023"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'command_confirm' custom_components/govee/diagnostics.py && grep -qi 'confirm_commands' README.md",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_diagnostics.py tests/test_command_confirm.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Diagnostics key command_confirm: confirmed/resent/unconfirmed/skipped per device. README: how to enable confirm_commands, what it costs (one status query + at most one resend per light command), and that appliances are never resent."
+    },
+    {
+      "id": "T-025",
+      "title": "Queue release replies for threads no commit subject references",
+      "role": "infra",
+      "files": [
+        "docs/release-replies.md"
+      ],
+      "depends_on": [
+        "T-001",
+        "T-012"
+      ],
+      "verify": [
+        {
+          "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #224'",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #260'",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #261'",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #229'",
+          "timeout": 10
+        },
+        {
+          "cmd": "! grep -q '^## #249' docs/release-replies.md",
+          "timeout": 10
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Uses T-001's close values. Entries: #224 close: yes (reporter confirmed probes, thank); #260 close: duplicate of #209; #209 Developer API omits the H7105 on the same account, keep open; #235 close: declined (keep-warm not taken for now, thank, #229-#234 merged); #228 which layers shipped (unconditional); PR threads the subjects don't name: #229, #230, #232, #233 (merged as ancestors of #231/#234) and #238 (thank, merged); #244 add the account login, wet test, Download diagnostics; #240 Download diagnostics (screenshots unreadable); #239 diagnostics with account login, White mode on and a normal colour; #241 diagnostics while Video Mode runs from the app; #213 diagnostics while DreamView runs from the app + the REST dreamViewToggle response body; #211 thanks for the frame table, waiting on RuslanMelnychenko's PR, third-party frames not used unverified; #261 Download diagnostics for the H1A42 + which segment lights when segment 1 is set. No #249 entry. Held PRs (#251, #252, #256) get theirs in their own merge tasks. ADDED (research gaps): #222 interim entry - the reporter asked on 2026-10-02 whether to wait or re-login and is still unanswered: advise re-entering the account login now (Reconfigure) and attaching diagnostics after an hour; say the silent-session repair is coming. Reply rule (security-kettle-ported.md F-14): no brief may give raw ptReal frames for a kettle, heater or other heating device; frames only where verified on the reporter's own model. #244 brief also notes that battery, online state and the initial leak state need the account login. #213 brief: mention the H66A0 also advertises movieMode and ask whether the app's video mode matches it."
+    },
+    {
+      "id": "T-026",
+      "title": "HELD (#249): merge PR #256 (release gates) onto the hardened workflow",
+      "role": "infra",
+      "files": [
+        ".github/workflows/daily-release.yml",
+        "CLAUDE.md"
+      ],
+      "depends_on": [
+        "T-001",
+        "T-025"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q '#249 report reviewed' docs/plans/issue-sweep-late-oct/progress.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/256 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'exclude-drafts' .github/workflows/daily-release.yml && grep -q -- '--setting-sources user' .github/workflows/daily-release.yml",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q '02:00 UTC' CLAUDE.md",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_release_workflow.py",
+          "timeout": 120
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "User decision 2026-10-23: #251, #252, #256 wait until the private #249 report is read (same author). Precondition: progress.md line '#249 report reviewed: <outcome>' written by the maintainer. #256 conflicts with T-001's rewrite: keep T-001's security properties (read-only Claude token, --setting-sources user, shell-only posting, SHA pin) and take #256's gates (app_id filter, --exclude-drafts, tag-exists refusal, style check) and its 02:00 UTC cron + CLAUDE.md text. Optionally add --exclude-pre-releases. Queue a thank-you entry for #256. After merge update memory daily-release-cloud-routine.md (03:00 -> 02:00 UTC)."
+    },
+    {
+      "id": "T-027",
+      "title": "HELD (#249): merge PR #252 (BLE enrol by MAC, idle BLE release, LAN client hardening)",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/ble.py",
+        "custom_components/govee/ble_advertisement.py",
+        "custom_components/govee/api/lan_client.py"
+      ],
+      "depends_on": [
+        "T-026"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q '#249 report reviewed' docs/plans/issue-sweep-late-oct/progress.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/252 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #252'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'DISCONNECT_DELAY = 120' custom_components/govee/api",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_api_ble.py tests/test_ble_enrollment.py tests/test_lan_client.py tests/test_ble_advertisement_notify.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Precondition: '#249 report reviewed' in progress.md. Partial #246 fix (frees proxy slots); closes a real cross-enrolment hole (security-prs.md). Assumes BLE MAC = last 6 octets of the cloud ID. Subject must name (#246)."
+    },
+    {
+      "id": "T-028",
+      "title": "HELD (#249): merge PR #251 (login/MQTT recovery) with the re-login stop and connection-error fixes",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/__init__.py",
+        "custom_components/govee/coordinator.py",
+        "custom_components/govee/api/auth.py"
+      ],
+      "depends_on": [
+        "T-027"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q '#249 report reviewed' docs/plans/issue-sweep-late-oct/progress.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "git merge-base --is-ancestor refs/pr/251 HEAD",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #251'",
+          "timeout": 10
+        },
+        {
+          "cmd": "! grep -rn '_LOGGER.info(\"Govee OpenAPI event channel reconnected' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'def test_relogin_stops_after_definite_refusal' -r tests",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+          "timeout": 900
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Precondition: '#249 report reviewed'. Conflicts with #255 (__init__.py), #250/#247 (coordinator.py): resolve in the merge commit. security-prs.md #251 MEDIUM: on Govee2FARequiredError / GoveeAuthError / GoveeLoginRejectedError, _async_refresh_iot_credentials records the failure via _persist_login_failed(...) and sets a flag that stops re-login until the user reconfigures (no ~96 password logins a day). LOW: is_connection_error must not treat aiohttp.ClientResponseError (HTML 403/429/5xx) as a network failure. Demote the existing _LOGGER.info('Govee OpenAPI event channel reconnected') to debug. config_flow.py 100 %. Queue a thank-you entry for #251."
+    },
+    {
+      "id": "T-029",
+      "title": "#246: back off BLE after connect failures; skip BLE for LAN-capable commands while LAN is healthy",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "tests/test_issue_246.py"
+      ],
+      "depends_on": [
+        "T-027",
+        "T-023"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q '_ble_connect_backoff_until' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#246)'",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_246.py tests/test_api_ble.py tests/test_lan_control.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-10-23_issue-sweep-late-oct-codebase.md #246. _ble_connect_backoff_until / _ble_connect_failures (300 s doubling, cap 3600, reset on success); skip BLE only for commands LAN can carry (power/brightness/colour/CT, README:179) while LAN is healthy (validate-plan m12); other commands keep BLE. Debug log once per back-off. After #252 (T-027) and the async_control_device chain (T-023). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#246)"
+    },
+    {
+      "id": "T-030",
+      "title": "LAN scan: trust the datagram source address over the reply's ip field, and cap the scan responses",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/lan.py",
+        "tests/test_lan_scan_trust.py"
+      ],
+      "depends_on": [
+        "T-027"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'LAN_SCAN_MAX_RESPONSES' custom_components/govee/api/lan.py && grep -q 'reported_ip' custom_components/govee/api/lan.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "! grep -n 'record.setdefault(\"ip\", addr\\[0\\])' custom_components/govee/api/lan.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_lan_scan_trust.py tests/test_lan.py tests/test_lan_client.py tests/test_lan_integration.py",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "User-requested (security-prs.md #252 section, LOW, pre-existing): api/lan.py _ScanProtocol.datagram_received keeps the body's \"ip\" and keys responses by the attacker-supplied \"device\" with no cap. Change: record[\"ip\"] = addr[0]; body value kept as record[\"reported_ip\"]; stop after LAN_SCAN_MAX_RESPONSES (256). Mismatch rule: Docker's UDP userland proxy rewrites the source to the bridge gateway, so when addr[0] differs from the body ip AND addr[0] is a gateway of a local interface's subnet, keep the body ip and debug-log once per device; any other mismatch uses addr[0]. Same for the devStatus listener if it resolves devices by body fields. Tests: spoofed reply, Docker gateway case, 300 ids -> 256 kept, normal reply unchanged."
+    },
+    {
+      "id": "T-031",
+      "title": "Final gates: coverage floors (95 % overall, 96 % per module, config_flow 100 %), flake8, mypy, black, Python 3.14 suite",
+      "role": "test",
+      "files": [
+        "tox.ini",
+        ".coveragerc",
+        "setup.cfg"
+      ],
+      "depends_on": [
+        "T-004",
+        "T-005",
+        "T-006",
+        "T-007",
+        "T-008",
+        "T-009",
+        "T-010",
+        "T-011",
+        "T-012",
+        "T-013",
+        "T-015",
+        "T-019",
+        "T-021",
+        "T-024",
+        "T-025",
+        "T-026",
+        "T-028",
+        "T-029",
+        "T-030"
+      ],
+      "verify": [
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee --cov-fail-under=95 tests && .cc-sessions/venv312/bin/coverage report | awk '$NF ~ /%$/ && $1 ~ /custom_components/ {v=$NF; sub(/%/,\"\",v); if (v+0 < 96) {print; bad=1}} END{exit bad}'",
+          "timeout": 900
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+          "timeout": 900
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q --no-cov -p no:cacheprovider -o addopts= tests",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "Gate only, no product code; fix regressions in the task that caused them. Per-module rule from CLAUDE.md enforced via coverage report (validate-plan m14)."
+    },
+    {
+      "id": "T-032",
+      "title": "Merge PR #254 (brightness mapping for all lights) alone on its own release day, conflicts resolved here",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/brightness.py",
+        "custom_components/govee/light.py",
+        "custom_components/govee/coordinator.py"
+      ],
+      "depends_on": [
+        "T-031"
+      ],
+      "verify": [
+        {
+          "cmd": "git fetch -q --tags origin && M=$(git rev-list --merges --ancestry-path refs/pr/254..HEAD | tail -1) && test -n \"$M\" && TAG=$(git describe --tags --abbrev=0 \"$M^1\") && git diff --quiet \"$TAG\" \"$M^1\" -- custom_components/ ':(exclude)custom_components/govee/manifest.json'",
+          "timeout": 60
+        },
+        {
+          "cmd": "grep -q 'PR #254 tried on own lights' docs/plans/issue-sweep-late-oct/progress.md",
+          "timeout": 10
+        },
+        {
+          "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #254'",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -rq 'def ha_to_device_brightness' custom_components/govee",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee --cov-fail-under=95 tests",
+          "timeout": 900
+        },
+        {
+          "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q --no-cov -p no:cacheprovider -o addopts= tests",
+          "timeout": 600
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "User decisions 2026-10-23: own release day; we resolve the conflicts ourselves. Preconditions: (1) nothing unreleased under custom_components/ on main before the merge (first verify); (2) maintainer tried refs/pr/254 on 2-3 of their own lights (1 %, 50 %, 100 %, plus a change from the Govee app) and wrote 'PR #254 tried on own lights: <result>' in progress.md; (3) no other custom_components merge that Eastern day. Re-fetch refs/pr/254 first. Expected conflicts (validate-plan M7): CLAUDE.md; scene_cache.py (vs #255); coordinator.py - #231 and #254 BOTH split async_control_device into a wrapper + _async_control_device (kettle follow-up vs failed-segment rollback): chain them, don't pick one; #254's _dispatch_segment_command next to T-020's ptReal segment path; light.py GoveeMainPanelLight.async_turn_on (~798-823) vs T-021's kelvin/ring refactor. #254 carries 12 commits (segment brightness send, scene refresh signal, select unknown state, purifier low, H1270 main-panel name, failed-segment rollback). Merge body: brightness levels may map differently. Security: clean. Queue a thank-you entry for #254."
+    }
+  ]
+}
