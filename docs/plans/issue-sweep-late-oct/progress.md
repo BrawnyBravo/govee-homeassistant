@@ -17,3 +17,4 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 - Note: dry_run stops before the Claude steps, so the Edit(//...) rule is first exercised on a real release night; a failure there now stops before the bump.
 ## 2026-10-23T13:29:35Z build T-002 start (attempt 1); scope+ .github/workflows/*.yml|yaml (pins, badge permissions, delete rebase_dependencies.yml) per its notes
 ## 2026-10-23T13:31:05Z verify T-002 ok=true (all action SHAs cross-checked upstream; actionlint clean; no tracked .claude/settings)
+## 2026-10-23T13:38:30Z T-003 settings applied via gh api (user-approved): tag ruleset 25725868 on refs/tags/v* (update+deletion, no bypass), immutable releases on, Dependabot alerts on, fork-PR approval all_external_contributors. secret_scanning_non_provider_patterns stayed disabled (plan-gated); push protection already on. Remaining: maintainer rotates RELEASE_TOKEN.

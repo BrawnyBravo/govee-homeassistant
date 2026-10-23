@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-23T13:30:46Z",
+  "updated": "2026-10-23T13:38:30Z",
   "tasks": [
     {
       "id": "T-001",
@@ -217,7 +217,42 @@
       "status": "open",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-23T13:38:30Z",
+        "ok": false,
+        "failed": "test \"$(gh api 'repos/{owner}/{repo}/actions/secrets/RELEASE_TOKEN' --jq .updated_at)\" \\> 2026-10-23T00:00:00Z",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "test \"$(gh api 'repos/{owner}/{repo}/rulesets' --jq '[.[] | select(.target==\"tag\")] | length')\" -ge 1",
+            "exit": 0,
+            "duration_ms": 462,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:38:27Z"
+          },
+          {
+            "cmd": "test \"$(gh api 'repos/{owner}/{repo}/immutable-releases' --jq .enabled)\" = true",
+            "exit": 0,
+            "duration_ms": 803,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:38:27Z"
+          },
+          {
+            "cmd": "gh api -i 'repos/{owner}/{repo}/vulnerability-alerts' 2>/dev/null | head -1 | grep -q 204",
+            "exit": 0,
+            "duration_ms": 959,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:38:28Z"
+          },
+          {
+            "cmd": "test \"$(gh api 'repos/{owner}/{repo}/actions/secrets/RELEASE_TOKEN' --jq .updated_at)\" \\> 2026-10-23T00:00:00Z",
+            "exit": 1,
+            "duration_ms": 1100,
+            "tail": "",
+            "recorded_at": "2026-10-23T13:38:30Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Repo settings only the maintainer can change (security-ci.md H3/L2/L3). Do after T-001 lands: (1) rotate RELEASE_TOKEN (it was readable by the model on every release night since 2026-09-28); better, replace it with a GitHub App token minted per run; (2) tag ruleset on refs/tags/v* blocking update+delete with no bypass for the release identity; (3) enable immutable releases; (4) enable Dependabot alerts and secret_scanning_non_provider_patterns; (5) Actions > fork PR approval: all external contributors (while merging this wave). Every merge task depends on this one. Verify needs gh (sandbox disabled). (6) Reply privately to the #249 reporter (BrawnyBravo) that the private reporting form is live and ask them to file there; T-026..T-028 wait on reading it."
     },
