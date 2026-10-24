@@ -191,6 +191,7 @@ from .models.device import (
     MAINS_POWERED_DEVICE_TYPES,
     PROBE_THERMOMETER_BFF_SKUS,
     PUMP_DEHUMIDIFIER_SKUS,
+    looks_like_group_id,
 )
 from .models.device import GoveeLeakSensor, GoveeLeakSensorState
 from .scene_cache import SceneCacheManager
@@ -5307,8 +5308,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if self._lan_client is None:
             return False
 
-        # [2] Groups have no LAN unicast identity.
-        if device.is_group:
+        # [2] Groups (and short numeric group-style ids) have no LAN unicast identity.
+        if device.is_group or looks_like_group_id(device_id):
             return False
 
         # [3] Not a correlated LAN device — no IP to write to.
