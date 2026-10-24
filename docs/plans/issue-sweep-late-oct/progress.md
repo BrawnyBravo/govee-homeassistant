@@ -48,3 +48,4 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-24T13:30:48Z build T-016 resume (attempt 1); WIP from wip/issue-sweep-late-oct-T-016 cherry-picked uncommitted
 ## 2026-10-24T13:38:27Z verify T-016 ok=true (mqtt_silent watchdog: 30 min after connect, >=3 queries and 0 inbound -> one forced reconnect -> non-fixable repair; clears on first inbound; never armed by refused/off sweeps; WIP branch merged and deleted; CI green)
 ## 2026-10-24T13:44:25Z verify T-017 ok=true (GoveeDeviceOfflineError from body/HTTP 400 offline msg; coordinator marks online=False + notifies; entity device_offline key; CI green)
+## 2026-10-24T13:51:30Z verify T-018 ok=true (device_reachable = online or LAN/BLE healthy or MQTT msg <= 10 min; entity available = healthy and (group or reachable); light.py bypass untouched; mock coordinators get tests/coordinator_mocks.follow_online_flag; CI green)
