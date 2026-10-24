@@ -27,3 +27,6 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-24T12:08:16Z verify T-006 ok=true (#248 merged; raw HomeAssistantError -> segment_passthrough_failed translation key; CI green)
 ## 2026-10-24T12:08:33Z build T-007 start (attempt 1); main thread; LOW fixes land in api/client.py and __init__.py (scope+api/client.py)
 ## 2026-10-24T12:13:49Z verify T-007 ok=true (#250 merged; Retry-After finite+capped 3600 s, future buckets dropped, Store load guarded; CI green)
+## 2026-10-24T12:14:02Z build T-008 start (attempt 1); main thread
+## 2026-10-24T12:20:22Z verify T-008 ok=true (#255 merged; conflict with #250 kept both: commit in _fetch_device_state_bounded, count only non-cached; config_flow 100%; CLAUDE.md orphan note updated by the PR; CI green)
+- T-001 gap (found by peer session 0f945fd3, memory claude-allowlist-git-log-output-write): Bash(git log:*)/Bash(git show:*) allow --output=<path>, so the Claude steps can overwrite files a later RELEASE_TOKEN step runs. Fix before the 03:00 UTC run: Claude steps in their own job, pre-rendered inputs, Read + Edit(out/**) only. Asked the peer session whether it owns the fix.

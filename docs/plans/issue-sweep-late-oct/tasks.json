@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T12:13:49Z",
+  "updated": "2026-10-24T12:20:22Z",
   "tasks": [
     {
       "id": "T-001",
@@ -644,11 +644,53 @@
           "timeout": 600
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T12:20:22Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "git merge-base --is-ancestor refs/pr/255 HEAD",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:19:50Z"
+          },
+          {
+            "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #255'",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:19:50Z"
+          },
+          {
+            "cmd": "grep -rq 'def _async_migrate_hub_device' custom_components/govee",
+            "exit": 0,
+            "duration_ms": 9,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:19:50Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+            "exit": 0,
+            "duration_ms": 31610,
+            "tail": "................................................ [ 66%]\n........................................................................ [ 68%]\n........................................................................ [ 70%]\n........................................................................ [ 72%]\n........................................................................ [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n......................                                                   [100%]\n\n---------- coverage: platform linux, python 3.12.14-final-0 ----------\nName                                     Stmts   Miss    Cover   Missing\n------------------------------------------------------------------------\ncustom_components/govee/config_flow.py     373      0  100.00%\n------------------------------------------------------------------------\nTOTAL                                      373      0  100.00%\n\nRequired test coverage of 100% reached. Total coverage: 100.00%\n3766 passed in 29.81s",
+            "recorded_at": "2026-10-24T12:20:21Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+            "exit": 0,
+            "duration_ms": 937,
+            "tail": "Success: no issues found in 45 source files\nAll done! ✨ 🍰 ✨\n159 files would be left unchanged.",
+            "recorded_at": "2026-10-24T12:20:22Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Conflicts with #250 in coordinator.py (and with #251 in __init__.py later, T-028). Check _async_migrate_hub_device moves or removes the old 'hub' diagnostics device; update CLAUDE.md's orphan-cleanup note if the protected identifier changes. #255 adds production device_registry.async_get_device calls (__init__.py ~411/416), deprecated in HA 2026.10: T-013 replaces them. config_flow.py stays 100 %."
     },
