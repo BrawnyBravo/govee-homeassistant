@@ -60,6 +60,7 @@ custom_components/govee/
 ├── button.py            # Refresh scenes, clear water alert
 ├── services.py          # Service actions (registered from async_setup)
 ├── repairs.py           # Repairs framework integration
+├── registry.py          # Device-registry lookups across HA versions (2026.10 deprecations)
 ├── diagnostics.py       # Diagnostics for troubleshooting
 ├── scene_cache.py       # Scene / DIY scene cache with TTL
 ├── transport_health.py  # Per-device, per-transport health tracker

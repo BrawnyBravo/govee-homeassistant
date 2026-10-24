@@ -61,6 +61,7 @@ from .const import (
     hub_device_identifier,
 )
 from .coordinator import GoveeConfigEntry, GoveeCoordinator
+from .registry import device_config_entry_ids, get_registry_device
 from .repairs import async_cleanup_legacy_issues, async_create_mqtt_issue
 from .services import async_setup_services
 
@@ -459,13 +460,13 @@ def _async_migrate_hub_device(hass: HomeAssistant, entry: GoveeConfigEntry) -> N
     the last remaining entry then re-identifies the same way.
     """
     device_registry = dr.async_get(hass)
-    legacy = device_registry.async_get_device(identifiers={(DOMAIN, LEGACY_HUB_DEVICE_IDENTIFIER)})
-    if legacy is None or entry.entry_id not in legacy.config_entries:
+    legacy = get_registry_device(device_registry, (DOMAIN, LEGACY_HUB_DEVICE_IDENTIFIER), entry.entry_id)
+    if legacy is None or entry.entry_id not in device_config_entry_ids(legacy):
         return
 
     new_identifiers = {(DOMAIN, hub_device_identifier(entry.entry_id))}
-    current = device_registry.async_get_device(identifiers=new_identifiers)
-    if legacy.config_entries == {entry.entry_id} and current is None:
+    current = get_registry_device(device_registry, (DOMAIN, hub_device_identifier(entry.entry_id)), entry.entry_id)
+    if device_config_entry_ids(legacy) == {entry.entry_id} and current is None:
         device_registry.async_update_device(legacy.id, new_identifiers=new_identifiers)
         _LOGGER.debug("Moved the diagnostics device to a per-entry identifier")
         return

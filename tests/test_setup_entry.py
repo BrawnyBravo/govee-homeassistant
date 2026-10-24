@@ -24,6 +24,7 @@ from custom_components.govee import (
     _async_migrate_hub_device,
     async_remove_config_entry_device,
 )
+from custom_components.govee.registry import device_config_entry_ids, get_registry_device
 from custom_components.govee.const import (
     CONF_API_KEY,
     CONF_SEGMENT_MODE_BY_DEVICE,
@@ -431,9 +432,13 @@ async def test_hub_device_migrates_in_place_for_a_single_entry(hass: HomeAssista
     entity = er.async_get(hass).async_get(entity_ids[entry.entry_id])
     assert entity is not None
     assert entity.device_id == legacy.id
-    assert device_registry.async_get_device(identifiers={(DOMAIN, LEGACY_HUB_DEVICE_IDENTIFIER)}) is None
+    assert get_registry_device(device_registry, (DOMAIN, LEGACY_HUB_DEVICE_IDENTIFIER), entry.entry_id) is None
 
 
+@pytest.mark.skipif(
+    hasattr(dr.DeviceRegistry, "async_get_device_by_identifier"),
+    reason="Home Assistant 2026.10+ keeps one device per config entry, so the old device cannot be shared",
+)
 async def test_hub_device_splits_when_two_entries_share_it(hass: HomeAssistant) -> None:
     """Two accounts: each ends with its own device and keeps its entity id."""
     first = _add_entry(hass)
@@ -445,10 +450,12 @@ async def test_hub_device_splits_when_two_entries_share_it(hass: HomeAssistant) 
 
     _async_migrate_hub_device(hass, first)
 
-    first_device = device_registry.async_get_device(identifiers={(DOMAIN, hub_device_identifier(first.entry_id))})
+    first_device = get_registry_device(
+        device_registry, (DOMAIN, hub_device_identifier(first.entry_id)), first.entry_id
+    )
     assert first_device is not None
     assert first_device.id != legacy.id
-    assert first_device.config_entries == {first.entry_id}
+    assert device_config_entry_ids(first_device) == {first.entry_id}
     # The user's area and rename follow the entry onto its own device.
     assert first_device.area_id == "living_room"
     assert first_device.name_by_user == "Govee Cloud"
@@ -457,7 +464,7 @@ async def test_hub_device_splits_when_two_entries_share_it(hass: HomeAssistant) 
     assert first_entity.device_id == first_device.id
     shared = device_registry.async_get(legacy.id)
     assert shared is not None
-    assert shared.config_entries == {second.entry_id}
+    assert device_config_entry_ids(shared) == {second.entry_id}
     second_entity = entity_registry.async_get(entity_ids[second.entry_id])
     assert second_entity is not None
     assert second_entity.device_id == legacy.id

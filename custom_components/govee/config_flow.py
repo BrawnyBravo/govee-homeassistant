@@ -43,6 +43,7 @@ from .api.auth import _derive_client_id
 from .api.client import validate_api_key
 from .kettle.labels import slot_keys, validate_slot_labels
 from .models import GoveeDevice
+from .registry import get_registry_device
 from .const import (
     CONF_API_KEY,
     CONF_API_TEMPERATURE_UNIT,
@@ -968,7 +969,8 @@ class GoveeOptionsFlow(OptionsFlow):
         return {
             str(device_id): dict(labels)
             for device_id, labels in saved.items()
-            if isinstance(labels, dict) and registry.async_get_device(identifiers={(DOMAIN, str(device_id))})
+            if isinstance(labels, dict)
+            and get_registry_device(registry, (DOMAIN, str(device_id)), self.config_entry.entry_id)
         }
 
     def _async_finish(self, data: dict[str, Any], labels: dict[str, dict[str, str]] | None = None) -> ConfigFlowResult:
