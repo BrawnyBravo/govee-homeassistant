@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Final
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
@@ -371,6 +371,26 @@ class GoveeCapability:
             int(range_data.get("min", 0)),
             int(range_data.get("max", 100)),
         )
+
+
+GROUP_DEVICE_TYPES: Final = frozenset(
+    {"devices.types.group", "devices.types.same_mode_group", "devices.types.scenic_group"}
+)
+# Group IDs are short decimal numbers (e.g. 11825917); device IDs are 16-18
+# hex characters or colon-separated MACs, and some of those are all digits.
+GROUP_ID_MAX_LENGTH: Final = 11
+
+
+def looks_like_group_id(device_id: str, device_type: str = "") -> bool:
+    """Whether a device ID (and type, when known) belongs to a Govee group.
+
+    An explicit group type always is one. Otherwise only a short all-digit ID
+    is: an 18-digit hex device ID with no letters (an H5054 in #243) is a
+    real device, not a group.
+    """
+    if device_type in GROUP_DEVICE_TYPES:
+        return True
+    return device_id.isdigit() and len(device_id) <= GROUP_ID_MAX_LENGTH
 
 
 @dataclass(frozen=True)
@@ -1393,15 +1413,7 @@ class GoveeDevice:
         name = data.get("deviceName", sku)
         device_type = data.get("type", "devices.types.light")
 
-        # Check for group device types
-        # Groups can be identified by:
-        # 1. Explicit group device types
-        # 2. Numeric-only device IDs (no colons like MAC addresses)
-        is_group = device_type in (
-            "devices.types.group",
-            "devices.types.same_mode_group",
-            "devices.types.scenic_group",
-        ) or (device_id.isdigit())
+        is_group = looks_like_group_id(device_id, device_type)
 
         # Parse capabilities
         raw_caps = data.get("capabilities", [])

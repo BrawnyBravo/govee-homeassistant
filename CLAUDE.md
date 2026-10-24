@@ -248,8 +248,8 @@ Reference: `docs/govee-protocol-reference.md`
 
 ### Device ID Detection
 - **Regular devices**: MAC address format `03:9C:DC:06:75:4B:10:7C`
-- **Group devices**: Numeric-only IDs like `11825917`
-- Detection: `device_id.isdigit()` returns True for groups
+- **Group devices**: short numeric-only IDs like `11825917`, or an explicit group `type`
+- Detection: `looks_like_group_id(device_id, device_type)` in `models/device.py`; an all-digit ID longer than 11 characters is a real device (an 18-digit H5054, #243)
 
 ### Segment Capability Parsing
 RGBIC segment count is in `fields[].elementRange.max + 1`:

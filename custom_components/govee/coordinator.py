@@ -5307,8 +5307,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if self._lan_client is None:
             return False
 
-        # [2] Group / numeric ids have no LAN unicast identity.
-        if device.is_group or device_id.isdigit():
+        # [2] Groups have no LAN unicast identity.
+        if device.is_group:
             return False
 
         # [3] Not a correlated LAN device — no IP to write to.
