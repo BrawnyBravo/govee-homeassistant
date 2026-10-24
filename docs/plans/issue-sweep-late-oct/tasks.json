@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T14:12:17Z",
+  "updated": "2026-10-24T14:35:52Z",
   "tasks": [
     {
       "id": "T-001",
@@ -1717,11 +1717,46 @@
           "timeout": 300
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T14:19:59Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "grep -q 'class CommandConfirmer' custom_components/govee/command_confirm.py",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:19:57Z"
+          },
+          {
+            "cmd": "test -f custom_components/govee/command_confirm.py && ! grep -nE 'TODO|NotImplementedError' custom_components/govee/command_confirm.py",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:19:57Z"
+          },
+          {
+            "cmd": "grep -q 'def test_never_resends_to_appliance' tests/test_command_confirm.py && grep -q 'def test_single_resend_not_reconfirmed' tests/test_command_confirm.py",
+            "exit": 0,
+            "duration_ms": 7,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:19:57Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_command_confirm.py",
+            "exit": 0,
+            "duration_ms": 2034,
+            "tail": "/home/lasswellt/Projects/govee-homeassistant/.cc-sessions/venv312/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.7.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, respx-0.21.1, picked-0.5.0, aiohttp-1.0.5, socket-0.7.0, homeassistant-custom-component-0.13.205, anyio-4.15.1, syrupy-4.8.0, pytest_freezer-0.4.8, timeout-2.3.1, sugar-1.0.0, asyncio-0.24.0, requests-mock-1.12.1, github-actions-annotate-failures-0.2.0, cov-6.0.0, platformdirs-4.13.5, xdist-3.6.1\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 32 items\n\ntests/test_command_confirm.py ................................           [100%]\n\n============================== 32 passed in 0.62s ==============================",
+            "recorded_at": "2026-10-24T14:19:59Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Design: issue #245 + docs/research/2026-10-23_issue-sweep-late-oct-codebase.md #245. Security constraints (security-kettle-ported.md F-03 HIGH / F-04): confirm and resend ONLY light commands (power/brightness/colour/CT on light devices); never resend to kettles, heaters, humidifiers, fans or any appliance, and never resend power-on; resend only if a frame received AFTER the command still shows the old value. At most one status query, one resend and one /device/state read per command; a resend is never itself confirmed. Status queries go through T-012's throttled path (skips excluded/quarantined SKUs, #259 refusal, re-query 0). Spend from the request budget, keep the 20/min reserve, back off after a 429. Latest command per field supersedes; cancel_all() for unload. Pure module; wiring is T-023."
     },
@@ -1752,11 +1787,39 @@
           "timeout": 900
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T14:30:00Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "grep -q 'CONF_CONFIRM_COMMANDS' custom_components/govee/const.py && grep -q 'CommandConfirmer' custom_components/govee/coordinator.py",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:29:19Z"
+          },
+          {
+            "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#245)'",
+            "exit": 0,
+            "duration_ms": 7,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:29:19Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+            "exit": 0,
+            "duration_ms": 40605,
+            "tail": "................................................ [ 70%]\n........................................................................ [ 72%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n......................                                                   [100%]\n\n---------- coverage: platform linux, python 3.12.14-final-0 ----------\nName                                     Stmts   Miss    Cover   Missing\n------------------------------------------------------------------------\ncustom_components/govee/config_flow.py     423      0  100.00%\n------------------------------------------------------------------------\nTOTAL                                      423      0  100.00%\n\nRequired test coverage of 100% reached. Total coverage: 100.00%\n4198 passed in 38.53s",
+            "recorded_at": "2026-10-24T14:30:00Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Last in the async_control_device chain (T-017 -> T-020 -> T-023). Hook after MQTT-tier and REST success via hass.async_create_background_task; cancel_all() on unload. CONF_CONFIRM_COMMANDS default False (+ strings.json/translations/en.json). Service-call latency unchanged. config_flow.py 100 %. The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#245)"
     },
@@ -1782,11 +1845,32 @@
           "timeout": 300
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T14:35:52Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "grep -q 'command_confirm' custom_components/govee/diagnostics.py && grep -qi 'confirm_commands' README.md",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:35:49Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_diagnostics.py tests/test_command_confirm.py",
+            "exit": 0,
+            "duration_ms": 2689,
+            "tail": "/home/lasswellt/Projects/govee-homeassistant/.cc-sessions/venv312/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.7.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, respx-0.21.1, picked-0.5.0, aiohttp-1.0.5, socket-0.7.0, homeassistant-custom-component-0.13.205, anyio-4.15.1, syrupy-4.8.0, pytest_freezer-0.4.8, timeout-2.3.1, sugar-1.0.0, asyncio-0.24.0, requests-mock-1.12.1, github-actions-annotate-failures-0.2.0, cov-6.0.0, platformdirs-4.13.5, xdist-3.6.1\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 74 items\n\ntests/test_diagnostics.py ..........................................     [ 56%]\ntests/test_command_confirm.py ................................           [100%]\n\n============================== 74 passed in 1.19s ==============================",
+            "recorded_at": "2026-10-24T14:35:52Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Diagnostics key command_confirm: confirmed/resent/unconfirmed/skipped per device. README: how to enable confirm_commands, what it costs (one status query + at most one resend per light command), and that appliances are never resent."
     },
