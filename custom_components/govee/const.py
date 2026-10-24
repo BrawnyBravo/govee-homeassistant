@@ -266,6 +266,12 @@ POWER_MONITORING_STATUS_INTERVAL: Final = 60  # seconds
 # Least time between two status queries to one device outside the sweep
 # (govee.request_status, its bursts, kettle follow-ups), whichever sent them.
 REQUEST_STATUS_MIN_INTERVAL: Final = 3  # seconds
+# A connected AWS IoT session is checked this long after it came up: if status
+# queries went out (at least MQTT_SILENT_MIN_QUERIES) and not one message came
+# back, the session is silent (#222). It is reconnected once, then a repair
+# asks the user to re-enter the account login.
+MQTT_SILENT_CHECK_DELAY: Final = 1800  # seconds
+MQTT_SILENT_MIN_QUERIES: Final = 3
 
 # Bounds for the configurable water-detector poll interval (seconds). The lower
 # bound keeps the unverified account-API rate limit at arm's length; the upper

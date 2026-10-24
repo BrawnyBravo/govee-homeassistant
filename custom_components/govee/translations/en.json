@@ -709,6 +709,10 @@
         }
       }
     },
+    "mqtt_silent": {
+      "title": "Govee real-time updates are silent for {entry_title}",
+      "description": "The real-time (AWS IoT) session for {entry_title} is connected, but in {minutes} minutes not one message arrived, although the integration asked the devices for their status several times. Reconnecting once did not help. Everything keeps working over polling.\n\nThis usually means the saved account sign-in no longer gets updates. Go to the integration page and select **Reconfigure** to sign in again, which fetches fresh real-time credentials. This repair clears itself as soon as a real-time message arrives."
+    },
     "mqtt_2fa_required": {
       "title": "Govee account requires verification",
       "description": "Your Govee account now requires email verification (2FA) to enable real-time MQTT updates for {entry_title}. Go to the integration page and select **Reconfigure** to re-enter your credentials with a verification code.\n\nThe integration will continue to work using polling until this is resolved."

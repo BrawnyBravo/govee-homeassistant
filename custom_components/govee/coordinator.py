@@ -122,6 +122,8 @@ from .const import (
     OPTIMISTIC_GRACE_CAP_SECONDS,
     POWER_MONITORING_STATUS_INTERVAL,
     REQUEST_STATUS_MIN_INTERVAL,
+    MQTT_SILENT_CHECK_DELAY,
+    MQTT_SILENT_MIN_QUERIES,
     PTREAL_DREAMVIEW_SKUS,
     PTREAL_MAIN_PANEL_BIT,
     PTREAL_SEGMENT_SKUS,
@@ -199,6 +201,8 @@ from .repairs import (
     async_create_mqtt_issue,
     async_create_rate_limit_issue,
     async_delete_mqtt_issue,
+    async_create_mqtt_silent_issue,
+    async_delete_mqtt_silent_issue,
     async_delete_rate_limit_issue,
 )
 
@@ -334,6 +338,15 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     # Monotonic time from which the status timer's next tick queries every
     # device, not just the power-monitoring ones (see _status_poll_callback).
     _next_full_status_sweep = 0.0
+    # Silent-session watchdog (#222): status queries sent and the client's
+    # inbound count when the current session came up, the pending check,
+    # whether the one forced reconnect was spent, and whether the repair is
+    # up. Class defaults for the same reason as above.
+    _mqtt_queries_since_connect = 0
+    _mqtt_inbound_at_connect = 0
+    _mqtt_silence_unsub: CALLBACK_TYPE | None = None
+    _mqtt_silent_reconnected = False
+    _mqtt_silent_reported = False
 
     def __init__(
         self,
@@ -3414,6 +3427,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     self._status_query_in_flight = device_id
                     try:
                         await client.async_publish_status_query(topic)
+                        self._mqtt_queries_since_connect += 1
                         await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
                         if client.connected:
                             # The session outlived this query's window, so AWS
@@ -3594,6 +3608,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         loop. Safe to call async_set_updated_data() directly. The @callback
         decorator documents this event-loop-only contract.
         """
+        # Anything arriving means the session is not silent (#222).
+        self._note_mqtt_inbound()
         # Handle leak sensor events (from multiSync messages)
         if state_data.get("_leak_event"):
             self._handle_leak_event(state_data)
@@ -3709,6 +3725,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     def _on_mqtt_connected(self) -> None:
         """A session is up and subscribed: clear the disconnect repair."""
         async_delete_mqtt_issue(self.hass, self._config_entry)
+        self._arm_mqtt_silence_check()
         # The MQTT status sensor and per-device connection-mode sensors read
         # the client; nudge them now rather than on the next poll.
         self.async_set_updated_data(self._states)
@@ -3726,6 +3743,55 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 self._poll_mqtt_status(),
                 name="govee_mqtt_connected_status_poll",
             )
+
+    def _arm_mqtt_silence_check(self) -> None:
+        """Start the silent-session check for the session that just came up (#222)."""
+        client = self._mqtt_client
+        self._mqtt_queries_since_connect = 0
+        self._mqtt_inbound_at_connect = client.inbound_total if client is not None else 0
+        if self._mqtt_silence_unsub is not None:
+            self._mqtt_silence_unsub()
+        self._mqtt_silence_unsub = async_call_later(self.hass, MQTT_SILENT_CHECK_DELAY, self._async_check_mqtt_silence)
+
+    def _note_mqtt_inbound(self) -> None:
+        """A message arrived: the session is not silent, so clear the watchdog state."""
+        self._mqtt_silent_reconnected = False
+        if self._mqtt_silent_reported:
+            self._mqtt_silent_reported = False
+            async_delete_mqtt_silent_issue(self.hass, self._config_entry)
+
+    async def _async_check_mqtt_silence(self, _now: Any = None) -> None:
+        """Reconnect a silent session once, then raise the mqtt_silent repair (#222).
+
+        Silent means connected, at least MQTT_SILENT_MIN_QUERIES status queries
+        sent since the session came up, and not one inbound message. A quiet
+        account with the re-query off, or one AWS IoT refuses status queries
+        for (#259), sends none, so it never counts as silent.
+        """
+        self._mqtt_silence_unsub = None
+        client = self._mqtt_client
+        if client is None or not client.connected:
+            return  # the next session re-arms the check
+        if client.inbound_total > self._mqtt_inbound_at_connect:
+            self._note_mqtt_inbound()
+            return
+        if self._mqtt_queries_since_connect < MQTT_SILENT_MIN_QUERIES:
+            return
+        minutes = MQTT_SILENT_CHECK_DELAY // 60
+        if not self._mqtt_silent_reconnected:
+            self._mqtt_silent_reconnected = True
+            _LOGGER.warning(
+                "The AWS IoT session got no message in %d minutes despite %d status queries; reconnecting once",
+                minutes,
+                self._mqtt_queries_since_connect,
+            )
+            # async_restart only reconnects for changed credentials.
+            await client.async_stop()
+            await client.async_start()
+            return
+        if not self._mqtt_silent_reported:
+            self._mqtt_silent_reported = True
+            async_create_mqtt_silent_issue(self.hass, self._config_entry, minutes)
 
     @callback
     def _on_mqtt_disconnected(self) -> None:
@@ -3956,6 +4022,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             self._status_query_in_flight = device_id
             try:
                 await client.async_publish_status_query(self._device_topics[device_id])
+                self._mqtt_queries_since_connect += 1
                 await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
                 if client.connected:
                     # As in the sweep: the session outlived this query's window.
@@ -6206,6 +6273,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and cleanup resources."""
+        if self._mqtt_silence_unsub is not None:
+            self._mqtt_silence_unsub()
+            self._mqtt_silence_unsub = None
         self.kettles.async_shutdown()
         self.status_burst.async_shutdown()
         # Cancel BFF polling
