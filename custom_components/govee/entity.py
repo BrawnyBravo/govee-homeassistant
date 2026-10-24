@@ -74,17 +74,15 @@ class GoveeEntity(CoordinatorEntity["GoveeCoordinator"]):
         """Return True if entity is available.
 
         Checks coordinator health first (via super().available which
-        verifies last_update_success), then device-specific status.
-        Group devices cannot be polled, so they follow coordinator health only.
+        verifies last_update_success), then whether any transport reaches the
+        device (``GoveeCoordinator.device_reachable``, #242). Group devices
+        cannot be polled, so they follow coordinator health only.
         """
         if not super().available:
             return False
-
         if self._device.is_group:
             return True
-
-        state = self.coordinator.get_state(self._device_id)
-        return state is not None and state.online
+        return self.coordinator.device_reachable(self._device_id)
 
     @property
     def device_state(self) -> GoveeDeviceState | None:

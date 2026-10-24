@@ -60,6 +60,7 @@ from custom_components.govee.sensor import (
     GoveeThermoBatterySensor,
     async_setup_entry,
 )
+from .coordinator_mocks import follow_online_flag
 
 LEAK_SIGNAL = f"{DOMAIN}_leak_update"
 
@@ -397,7 +398,7 @@ class TestBffAvailabilityMixin:
         coordinator.is_water_detector.return_value = water_detector
         state = GoveeDeviceState(device_id=device.device_id, online=online) if has_state else None
         coordinator.get_state.return_value = state
-        return GoveeTemperatureSensor(coordinator, device)
+        return GoveeTemperatureSensor(follow_online_flag(coordinator), device)
 
     def test_regular_thermometer_follows_the_online_flag(self):
         assert self._entity(online=True).available is True

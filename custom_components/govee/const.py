@@ -272,6 +272,10 @@ REQUEST_STATUS_MIN_INTERVAL: Final = 3  # seconds
 # asks the user to re-enter the account login.
 MQTT_SILENT_CHECK_DELAY: Final = 1800  # seconds
 MQTT_SILENT_MIN_QUERIES: Final = 3
+# A device the cloud reports offline still counts as reachable when a local
+# transport (LAN, BLE) is healthy or AWS IoT carried a message from it this
+# recently (#242): the Developer API's online flag lags or is wrong for some.
+REACHABLE_PUSH_WINDOW: Final = 600  # seconds
 
 # Bounds for the configurable water-detector poll interval (seconds). The lower
 # bound keeps the unverified account-API rate limit at arm's length; the upper

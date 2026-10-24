@@ -125,6 +125,7 @@ from .const import (
     REQUEST_STATUS_MIN_INTERVAL,
     MQTT_SILENT_CHECK_DELAY,
     MQTT_SILENT_MIN_QUERIES,
+    REACHABLE_PUSH_WINDOW,
     PTREAL_DREAMVIEW_SKUS,
     PTREAL_MAIN_PANEL_BIT,
     PTREAL_SEGMENT_SKUS,
@@ -768,6 +769,26 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     ) -> TransportHealth | None:
         """Return health for (device, transport), or None if untracked."""
         return self._transport.get(device_id, transport)
+
+    def device_reachable(self, device_id: str) -> bool:
+        """Whether any transport says the device is there (#242).
+
+        The cloud's online flag, a healthy LAN or BLE transport, or an AWS IoT
+        message from the device within REACHABLE_PUSH_WINDOW. The flag alone
+        lags (or stays false) for some devices that answer fine locally or
+        over MQTT; Govee's "Device is offline" reply clears it at once.
+        """
+        state = self._states.get(device_id)
+        if state is None:
+            return False
+        if state.online:
+            return True
+        for kind in ("lan", "ble"):
+            health = self._transport.get(device_id, kind)
+            if health is not None and health.is_available:
+                return True
+        last = self.mqtt_last_receive_for(device_id)
+        return last is not None and (dt_util.utcnow() - last).total_seconds() <= REACHABLE_PUSH_WINDOW
 
     def _record_transport_success(
         self,
