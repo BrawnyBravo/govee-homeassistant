@@ -16,6 +16,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.govee import _async_attach_request_counts_store
 from custom_components.govee.api.client import GoveeApiClient
 from custom_components.govee.const import CONF_API_KEY, DOMAIN
 
@@ -147,6 +148,41 @@ def test_a_saved_count_from_another_day_is_not_today() -> None:
 def test_malformed_saved_counts_are_ignored(saved: Any) -> None:
     client = GoveeApiClient(API_KEY, session=MagicMock())
     client.import_request_counts(saved)
+
+    assert client.requests_today == 0
+    assert client.requests_last_24h == 0
+
+
+def test_a_saved_bucket_from_a_future_hour_is_ignored() -> None:
+    """A clock stepped back (or a tampered file) must not leave a future hour
+    after the current one in the oldest-first deque.
+    """
+    client = GoveeApiClient(API_KEY, session=MagicMock())
+    hour = int(time.time() // 3600)
+    client.import_request_counts({"buckets": [[hour - 1, 2], [hour + 5, 900]]})
+
+    assert client.requests_last_24h == 2
+    client._note_request()
+    assert [bucket[0] for bucket in client._request_buckets] == [hour - 1, hour]
+
+
+async def test_a_saved_file_of_another_version_starts_from_zero(
+    hass: HomeAssistant, hass_storage: dict[str, Any]
+) -> None:
+    """No migration exists, so the Store raises; setup must not fail over it."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: API_KEY}, options={}, version=2)
+    entry.add_to_hass(hass)
+    key = f"{DOMAIN}.{entry.entry_id}.request_counts"
+    hour = int(time.time() // 3600)
+    hass_storage[key] = {
+        "version": 99,
+        "minor_version": 1,
+        "key": key,
+        "data": {"day": int(time.time() // 86400), "today": 50, "buckets": [[hour, 50]]},
+    }
+    client = GoveeApiClient(API_KEY, session=MagicMock())
+
+    await _async_attach_request_counts_store(hass, entry, client)
 
     assert client.requests_today == 0
     assert client.requests_last_24h == 0

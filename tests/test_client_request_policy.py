@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
-from custom_components.govee.api.client import GoveeApiClient
+from custom_components.govee.api.client import MAX_RETRY_AFTER_SECONDS, GoveeApiClient
 from custom_components.govee.api.exceptions import (
     GoveeApiError,
     GoveeAuthError,
@@ -141,6 +141,28 @@ async def test_429_with_an_unusable_retry_after(delta):
         await client._handle_response(_response("GET", 429, headers={"Retry-After": value}))
 
     assert exc_info.value.retry_after is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["inf", "-inf", "nan", "0", "-5"])
+async def test_429_with_a_non_finite_or_non_positive_retry_after(value):
+    client = _client(AsyncMock())
+
+    with pytest.raises(GoveeRateLimitError) as exc_info:
+        await client._handle_response(_response("GET", 429, headers={"Retry-After": value}))
+
+    assert exc_info.value.retry_after is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["1e9", "86400"])
+async def test_429_with_a_huge_retry_after_is_capped(value):
+    client = _client(AsyncMock())
+
+    with pytest.raises(GoveeRateLimitError) as exc_info:
+        await client._handle_response(_response("GET", 429, headers={"Retry-After": value}))
+
+    assert exc_info.value.retry_after == MAX_RETRY_AFTER_SECONDS
 
 
 @pytest.mark.asyncio

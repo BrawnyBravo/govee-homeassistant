@@ -12,7 +12,7 @@ from typing import Any
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
@@ -161,7 +161,14 @@ async def _async_attach_request_counts_store(
     request and flushed when the entry unloads.
     """
     store = _request_counts_store(hass, entry)
-    api_client.import_request_counts(await store.async_load())
+    try:
+        saved = await store.async_load()
+    except (HomeAssistantError, NotImplementedError, ValueError) as err:
+        # A file of another storage version (no migration) or unreadable
+        # content: start from zero rather than fail setup.
+        _LOGGER.debug("Ignoring unreadable saved request counts: %s", err)
+        saved = None
+    api_client.import_request_counts(saved)
 
     @callback
     def _schedule_save() -> None:

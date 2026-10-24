@@ -6,6 +6,7 @@ Uses aiohttp-retry for exponential backoff on transient failures.
 from __future__ import annotations
 
 import logging
+import math
 import time
 import uuid
 from collections import deque
@@ -70,6 +71,11 @@ REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
 # Ring-buffer size for the control-command history kept for diagnostics.
 COMMAND_BUFFER_SIZE = 30
 
+# Longest Retry-After honoured. The back-off becomes the poll interval, so a
+# huge value from a misbehaving upstream or proxy would stop polling until
+# the entry reloads.
+MAX_RETRY_AFTER_SECONDS = 3600.0
+
 
 def _is_count(value: Any) -> TypeGuard[int]:
     """True for a plain non-negative int (bool is an int subclass, so excluded)."""
@@ -80,7 +86,8 @@ def _parse_retry_after(value: str | None) -> float | None:
     """Seconds to wait from a ``Retry-After`` header, or None if unusable.
 
     The header is either a number of seconds or an HTTP date; anything else,
-    or a date already past, gives None (the caller's default back-off).
+    a date already past, or a non-finite number gives None (the caller's
+    default back-off). Longer waits are capped at MAX_RETRY_AFTER_SECONDS.
     """
     if not value:
         return None
@@ -94,7 +101,9 @@ def _parse_retry_after(value: str | None) -> float | None:
         if when.tzinfo is None:
             when = when.replace(tzinfo=timezone.utc)
         seconds = (when - datetime.now(timezone.utc)).total_seconds()
-    return seconds if seconds > 0 else None
+    if not math.isfinite(seconds) or seconds <= 0:
+        return None
+    return min(seconds, MAX_RETRY_AFTER_SECONDS)
 
 
 class GoveeApiClient:
@@ -285,14 +294,17 @@ class GoveeApiClient:
     def import_request_counts(self, data: Any) -> None:
         """Add counts saved by :meth:`export_request_counts` to this client's.
 
-        Anything malformed, from an earlier UTC day, or older than the 24-hour
-        window is ignored, so a bad file can only ever under-count.
+        Anything malformed, from an earlier UTC day, older than the 24-hour
+        window, or dated in a future hour is ignored, so a bad file can only
+        ever under-count. A future hour would also sit after the current one
+        in the deque and break the oldest-first pruning in _note_request.
         """
         if not isinstance(data, dict):
             return
         now = time.time()
         day = int(now // 86400)
-        cutoff = int(now // 3600) - (REQUEST_HISTORY_HOURS - 1)
+        current_hour = int(now // 3600)
+        cutoff = current_hour - (REQUEST_HISTORY_HOURS - 1)
 
         saved_day = data.get("day")
         saved_today = data.get("today")
@@ -310,7 +322,7 @@ class GoveeApiClient:
             if not isinstance(bucket, list) or len(bucket) != 2:
                 continue
             hour, count = bucket
-            if _is_count(hour) and _is_count(count) and hour >= cutoff:
+            if _is_count(hour) and _is_count(count) and cutoff <= hour <= current_hour:
                 merged[hour] = merged.get(hour, 0) + count
         self._request_buckets = deque([hour, count] for hour, count in sorted(merged.items()))
 
