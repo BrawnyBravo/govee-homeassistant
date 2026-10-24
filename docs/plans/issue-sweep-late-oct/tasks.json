@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T13:58:09Z",
+  "updated": "2026-10-24T14:05:58Z",
   "tasks": [
     {
       "id": "T-001",
@@ -1586,11 +1586,53 @@
           "timeout": 300
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T14:05:58Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "grep -q 'def build_light_zone_ptreal' custom_components/govee/api/ble_packet.py && grep -qE 'PTREAL_LIGHT_ZONE_SKUS.*H1252' custom_components/govee/const.py",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:05:56Z"
+          },
+          {
+            "cmd": "grep -rq 'def update_light_zones_from_frames' custom_components/govee/models && grep -q 'def async_set_ring' custom_components/govee/coordinator.py",
+            "exit": 0,
+            "duration_ms": 17,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:05:56Z"
+          },
+          {
+            "cmd": "grep -q 'def test_ring_write_never_sets_panel_bit' tests/test_ceiling_light_zones.py",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:05:56Z"
+          },
+          {
+            "cmd": "git log --format=%B v2026.10.0..HEAD | grep -qi 'Co-authored-by: holger-dunst'",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:05:56Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_ceiling_light_zones.py tests/test_ble_packet.py tests/test_main_light.py",
+            "exit": 0,
+            "duration_ms": 1809,
+            "tail": "/home/lasswellt/Projects/govee-homeassistant/.cc-sessions/venv312/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.7.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, respx-0.21.1, picked-0.5.0, aiohttp-1.0.5, socket-0.7.0, homeassistant-custom-component-0.13.205, anyio-4.15.1, syrupy-4.8.0, pytest_freezer-0.4.8, timeout-2.3.1, sugar-1.0.0, asyncio-0.24.0, requests-mock-1.12.1, github-actions-annotate-failures-0.2.0, cov-6.0.0, platformdirs-4.13.5, xdist-3.6.1\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 145 items\n\ntests/test_ceiling_light_zones.py ..............................         [ 20%]\ntests/test_ble_packet.py ............................................... [ 53%]\n.......................................                                  [ 80%]\ntests/test_main_light.py .............................                   [100%]\n\n============================= 145 passed in 0.47s ==============================",
+            "recorded_at": "2026-10-24T14:05:58Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Port holger-dunst's verified patch (#223 comment 2026-10-03) by hand, never applied wholesale. Porting checklist (security-kettle-ported.md): code/strings/icons/tests only, DROP its docs/release-replies.md hunk; H1252 only, H1232 unchanged; ring mask fixed to bits 0-15 (never the panel bit 16); clamp kelvin in the frame builder; decode aa 30 only from 20-byte frames with a valid checksum; golden frames from the comment as fixtures; tests that a ring write never sets bit 16 and a panel write never sets bits 0-15. Adds build_light_zone_ptreal, build_segment_color_temp_ptreal, PTREAL_LIGHT_ZONE_SKUS, update_light_zones_from_frames, coordinator.async_set_ring and kelvin= on async_set_main_panel (validate-plan M9), zone ToggleCommand via the passthrough with REST fallback. Also const.py, tests/test_ceiling_light_zones.py. Credit: Co-authored-by trailer (gh api users/holger-dunst for the noreply id). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#223)"
     },
