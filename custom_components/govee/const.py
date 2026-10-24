@@ -200,15 +200,34 @@ SKU_SEGMENT_OVERRIDES: Final = {
 # advertised count via masked ptReal frames (``build_segment_color_ptreal`` /
 # ``build_segment_brightness_ptreal`` in api/ble_packet.py). The true ring
 # segment count lives in SKU_SEGMENT_OVERRIDES.
-# Deliberately narrow: only the H1232 is verified against real hardware,
-# though H60A6/H1252 (same fixture family) are plausibly identical (#223).
-PTREAL_SEGMENT_SKUS: Final = frozenset({"H1232"})
+# Deliberately narrow: verified against real hardware on the H1232 and the
+# H1252 (#223); the H60A6 (same fixture family) is plausibly identical. The
+# H1252 already advertises all 16 ring segments over the API, so for it this
+# only folds a multi-segment write into one frame.
+PTREAL_SEGMENT_SKUS: Final = frozenset({"H1232", "H1252"})
 
 # SKUs whose 17th internal segment is a separate main panel, not a ring
 # segment, addressed by this bit in the same 3-byte little-endian ptReal
 # segment mask (bit i = internal segment i+1). Reporter-verified on the
-# H1232 only (#223).
-PTREAL_MAIN_PANEL_BIT: Final = {"H1232": 16}
+# H1232 and the H1252 (#223).
+PTREAL_MAIN_PANEL_BIT: Final = {"H1232": 16, "H1252": 16}
+
+# The ring of those fixtures: internal segments 1-16, bits 0-15 of the mask.
+# Fixed, never derived from a segment count, so a ring write can never carry
+# the main panel's bit.
+PTREAL_RING_MASK: Final = 0xFFFF
+
+# SKUs whose mainLightToggle / backgroundLightToggle the Platform API accepts
+# (HTTP 200 "success") but ignores, while the app's ``33 30 <zone> <on>``
+# ptReal frame switches each zone (zone 0 = main panel, 1 = ring). The device
+# reports both zones in an ``aa 30 <main> <ring>`` status frame. Verified on
+# an H1252 (#223); the H1232's REST toggles work.
+PTREAL_LIGHT_ZONE_SKUS: Final = frozenset({"H1252"})
+
+# Colour-temperature range of those zones, the fixture's whole-device
+# colorTemperatureK range. The frame builder clamps to it.
+PTREAL_ZONE_MIN_KELVIN: Final = 2700
+PTREAL_ZONE_MAX_KELVIN: Final = 6500
 
 
 def resolve_fahrenheit_conversion(sku: str, api_unit: str, device_unit_hint: str | None = None) -> bool:

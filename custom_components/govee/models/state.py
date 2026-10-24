@@ -667,6 +667,34 @@ class GoveeDeviceState:
         # on API polls are authoritative again for power/brightness.
         self.clear_optimistic_window()
 
+    def update_light_zones_from_frames(self, frames: Iterable[bytes]) -> bool:
+        """Apply the Ceiling Light Pro's ``aa 30 <main> <ring>`` zone frame (H1252, #223).
+
+        Byte 2 is ``01`` while the main panel is lit, byte 3 while the RGBIC
+        ring is. The Developer API returns ``""`` for both toggles on poll,
+        so this frame is the only live source. Only a full 20-byte frame
+        with a valid XOR checksum counts. The device-wide ``onOff`` is left
+        alone: the zones were only verified with the fixture powered.
+
+        Args:
+            frames: Decoded (not base64) frames from ``op.command``.
+
+        Returns:
+            True if the zone frame was recognised.
+        """
+        for raw in frames:
+            if len(raw) != 20 or raw[0] != 0xAA or raw[1] != 0x30:
+                continue
+            checksum = 0
+            for byte in raw[:19]:
+                checksum ^= byte
+            if checksum != raw[19]:
+                continue
+            self.toggles["mainLightToggle"] = raw[2] == 0x01
+            self.toggles["backgroundLightToggle"] = raw[3] == 0x01
+            return True
+        return False
+
     def update_ceiling_fan_from_frames(self, frames: Iterable[bytes]) -> bool:
         """Apply the status frames a ceiling-fan combo carries in its AWS push.
 

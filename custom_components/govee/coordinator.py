@@ -24,6 +24,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import color as color_util
 from homeassistant.util import dt as dt_util
 
 from .api import (
@@ -127,8 +128,12 @@ from .const import (
     MQTT_SILENT_MIN_QUERIES,
     REACHABLE_PUSH_WINDOW,
     PTREAL_DREAMVIEW_SKUS,
+    PTREAL_LIGHT_ZONE_SKUS,
     PTREAL_MAIN_PANEL_BIT,
+    PTREAL_RING_MASK,
     PTREAL_SEGMENT_SKUS,
+    PTREAL_ZONE_MAX_KELVIN,
+    PTREAL_ZONE_MIN_KELVIN,
     RECENT_COMMAND_WINDOW_SECONDS,
     resolve_fahrenheit_conversion,
 )
@@ -168,9 +173,13 @@ from .models.commands import (
     create_dreamview_command,
 )
 from .api.ble_packet import (
+    LIGHT_ZONE_MAIN,
+    LIGHT_ZONE_RING,
+    build_light_zone_ptreal,
     build_packet,
     build_segment_brightness_ptreal,
     build_segment_color_ptreal,
+    build_segment_color_temp_ptreal,
     calculate_checksum,
     encode_packet_base64,
     music_v3_effect_code,
@@ -183,12 +192,14 @@ from .api.probe_thermometer import (
     probes_for_sku,
 )
 from .models.device import (
+    INSTANCE_BACKGROUND_LIGHT_TOGGLE,
     INSTANCE_DREAMVIEW,
     INSTANCE_FAN_OSCILLATE,
     INSTANCE_FAN_SPEED_MODE,
     INSTANCE_FAN_TOGGLE,
     INSTANCE_HDMI_SOURCE,
     INSTANCE_HUMIDITY,
+    INSTANCE_MAIN_LIGHT_TOGGLE,
     INSTANCE_REVERSE_AIRFLOW,
     INSTANCE_THERMOSTAT_TOGGLE,
     MAINS_POWERED_BATTERY_SKUS,
@@ -209,6 +220,12 @@ from .repairs import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Toggle instance -> ``33 30`` zone byte for PTREAL_LIGHT_ZONE_SKUS (issue #223).
+_PTREAL_LIGHT_ZONES: Final = {
+    INSTANCE_MAIN_LIGHT_TOGGLE: LIGHT_ZONE_MAIN,
+    INSTANCE_BACKGROUND_LIGHT_TOGGLE: LIGHT_ZONE_RING,
+}
 
 # API calls held back from the segment re-assert so a many-coloured ring on a
 # frequently toggled panel cannot exhaust the account's budget. Govee allows
@@ -3702,6 +3719,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         state.update_from_mqtt(state_data, ceiling_fan=ceiling_fan)
         if ceiling_fan:
             state.update_ceiling_fan_from_frames(self._op_frames_from(state_data))
+        # Ceiling Light Pro zones (H1252) report main panel / ring on-off only
+        # in an ``aa 30`` frame (issue #223).
+        if device is not None and device.sku.upper() in PTREAL_LIGHT_ZONE_SKUS:
+            state.update_light_zones_from_frames(self._op_frames_from(state_data))
         if device is not None and device.supports_pump_state:
             frames = self._op_frames_from(state_data)
             state.update_pump_state_from_frames(frames)
@@ -5002,38 +5023,104 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         *,
         rgb: RGBColor | None = None,
         brightness: int | None = None,
+        kelvin: int | None = None,
     ) -> bool:
-        """Write the H1232 main panel's colour and/or brightness over ptReal.
+        """Write the Ceiling Light Pro main panel's colour, colour temperature and/or brightness over ptReal.
 
         The main panel is internal segment 17 (bit ``PTREAL_MAIN_PANEL_BIT``),
         not a ring segment, so it has no Platform-API equivalent and is
         reachable only through the masked ptReal frames in ``api/ble_packet.py``
         (issue #223). Returns False when the SKU is not in
-        ``PTREAL_MAIN_PANEL_BIT``, the BLE passthrough is down, or either
-        frame fails to send; True only if every requested frame sent.
+        ``PTREAL_MAIN_PANEL_BIT``, the BLE passthrough is down, or any frame
+        fails to send; True only if every requested frame sent.
         """
         device = self._devices.get(device_id)
         if not device or device.sku.upper() not in PTREAL_MAIN_PANEL_BIT:
             return False
+        mask = 1 << PTREAL_MAIN_PANEL_BIT[device.sku.upper()]
+        return await self._async_set_ptreal_zone(device, mask, rgb=rgb, brightness=brightness, kelvin=kelvin)
+
+    async def async_set_ring(
+        self,
+        device_id: str,
+        *,
+        rgb: RGBColor | None = None,
+        brightness: int | None = None,
+        kelvin: int | None = None,
+    ) -> bool:
+        """Write the whole RGBIC ring of a ``PTREAL_LIGHT_ZONE_SKUS`` fixture over ptReal.
+
+        One masked frame per value covers every ring segment
+        (``PTREAL_RING_MASK``, bits 0-15), so the ring changes in one step and
+        the main panel's bit is never set (issue #223). Returns False when
+        the SKU is not in ``PTREAL_LIGHT_ZONE_SKUS``, the BLE passthrough is
+        down, or any frame fails to send.
+        """
+        device = self._devices.get(device_id)
+        if not device or device.sku.upper() not in PTREAL_LIGHT_ZONE_SKUS:
+            return False
+        return await self._async_set_ptreal_zone(
+            device, PTREAL_RING_MASK, rgb=rgb, brightness=brightness, kelvin=kelvin
+        )
+
+    async def _async_set_ptreal_zone(
+        self,
+        device: GoveeDevice,
+        mask: int,
+        *,
+        rgb: RGBColor | None,
+        brightness: int | None,
+        kelvin: int | None,
+    ) -> bool:
+        """Send the masked ptReal colour, colour-temperature and brightness frames for one zone."""
         if not self._ble_manager.available:
             return False
-
-        mask = 1 << PTREAL_MAIN_PANEL_BIT[device.sku.upper()]
-
+        frames: list[list[int]] = []
         if rgb is not None:
-            packet = build_packet(build_segment_color_ptreal(rgb, mask))
-            sent = await self._ble_manager.async_send_ble_packet(device_id, device.sku, encode_packet_base64(packet))
-            if not sent:
-                return False
-            self._record_transport_send(device_id, "mqtt")
-
+            frames.append(build_segment_color_ptreal(rgb, mask))
+        if kelvin is not None:
+            kelvin = max(PTREAL_ZONE_MIN_KELVIN, min(PTREAL_ZONE_MAX_KELVIN, kelvin))
+            r, g, b = color_util.color_temperature_to_rgb(kelvin)
+            white = RGBColor(r=round(r), g=round(g), b=round(b))
+            frames.append(build_segment_color_temp_ptreal(kelvin, white, mask))
         if brightness is not None:
-            packet = build_packet(build_segment_brightness_ptreal(brightness, mask))
-            sent = await self._ble_manager.async_send_ble_packet(device_id, device.sku, encode_packet_base64(packet))
+            frames.append(build_segment_brightness_ptreal(brightness, mask))
+        for data in frames:
+            packet = build_packet(data)
+            sent = await self._ble_manager.async_send_ble_packet(
+                device.device_id, device.sku, encode_packet_base64(packet)
+            )
             if not sent:
                 return False
-            self._record_transport_send(device_id, "mqtt")
+            self._record_transport_send(device.device_id, "mqtt")
+        return True
 
+    async def _try_ptreal_light_zone(self, device_id: str, device: GoveeDevice, command: ToggleCommand) -> bool:
+        """Switch a Ceiling Light Pro zone with the app's ``33 30`` frame (issue #223).
+
+        The SKUs in ``PTREAL_LIGHT_ZONE_SKUS`` accept ``mainLightToggle`` /
+        ``backgroundLightToggle`` over REST with HTTP 200 and then ignore
+        them. Returns False, leaving REST to carry the command, when the SKU
+        or toggle is not affected or the passthrough is down or fails.
+        """
+        zone = _PTREAL_LIGHT_ZONES.get(command.toggle_instance)
+        if zone is None or device.sku.upper() not in PTREAL_LIGHT_ZONE_SKUS or not self._ble_manager.available:
+            return False
+        packet = build_packet(build_light_zone_ptreal(zone, command.enabled))
+        ok = await self._ble_manager.async_send_ble_packet(device_id, device.sku, encode_packet_base64(packet))
+        self._record_local_command(
+            device_id,
+            device.sku,
+            "mqtt",
+            command,
+            delivered=ok,
+            detail=f"ptReal 33 30 {zone:02x} {int(command.enabled):02x}",
+        )
+        if not ok:
+            return False
+        self._record_transport_send(device_id, "mqtt")
+        self._apply_optimistic_update(device_id, command)
+        self.async_set_updated_data(self._states)
         return True
 
     async def _try_mqtt_music_mode(self, device_id: str, device: GoveeDevice, command: MusicModeCommand) -> bool:
@@ -5158,6 +5245,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # LAN unavailable / unconfirmed — fall through to MQTT/REST.
 
             if isinstance(command, MusicModeCommand) and await self._try_mqtt_music_mode(device_id, device, command):
+                return True
+
+            if isinstance(command, ToggleCommand) and await self._try_ptreal_light_zone(device_id, device, command):
                 return True
 
             # MQTT-native control tier: when enabled and connected, push
