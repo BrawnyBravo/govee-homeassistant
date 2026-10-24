@@ -23,3 +23,5 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-24T11:56:48Z verify T-004 ok=true (#238, #259 merged; #238 body Fixes->Refs #237 so #237 stays open; CI green on 8f6b7ea)
 ## 2026-10-24T11:57:14Z build T-005 start (attempt 1); main thread; flap fix lives in coordinator.py (scope+coordinator.py, tests/test_leak_mqtt_stamps.py)
 ## 2026-10-24T12:02:36Z verify T-005 ok=true (#253, #257 merged; flap fix requires dry > max(mqtt wet, cloud last_wet); #253 isfinite guard; CI green on fbeab40)
+## 2026-10-24T12:03:03Z build T-006 start (attempt 1); main thread; fork PR gated locally
+## 2026-10-24T12:08:16Z verify T-006 ok=true (#248 merged; raw HomeAssistantError -> segment_passthrough_failed translation key; CI green)
