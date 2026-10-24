@@ -34,6 +34,7 @@ from .api import (
     GoveeAwsIotClient,
     GoveeConnectionError,
     GoveeDeviceNotFoundError,
+    GoveeDeviceOfflineError,
     GoveeIotCredentials,
     GoveeRateLimitError,
 )
@@ -5199,6 +5200,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         except GoveeAuthError as err:
             self._record_transport_failure(device_id, "cloud_api", "auth_failed")
             raise ConfigEntryAuthFailed("Invalid API key") from err
+        except GoveeDeviceOfflineError as err:
+            self._mark_device_offline(device_id, err)
+            return False
         except GoveeApiError as err:
             _LOGGER.error("Control command failed: %s", err)
             self._record_transport_failure(device_id, "cloud_api", str(err))
@@ -5206,6 +5210,20 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         finally:
             if is_power_off:
                 self._pending_power_off.discard(device_id)
+
+    def _mark_device_offline(self, device_id: str, err: GoveeDeviceOfflineError) -> None:
+        """Govee refused a command because the device is offline: show it now (#242).
+
+        The entity then raises the translated ``device_offline`` error instead
+        of the generic one; the next poll or push that says otherwise brings the
+        device back.
+        """
+        _LOGGER.warning("Govee reports %s offline; command not delivered (%s)", device_id, err)
+        self._record_transport_failure(device_id, "cloud_api", "device_offline")
+        state = self._states.get(device_id)
+        if state is not None and state.online:
+            state.online = False
+            self.async_set_updated_data(self._states)
 
     def _maybe_schedule_humidity_verification(
         self, device_id: str, device: GoveeDevice, command: DeviceCommand
@@ -5314,6 +5332,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             except GoveeAuthError:
                 self._record_transport_failure(device_id, "cloud_api", "auth_failed")
                 raise
+            except GoveeDeviceOfflineError as err:
+                self._mark_device_offline(device_id, err)
+                return False
             except GoveeApiError as err:
                 _LOGGER.error("Segment command failed for %s: %s", device_id, err)
                 self._record_transport_failure(device_id, "cloud_api", str(err))

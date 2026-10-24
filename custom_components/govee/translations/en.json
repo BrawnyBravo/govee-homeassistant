@@ -637,6 +637,9 @@
     "command_failed": {
       "message": "Govee did not accept the command for {device}. Check the device's connectivity and the API rate limit, then try again."
     },
+    "device_offline": {
+      "message": "Govee reports {device} as offline, so it did not receive the command. Check that the device has power and a Wi-Fi connection, then try again."
+    },
     "device_not_found": {
       "message": "No loaded Govee device matches {device_id}."
     },

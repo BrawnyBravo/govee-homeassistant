@@ -26,6 +26,7 @@ from .exceptions import (
     GoveeAuthError,
     GoveeConnectionError,
     GoveeDeviceNotFoundError,
+    GoveeDeviceOfflineError,
     GoveeRateLimitError,
 )
 
@@ -104,6 +105,11 @@ def _parse_retry_after(value: str | None) -> float | None:
     if not math.isfinite(seconds) or seconds <= 0:
         return None
     return min(seconds, MAX_RETRY_AFTER_SECONDS)
+
+
+def _is_offline_message(message: object) -> bool:
+    """Whether Govee's error text says the device is offline (#242)."""
+    return isinstance(message, str) and "offline" in message.lower()
 
 
 class GoveeApiClient:
@@ -460,6 +466,8 @@ class GoveeApiClient:
             # Check for "devices not exist" error (expected for groups)
             if "not exist" in message.lower():
                 raise GoveeDeviceNotFoundError(message)
+            if _is_offline_message(message):
+                raise GoveeDeviceOfflineError(message, code=400)
             raise GoveeApiError(message, code=400)
 
         if response.status >= 400:
@@ -472,6 +480,8 @@ class GoveeApiClient:
             message = data.get("message") or data.get("msg", f"API error code {code}")
             if code == 401:
                 raise GoveeAuthError(message)
+            if _is_offline_message(message):
+                raise GoveeDeviceOfflineError(message, code=code)
             raise GoveeApiError(message, code=code)
 
         return data
