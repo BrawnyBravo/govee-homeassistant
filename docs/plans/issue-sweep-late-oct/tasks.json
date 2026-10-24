@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T12:20:22Z",
+  "updated": "2026-10-24T12:33:52Z",
   "tasks": [
     {
       "id": "T-001",
@@ -728,11 +728,53 @@
           "timeout": 600
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T12:33:52Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "git merge-base --is-ancestor refs/pr/247 HEAD",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:33:27Z"
+          },
+          {
+            "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #247'",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:33:27Z"
+          },
+          {
+            "cmd": "grep -q 'POWER_MONITORING_STATUS_INTERVAL' custom_components/govee/const.py",
+            "exit": 0,
+            "duration_ms": 4,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:33:27Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider",
+            "exit": 0,
+            "duration_ms": 24182,
+            "tail": "sts/test_probe_thermometer_integration.py .......................      [ 88%]\ntests/test_pump_state.py ............................                    [ 88%]\ntests/test_purifier.py ....................                              [ 89%]\ntests/test_rate_limit_header_backoff.py ..............                   [ 89%]\ntests/test_rate_limit_sensor.py .....                                    [ 89%]\ntests/test_reconfigure_credentials.py ....                               [ 90%]\ntests/test_release_workflow.py ......................................... [ 91%]\n............                                                             [ 91%]\ntests/test_repairs.py ..........                                         [ 91%]\ntests/test_request_budget.py ...........                                 [ 91%]\ntests/test_request_counts_persist.py ............                        [ 92%]\ntests/test_scene_cache.py .................                              [ 92%]\ntests/test_segment.py .............                                      [ 93%]\ntests/test_services.py ....................                              [ 93%]\ntests/test_setup_entry.py ....................                           [ 94%]\ntests/test_setup_entry_account.py .........                              [ 94%]\ntests/test_sweep_followups_2026_09.py ............                       [ 94%]\ntests/test_sweep_followups_2026_09b.py ..........................        [ 95%]\ntests/test_thermometer.py .............................................. [ 96%]\n...............................................                          [ 97%]\ntests/test_translations.py ..................                            [ 98%]\ntests/test_transport_health.py .....................................     [ 99%]\ntests/test_update_listener.py ....                                       [ 99%]\ntests/test_water_leak.py ...........................                     [100%]\n\n============================ 3830 passed in 22.51s =============================",
+            "recorded_at": "2026-10-24T12:33:51Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+            "exit": 0,
+            "duration_ms": 964,
+            "tail": "Success: no issues found in 46 source files\nAll done! ✨ 🍰 ✨\n161 files would be left unchanged.",
+            "recorded_at": "2026-10-24T12:33:52Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Fork PR, no CI. Conflicts with #250 in coordinator.py. Keep the _status_queries_refused check (#259) in the top guard of _poll_mqtt_status so it also stops the 60 s H5086 tick (security-prs.md merge note), and the tick must skip MQTT_STATUS_QUERY_EXCLUDED_SKUS. Risk to note in the merge body: energy sensor state_class total_increasing -> total + last_reset for existing users. Optional LOW: tolerate naive datetimes in restored extra data."
     },
