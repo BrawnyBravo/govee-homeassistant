@@ -17,6 +17,9 @@ CONF_ENABLE_SCENES: Final = "enable_scenes"
 CONF_ENABLE_DIY_SCENES: Final = "enable_diy_scenes"
 CONF_EXPOSE_TRANSPORT_ENTITIES: Final = "expose_transport_entities"
 CONF_ENABLE_MQTT_CONTROL: Final = "enable_mqtt_control"
+# Display labels for H7175 custom slots, set in the options flow:
+# {device_id: {"custom_1": "Herbal tea", ...}}. The mode state stays custom_N.
+CONF_KETTLE_SLOT_LABELS: Final = "kettle_slot_labels"
 
 # Standalone water-detector (H5054) leak-poll interval (seconds). These RF-only
 # sensors deliver their trip only via the account warnMessage history (issue
@@ -317,6 +320,12 @@ KETTLE_HEATING_TOLERANCE: Final = 2
 # How long a value an H7175 pushed, or a command set, is kept over cloud
 # reads that disagree (the cloud lags the kettle by several seconds).
 KETTLE_PROTECT_SECONDS: Final = 45
+# Diagnostics: per kind of H7175 status frame, how many of the latest
+# distinct ones are kept.
+KETTLE_FRAME_HISTORY_PER_KIND: Final = 10
+# ...and how many kinds at most: the kind comes from the frame's first bytes,
+# so a stream of unexpected frames must not grow the history without bound.
+KETTLE_FRAME_KINDS_MAX: Final = 32
 
 # How long a device must have been off with no observed state change before
 # its poll cadence is stretched. Half an hour: long enough that a light
@@ -583,3 +592,5 @@ SUFFIX_KETTLE_KEEP_WARM_MINUTES: Final = "_kettle_keep_warm_minutes"
 SUFFIX_KETTLE_KEEP_WARM_REMAINING: Final = "_kettle_keep_warm_remaining"
 SUFFIX_KETTLE_DIY_SLOT: Final = "_kettle_diy_slot"
 SUFFIX_KETTLE_BREW_MODE: Final = "_kettle_brew_mode"
+SUFFIX_KETTLE_ON_BASE: Final = "_kettle_on_base"
+SUFFIX_KETTLE_BUTTON: Final = "_kettle_button"

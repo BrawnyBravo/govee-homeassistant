@@ -48,7 +48,7 @@ custom_components/govee/
 ├── ble_advertisement.py     # Bluetooth advertisement correlation and enrolment
 ├── ble_passthrough.py       # BLE frames tunnelled over AWS IoT
 ├── kettle/                  # H7175 kettle: frame decoder, coordinator-owned push and poll rules,
-│                            #   brew modes, status entities
+│                            #   brew modes, kettle entities, custom-slot labels
 ├── const.py                 # Constants, SKU lists, option keys and ranges
 ├── manifest.json            # Metadata, requirements, Bluetooth matchers
 ├── strings.json             # UI strings (mirrored in translations/en.json; ca and es partial)
@@ -184,7 +184,7 @@ entity action → _async_send_command(command)
 | `number` | Music sensitivity, heater target temperature, probe alarm limits |
 | `sensor` | Temperature, humidity, probe temperatures, battery, filter life, AQI, CO2, dehumidifier mode, kettle temperature, kettle heating status, keep-warm duration and DIY slot, connection mode, and diagnostic timestamps; hub-level rate limit and MQTT status |
 | `binary_sensor` | Device connectivity, per-transport connectivity (opt-in), water tank full, pump state, kettle keep warm, water leak, occupancy, leak sensor and hub online |
-| `event` | Leak sensor button press |
+| `event` | Leak sensor button press; H7175 kettle button |
 | `button` | Refresh scenes, clear water alert |
 
 Every platform declares `PARALLEL_UPDATES = 0`; the coordinator paces writes. Noisy diagnostics (rate limit, last update, last command, MQTT received, leak addresses) are disabled by default.
