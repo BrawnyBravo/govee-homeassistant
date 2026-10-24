@@ -263,6 +263,14 @@ def _leak_sensor_diag(sensor: Any) -> dict[str, Any]:
     return {**dataclasses.asdict(sensor), "name": REDACTED}
 
 
+def _command_confirm_diag(coordinator: GoveeCoordinator) -> dict[str, Any] | None:
+    """The confirm counters with device ids hashed, or None while the option is off."""
+    counters = coordinator.command_confirm_counters
+    if not isinstance(counters, dict):
+        return None
+    return _anonymize_device_keys(counters)
+
+
 def _runtime_diag(coordinator: GoveeCoordinator) -> dict[str, Any]:
     """Integration-wide runtime signals shared by entry + device diagnostics."""
     mqtt_client = coordinator.mqtt_client
@@ -322,6 +330,10 @@ def _runtime_diag(coordinator: GoveeCoordinator) -> dict[str, Any]:
         # alone, without asking the user to enable debug logging. The
         # "device" key in each record is redacted like everything else.
         "recent_commands": coordinator.api_client.recent_commands,
+        # Confirm-and-resend counters per light (confirm_commands option, #245):
+        # confirmed, resent, unconfirmed, unverified, skipped_budget,
+        # superseded. None while the option is off.
+        "command_confirm": _command_confirm_diag(coordinator),
         # PII-free census of the BFF device list — shows whether the BFF API
         # returns a given leak SKU and if it carries discovery fields (#87).
         "bff_device_census": coordinator.bff_device_census,

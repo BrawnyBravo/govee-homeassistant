@@ -160,6 +160,7 @@ After setup, open **Settings** > **Devices & services** > **Govee Cloud Integrat
 | **Enable DIY scene selector** | `on` | Create a per‑device dropdown for your DIY scenes. |
 | **Expose per‑device transport connectivity sensors** | `off` | Add diagnostic binary sensors showing each device's MQTT/BLE/LAN reachability. |
 | **Send power, brightness, and color over MQTT (faster, experimental)** | `off` | Routes those commands through Govee's MQTT channel instead of the REST API — lower latency, bypasses REST rate limits. Requires account login; falls back to REST automatically. Uses an undocumented channel, so leave off if commands misbehave. |
+| **Confirm light commands and resend dropped ones** | `off` | After a power-off, brightness, colour or colour-temperature command to a light, waits a few seconds for the light's own AWS IoT report and resends the command once over the cloud API if it still shows the old value. See [Confirming light commands](#confirming-light-commands-confirm_commands). |
 | **LAN device addresses / subnets (advanced)** | *(blank)* | Only needed when LAN‑enabled devices sit on a different subnet/VLAN than Home Assistant. Comma‑separated IPs, broadcast addresses, and/or CIDR subnets (/24 or smaller). Leave blank when everything shares HA's network — discovery is automatic. Enter `off` to disable LAN discovery and local control entirely. Pin a device with `device_id=ip` (for example `AA:BB:CC:DD:EE:FF:00:11=10.20.0.51`) when its scan reply cannot cross the VLAN; add a trailing `!` only for firmware that accepts LAN commands but never answers a status read, which turns off the LAN health checks for that device. |
 
 RGBIC devices get a second step after submitting, where you choose a **segment mode** for each device individually — see [Segments](#rgbic-segment-control).
@@ -179,6 +180,17 @@ This matters beyond speed: Govee's cloud sometimes answers a color command with 
 **Command routing.** Each command takes the fastest transport that can carry it *and confirm it*, falling back automatically: **BLE → LAN → MQTT → cloud REST**. LAN carries power, brightness, color and color temperature — exactly the four values a device reports back, which is what makes verify‑by‑read possible. MQTT (opt‑in) carries power, brightness and color. Direct BLE control is deliberately limited to the models confirmed to honour it: the H6199, and the H1270 over the encrypted BLE transport its firmware requires. Other models (the H6072 among them) advertise Bluetooth but silently drop writes, so they are never sent BLE commands. Everything else — scenes, segments, music mode, work modes, toggles — always goes over the cloud API, with one exception: Tower Fan 2 (H7105/H7107) oscillation goes over the AWS IoT session when account login is configured, because the cloud toggle is a no-op on those fans.
 
 Commands always use optimistic updates, so the UI reflects your action immediately and reconciles with the next confirmed state. MQTT publishes are acknowledged by the broker (QoS 1); an unacknowledged send falls through to REST rather than being reported as success.
+
+### Confirming light commands (`confirm_commands`)
+
+Govee's cloud occasionally answers a command with `success` and never delivers it, and an MQTT publish is never acknowledged by the device. LAN writes are already read back; turning on **Confirm light commands and resend dropped ones** gives cloud and MQTT commands to lights the same safety net:
+
+- After a power-off, brightness, colour or colour-temperature command, the integration waits a few seconds for the light's own AWS IoT report and, if none arrives, sends it **one** status query (subject to the same rules as the periodic re-query).
+- If the report still shows the value from before the command, the command is **resent once** over the cloud API. A resend is never confirmed again, and it is skipped when it would not fit the daily request budget or the per-minute reserve, or while a 429 back-off is active.
+- If something else changed the light in the meantime (the app, a button), nothing is resent.
+- **Lights only.** Kettles, heaters, humidifiers, fans and other appliances are never resent, groups are skipped, and a power-on is never resent.
+
+The cost is one status query per light command and, only for a dropped command, one extra cloud request. It needs account login, and lights that have not reported over AWS IoT yet are left as they are. Counters (`confirmed`, `resent`, `unconfirmed`, `unverified`, `skipped_budget`, `superseded`) per light appear under `command_confirm` in the diagnostics download.
 
 ---
 

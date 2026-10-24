@@ -75,6 +75,7 @@ def _coordinator_stub(**overrides):
     coordinator.lan_unmatched_count = 0
     coordinator.mqtt_status_query_strikes = []
     coordinator.mqtt_status_queries_refused = False
+    coordinator.command_confirm_counters = None
     for key, value in overrides.items():
         setattr(coordinator, key, value)
     return coordinator
@@ -1088,3 +1089,18 @@ async def test_user_chosen_names_are_redacted_everywhere() -> None:
     (leak,) = entry_out["leak_sensors"].values()
     assert leak["sensor"]["name"] == "**REDACTED**"
     assert leak["sensor"]["sku"] == "H5058"
+
+
+@pytest.mark.asyncio
+async def test_command_confirm_counters_with_the_id_redacted() -> None:
+    """confirm_commands (#245): counters per light, device ids hashed; None while off."""
+    counts = {"confirmed": 3, "resent": 1, "unconfirmed": 0, "unverified": 2, "skipped_budget": 0, "superseded": 1}
+    coordinator = _coordinator_stub(command_confirm_counters={"03:9C:DC:06:75:4B:10:7C": counts})
+
+    out = await async_get_config_entry_diagnostics(MagicMock(), _entry_stub(coordinator))
+
+    assert out["command_confirm"] == {_anonymize_device_id("03:9C:DC:06:75:4B:10:7C"): counts}
+    assert "03:9C:DC" not in str(out["command_confirm"])
+
+    off = await async_get_config_entry_diagnostics(MagicMock(), _entry_stub(_coordinator_stub()))
+    assert off["command_confirm"] is None
