@@ -1360,8 +1360,10 @@ class TestH8057SegmentColor:
         _add(coord, _h8057())
         coord._ble_manager = _ble_manager(available=available, result=False)
 
-        with pytest.raises(HomeAssistantError, match="H8057 Segment 4.*AWS IoT"):
+        with pytest.raises(HomeAssistantError) as err:
             await coord.async_control_device(DEV, SegmentColorCommand(segment_indices=(3,), color=RGBColor(1, 2, 3)))
+
+        assert err.value.translation_key == "segment_passthrough_failed"
 
         coord._api_client.control_device.assert_not_awaited()
         assert coord._ble_manager.async_send_ble_packet.await_count == int(available)
@@ -1392,8 +1394,9 @@ class TestH8057SegmentColor:
         if private_ok:
             assert await coord.async_control_device(DEV, command) is rest_ok
         else:
-            with pytest.raises(HomeAssistantError, match="Other requested segments may already have changed"):
+            with pytest.raises(HomeAssistantError) as err:
                 await coord.async_control_device(DEV, command)
+            assert err.value.translation_key == "segment_passthrough_failed"
 
         assert events == ["rest", "private"]
         assert _sent(coord) == [SegmentColorCommand(segment_indices=(0, 1, 2), color=command.color)]
@@ -1408,8 +1411,9 @@ class TestH8057SegmentColor:
         _add(coord, _h8057())
         coord._ble_manager = _ble_manager(available=False)
         command = SegmentColorCommand(segment_indices=(3, 1), color=RGBColor(1, 2, 3))
-        with pytest.raises(HomeAssistantError, match="AWS IoT"):
+        with pytest.raises(HomeAssistantError) as err:
             await coord.async_control_device(DEV, command)
+        assert err.value.translation_key == "segment_passthrough_failed"
         assert _sent(coord) == [SegmentColorCommand(segment_indices=(1,), color=command.color)]
         coord._ble_manager.async_send_ble_packet.assert_not_awaited()
 

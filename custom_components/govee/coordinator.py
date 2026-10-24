@@ -4967,9 +4967,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if not sent:
             self._record_transport_failure(device_id, "mqtt", "h8057_segment_4_passthrough_failed")
             raise HomeAssistantError(
-                "H8057 Segment 4 color requires a connected AWS IoT session and a successful MQTT passthrough publish. "
-                "Check the integration's Govee account login and MQTT connection, then retry. "
-                "Other requested segments may already have changed."
+                translation_domain=DOMAIN,
+                translation_key="segment_passthrough_failed",
+                translation_placeholders={"device": device.name},
             )
 
         self._record_transport_send(device_id, "mqtt")

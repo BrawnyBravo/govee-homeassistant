@@ -552,6 +552,9 @@
     },
     "ptreal_unavailable": {
       "message": "Could not send the raw ptReal frame to {device}. This requires the account (email/password) login with AWS IoT connected, and the device must not be a group."
+    },
+    "segment_passthrough_failed": {
+      "message": "Segment 4 of {device} can only be set over the AWS IoT passthrough, which is not connected or did not accept the command. Check the Govee account login and MQTT connection, then try again. Other requested segments may already have changed."
     }
   },
   "issues": {
