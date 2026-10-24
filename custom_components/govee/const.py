@@ -17,6 +17,9 @@ CONF_ENABLE_SCENES: Final = "enable_scenes"
 CONF_ENABLE_DIY_SCENES: Final = "enable_diy_scenes"
 CONF_EXPOSE_TRANSPORT_ENTITIES: Final = "expose_transport_entities"
 CONF_ENABLE_MQTT_CONTROL: Final = "enable_mqtt_control"
+# Confirm light commands against the device's AWS IoT report and resend a
+# dropped one once (command_confirm.py, #245).
+CONF_CONFIRM_COMMANDS: Final = "confirm_commands"
 # Display labels for H7175 custom slots, set in the options flow:
 # {device_id: {"custom_1": "Herbal tea", ...}}. The mode state stays custom_N.
 CONF_KETTLE_SLOT_LABELS: Final = "kettle_slot_labels"
@@ -265,6 +268,7 @@ DEFAULT_ENABLE_DIY_SCENES: Final = True
 DEFAULT_SEGMENT_MODE: Final = "individual"  # "disabled", "grouped", or "individual"
 DEFAULT_EXPOSE_TRANSPORT_ENTITIES: Final = False
 DEFAULT_ENABLE_MQTT_CONTROL: Final = False
+DEFAULT_CONFIRM_COMMANDS: Final = False
 DEFAULT_API_TEMPERATURE_UNIT: Final = "auto"
 DEFAULT_LAN_TARGETS: Final = ""
 DEFAULT_WATER_DETECTOR_POLL_INTERVAL: Final = 120  # seconds (2 minutes)

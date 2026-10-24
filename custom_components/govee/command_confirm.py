@@ -168,7 +168,7 @@ def eligible(device: GoveeDevice | None, command: DeviceCommand) -> bool:
 
 
 @dataclass
-class _Pending:
+class PendingConfirm:
     """One command waiting for its confirmation."""
 
     device_id: str
@@ -196,10 +196,10 @@ class CommandConfirmer:
         self._hooks = hooks
         self._window = window
         self._query_wait = min(query_wait, window)
-        self._pending: dict[tuple[str, str], _Pending] = {}
+        self._pending: dict[tuple[str, str], PendingConfirm] = {}
         self._counters: dict[str, dict[str, int]] = {}
 
-    def prepare(self, device_id: str, command: DeviceCommand) -> _Pending | None:
+    def prepare(self, device_id: str, command: DeviceCommand) -> PendingConfirm | None:
         """Note a command before it is dispatched.
 
         Cancels the pending confirms it makes stale, then snapshots the
@@ -222,9 +222,9 @@ class CommandConfirmer:
         previous = state_value(state, name)
         if matches(name, previous, wanted):
             return None
-        return _Pending(device_id=device_id, command=command, field=name, wanted=wanted, previous=previous)
+        return PendingConfirm(device_id=device_id, command=command, field=name, wanted=wanted, previous=previous)
 
-    def start(self, pending: _Pending | None) -> None:
+    def start(self, pending: PendingConfirm | None) -> None:
         """Start confirming a command that was sent (``pending`` from :meth:`prepare`)."""
         if pending is None:
             return
@@ -268,7 +268,7 @@ class CommandConfirmer:
         if count:
             self._count(pending.device_id, "superseded")
 
-    async def _wait_for_report(self, pending: _Pending, seconds: float) -> None:
+    async def _wait_for_report(self, pending: PendingConfirm, seconds: float) -> None:
         if seconds <= 0 or pending.report_event.is_set():
             return
         try:
@@ -276,7 +276,7 @@ class CommandConfirmer:
         except TimeoutError:
             return
 
-    async def _async_confirm(self, pending: _Pending) -> None:
+    async def _async_confirm(self, pending: PendingConfirm) -> None:
         key = (pending.device_id, pending.field)
         try:
             await self._wait_for_report(pending, self._query_wait)
@@ -291,7 +291,7 @@ class CommandConfirmer:
             if self._pending.get(key) is pending:
                 del self._pending[key]
 
-    async def _settle(self, pending: _Pending) -> None:
+    async def _settle(self, pending: PendingConfirm) -> None:
         device_id = pending.device_id
         if not pending.has_report:
             _LOGGER.debug("No report confirmed %s on %s", pending.field, device_id)

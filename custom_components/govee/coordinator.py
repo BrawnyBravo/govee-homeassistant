@@ -11,7 +11,7 @@ import dataclasses
 import logging
 import time
 import zlib
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from datetime import datetime, timedelta, timezone
 from typing import Any, Final
 
@@ -42,6 +42,7 @@ from .api import (
 from .api.auth import GoveeAuthClient, _derive_client_id
 from .api.openapi_events import GoveeOpenApiEventClient
 from .ble_passthrough import BlePassthroughManager
+from .command_confirm import CommandConfirmer, PendingConfirm
 from .kettle.manager import KettleManager
 from .status_burst import StatusBurst
 
@@ -77,6 +78,7 @@ from .api.lan_control import command_to_lan, lan_brightness_to_device
 from .const import (
     CONF_API_TEMPERATURE_UNIT,
     CONF_EMAIL,
+    CONF_CONFIRM_COMMANDS,
     CONF_ENABLE_MQTT_CONTROL,
     CONF_DAILY_REQUEST_BUDGET,
     CONF_LAN_TARGETS,
@@ -85,6 +87,7 @@ from .const import (
     CONF_PROBE_POLL_INTERVAL,
     CONF_WATER_DETECTOR_POLL_INTERVAL,
     DEFAULT_API_TEMPERATURE_UNIT,
+    DEFAULT_CONFIRM_COMMANDS,
     DEFAULT_DAILY_REQUEST_BUDGET,
     KETTLE_FOLLOWUP_MIN_REMAINING,
     DEFAULT_ENABLE_MQTT_CONTROL,
@@ -334,6 +337,36 @@ class _LanReadOverlay:
     color_temp_kelvin: int | None
 
 
+class _ConfirmHooks:
+    """The coordinator as CommandConfirmer sees it (command_confirm.ConfirmHooks, #245)."""
+
+    def __init__(self, coordinator: GoveeCoordinator) -> None:
+        self._coordinator = coordinator
+
+    def device(self, device_id: str) -> GoveeDevice | None:
+        return self._coordinator.devices.get(device_id)
+
+    def state(self, device_id: str) -> GoveeDeviceState | None:
+        return self._coordinator.get_state(device_id)
+
+    def heard_over_mqtt(self, device_id: str) -> bool:
+        return self._coordinator._mqtt_heard_from(device_id)
+
+    async def async_request_status(self, device_id: str) -> bool:
+        # The automatic path: throttled, and off with the re-query option.
+        return await self._coordinator.async_request_status(device_id)
+
+    def resend_allowed(self) -> bool:
+        return self._coordinator.extra_cloud_read_allowed()
+
+    async def async_resend(self, device_id: str, command: DeviceCommand) -> bool:
+        return await self._coordinator._async_resend_command(device_id, command)
+
+    def create_task(self, coro: Coroutine[Any, Any, None], name: str) -> asyncio.Task[None]:
+        coordinator = self._coordinator
+        return coordinator._config_entry.async_create_background_task(coordinator.hass, coro, name)
+
+
 class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     """Coordinator for Govee device state management.
 
@@ -366,6 +399,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     _mqtt_silence_unsub: CALLBACK_TYPE | None = None
     _mqtt_silent_reconnected = False
     _mqtt_silent_reported = False
+    # Confirm-and-resend for light commands, when the option is on (#245).
+    _command_confirmer: CommandConfirmer | None = None
 
     def __init__(
         self,
@@ -464,6 +499,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         )
         # H7175 kettle pushes, unit decisions and poll rules (kettle/manager.py).
         self.kettles = KettleManager(self)
+        # Opt-in confirm-and-resend for light commands (command_confirm.py, #245).
+        self._command_confirmer = (
+            CommandConfirmer(_ConfirmHooks(self))
+            if config_entry.options.get(CONF_CONFIRM_COMMANDS, DEFAULT_CONFIRM_COMMANDS)
+            else None
+        )
         # Repeated status queries for one device (status_burst.py).
         self.status_burst = StatusBurst(self)
 
@@ -3673,6 +3714,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """
         # Anything arriving means the session is not silent (#222).
         self._note_mqtt_inbound()
+        if self._command_confirmer is not None:
+            self._command_confirmer.on_report(device_id, state_data)
         # Handle leak sensor events (from multiSync messages)
         if state_data.get("_leak_event"):
             self._handle_leak_event(state_data)
@@ -5183,14 +5226,45 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             HomeAssistantError: H8057 Segment 4 needs an AWS IoT passthrough
                 that is unavailable or failed to publish.
         """
-        success = await self._async_control_device(device_id, command)
+        confirmer = self._command_confirmer
+        # Before dispatch: a newer command makes a pending confirm stale, and
+        # the confirm compares against the value from before this one (#245).
+        pending = confirmer.prepare(device_id, command) if confirmer is not None else None
+        success = await self._async_control_device(device_id, command, confirm=pending)
         device = self._devices.get(device_id)
         if success and device is not None and device.decodes_kettle_frames:
             self.kettles.schedule_followup(device_id)
         return success
 
-    async def _async_control_device(self, device_id: str, command: DeviceCommand) -> bool:
-        """Send a command over the best transport; see :meth:`async_control_device`."""
+    async def _async_resend_command(self, device_id: str, command: DeviceCommand) -> bool:
+        """Send a command once more over the cloud API for the confirmer (#245).
+
+        Never itself confirmed and never a kettle follow-up, so a resend cannot
+        loop. Returns False on any failure.
+        """
+        device = self._devices.get(device_id)
+        if device is None:
+            return False
+        try:
+            success = await self._api_client.control_device(device_id, device.sku, command)
+        except GoveeApiError as err:
+            self._record_transport_failure(device_id, "cloud_api", str(err))
+            return False
+        if success:
+            self._record_transport_send(device_id, "cloud_api")
+            self._record_transport_success(device_id, "cloud_api")
+            self._apply_optimistic_update(device_id, command)
+            self.async_set_updated_data(self._states)
+        return bool(success)
+
+    async def _async_control_device(
+        self, device_id: str, command: DeviceCommand, *, confirm: PendingConfirm | None = None
+    ) -> bool:
+        """Send a command over the best transport; see :meth:`async_control_device`.
+
+        ``confirm`` starts only after an MQTT or REST send; the LAN tier reads
+        the device back itself.
+        """
         device = self._devices.get(device_id)
         if not device:
             _LOGGER.error("Unknown device: %s", device_id)
@@ -5267,6 +5341,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     self._record_transport_send(device_id, "mqtt")
                     self._apply_optimistic_update(device_id, command)
                     self.async_set_updated_data(self._states)
+                    self._start_confirm(confirm)
                     return True
                 # MQTT not applicable / publish failed — fall through to REST
 
@@ -5327,6 +5402,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 self._apply_optimistic_update(device_id, command)
                 self.async_set_updated_data(self._states)
                 self._maybe_schedule_humidity_verification(device_id, device, command)
+                self._start_confirm(confirm)
             else:
                 self._record_transport_failure(device_id, "cloud_api", "control_returned_false")
 
@@ -5345,6 +5421,18 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         finally:
             if is_power_off:
                 self._pending_power_off.discard(device_id)
+
+    def _start_confirm(self, pending: PendingConfirm | None) -> None:
+        """Start confirming a command that went out over MQTT or REST (#245)."""
+        if self._command_confirmer is not None:
+            self._command_confirmer.start(pending)
+
+    @property
+    def command_confirm_counters(self) -> dict[str, dict[str, int]] | None:
+        """Per-device confirm counters, or None while the option is off (diagnostics)."""
+        if self._command_confirmer is None:
+            return None
+        return self._command_confirmer.counters()
 
     def _mark_device_offline(self, device_id: str, err: GoveeDeviceOfflineError) -> None:
         """Govee refused a command because the device is offline: show it now (#242).
@@ -6432,6 +6520,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if self._mqtt_silence_unsub is not None:
             self._mqtt_silence_unsub()
             self._mqtt_silence_unsub = None
+        if self._command_confirmer is not None:
+            self._command_confirmer.cancel_all()
         self.kettles.async_shutdown()
         self.status_burst.async_shutdown()
         # Cancel BFF polling
