@@ -47,3 +47,4 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-24T13:26:47Z pause (user asked): 15/32 done. T-016 in progress on branch wip/issue-sweep-late-oct-T-016 (watchdog, repair helpers, strings; still needs the clear-on-inbound hook in _on_mqtt_state_update and tests/test_issue_222.py). Resume: git merge or cherry-pick that branch onto main, finish, verify.
 ## 2026-10-24T13:30:48Z build T-016 resume (attempt 1); WIP from wip/issue-sweep-late-oct-T-016 cherry-picked uncommitted
 ## 2026-10-24T13:38:27Z verify T-016 ok=true (mqtt_silent watchdog: 30 min after connect, >=3 queries and 0 inbound -> one forced reconnect -> non-fixable repair; clears on first inbound; never armed by refused/off sweeps; WIP branch merged and deleted; CI green)
+## 2026-10-24T13:44:25Z verify T-017 ok=true (GoveeDeviceOfflineError from body/HTTP 400 offline msg; coordinator marks online=False + notifies; entity device_offline key; CI green)

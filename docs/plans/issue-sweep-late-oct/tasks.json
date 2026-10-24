@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T13:38:20Z",
+  "updated": "2026-10-24T13:44:19Z",
   "tasks": [
     {
       "id": "T-001",
@@ -1381,11 +1381,39 @@
           "timeout": 300
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T13:44:19Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "grep -q 'class GoveeDeviceOfflineError' custom_components/govee/api/exceptions.py && grep -q '\"device_offline\"' custom_components/govee/strings.json",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T13:44:17Z"
+          },
+          {
+            "cmd": "git log --format=%s v2026.10.0..HEAD | grep -qF '(#242)'",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T13:44:17Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_issue_242.py tests/test_api_client.py tests/test_translations.py",
+            "exit": 0,
+            "duration_ms": 1710,
+            "tail": "/home/lasswellt/Projects/govee-homeassistant/.cc-sessions/venv312/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.7.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, respx-0.21.1, picked-0.5.0, aiohttp-1.0.5, socket-0.7.0, homeassistant-custom-component-0.13.205, anyio-4.15.1, syrupy-4.8.0, pytest_freezer-0.4.8, timeout-2.3.1, sugar-1.0.0, asyncio-0.24.0, requests-mock-1.12.1, github-actions-annotate-failures-0.2.0, cov-6.0.0, platformdirs-4.13.5, xdist-3.6.1\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 77 items\n\ntests/test_issue_242.py ..........                                       [ 12%]\ntests/test_api_client.py ............................................... [ 74%]\n..                                                                       [ 76%]\ntests/test_translations.py ..................                            [100%]\n\n============================== 77 passed in 0.37s ==============================",
+            "recorded_at": "2026-10-24T13:44:19Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Reporter follow-up: POST /device/control -> HTTP 200, body code 400, msg 'Device is offline. Please check the Wi-Fi connection.' Map msg/capability.state to GoveeDeviceOfflineError(GoveeApiError); async_control_device sets state.online=False, notifies, returns False; entity failure uses exceptions key device_offline. Also edits entity.py, strings.json, translations/en.json, tests/test_issue_242.py. Serialized after T-016 (strings.json) and first in the async_control_device chain T-017 -> T-020 -> T-023 (validate-plan M2). The commit touching custom_components/ must carry '(#ISSUE)' in its subject so the nightly bot replies. (#242)"
     },
