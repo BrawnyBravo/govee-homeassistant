@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T12:08:16Z",
+  "updated": "2026-10-24T12:13:49Z",
   "tasks": [
     {
       "id": "T-001",
@@ -560,11 +560,53 @@
           "timeout": 600
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T12:13:49Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "git merge-base --is-ancestor refs/pr/250 HEAD",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:13:47Z"
+          },
+          {
+            "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #250'",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:13:47Z"
+          },
+          {
+            "cmd": "grep -rq 'MAX_RETRY_AFTER_SECONDS' custom_components/govee",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T12:13:47Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q --no-cov -p no:cacheprovider tests/test_request_budget.py tests/test_daily_request_spend.py tests/test_rate_limit_header_backoff.py",
+            "exit": 0,
+            "duration_ms": 1569,
+            "tail": "/home/lasswellt/Projects/govee-homeassistant/.cc-sessions/venv312/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n============================= test session starts ==============================\nplatform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.7.0\nrootdir: /home/lasswellt/Projects/govee-homeassistant\nconfigfile: setup.cfg\nplugins: unordered-0.6.1, respx-0.21.1, picked-0.5.0, aiohttp-1.0.5, socket-0.7.0, homeassistant-custom-component-0.13.205, anyio-4.15.1, syrupy-4.8.0, pytest_freezer-0.4.8, timeout-2.3.1, sugar-1.0.0, asyncio-0.24.0, requests-mock-1.12.1, github-actions-annotate-failures-0.2.0, cov-6.0.0, platformdirs-4.13.5, xdist-3.6.1\nasyncio: mode=Mode.AUTO, default_loop_scope=None\ncollected 26 items\n\ntests/test_request_budget.py ...........                                 [ 42%]\ntests/test_daily_request_spend.py .                                      [ 46%]\ntests/test_rate_limit_header_backoff.py ..............                   [100%]\n\n============================== 26 passed in 0.32s ==============================",
+            "recorded_at": "2026-10-24T12:13:48Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+            "exit": 0,
+            "duration_ms": 929,
+            "tail": "Success: no issues found in 45 source files\nAll done! ✨ 🍰 ✨\n159 files would be left unchanged.",
+            "recorded_at": "2026-10-24T12:13:49Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. Conflict hub: lands before #255 and #247. security-prs.md #250 LOWs, apply in a follow-up commit: reject request-count buckets dated in the future; guard store.async_load() so a wrong-version/corrupt file falls back to empty instead of failing setup; cap Retry-After (MAX_RETRY_AFTER_SECONDS) and reject inf/NaN (OverflowError today)."
     },

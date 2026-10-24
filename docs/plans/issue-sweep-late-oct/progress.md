@@ -25,3 +25,5 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-24T12:02:36Z verify T-005 ok=true (#253, #257 merged; flap fix requires dry > max(mqtt wet, cloud last_wet); #253 isfinite guard; CI green on fbeab40)
 ## 2026-10-24T12:03:03Z build T-006 start (attempt 1); main thread; fork PR gated locally
 ## 2026-10-24T12:08:16Z verify T-006 ok=true (#248 merged; raw HomeAssistantError -> segment_passthrough_failed translation key; CI green)
+## 2026-10-24T12:08:33Z build T-007 start (attempt 1); main thread; LOW fixes land in api/client.py and __init__.py (scope+api/client.py)
+## 2026-10-24T12:13:49Z verify T-007 ok=true (#250 merged; Retry-After finite+capped 3600 s, future buckets dropped, Store load guarded; CI green)
