@@ -35,8 +35,16 @@ def _claude_steps(job: dict[str, Any]) -> list[dict[str, Any]]:
     return [s for s in job["steps"] if str(s.get("uses", "")).startswith("anthropics/claude-code-action")]
 
 
-def _uses_release_token(step: dict[str, Any]) -> bool:
-    return "secrets.RELEASE_TOKEN" in str(step)
+APP_TOKEN_ACTION = "actions/create-github-app-token@"
+APP_SECRETS = ("secrets.RELEASE_APP_CLIENT_ID", "secrets.RELEASE_APP_PRIVATE_KEY")
+
+
+def _mint_steps(job: dict[str, Any]) -> list[dict[str, Any]]:
+    return [s for s in job["steps"] if str(s.get("uses", "")).startswith(APP_TOKEN_ACTION)]
+
+
+def _uses_app_token(step: dict[str, Any]) -> bool:
+    return "outputs.token" in str(step.get("env", {}))
 
 
 class TestWorkflow:
@@ -48,15 +56,61 @@ class TestWorkflow:
         for name in ("gate", "preview", "publish"):
             assert _claude_steps(jobs[name]) == []
 
-    def test_release_token_only_in_publish(self, jobs: dict[str, Any]) -> None:
+    def test_no_personal_access_token(self) -> None:
+        assert "RELEASE_TOKEN" not in WORKFLOW.read_text(encoding="utf-8")
+
+    def test_app_key_only_in_publish_mint_steps(self, jobs: dict[str, Any]) -> None:
         for name in ("gate", "draft", "preview"):
-            assert "RELEASE_TOKEN" not in str(jobs[name])
+            assert "RELEASE_APP" not in str(jobs[name])
+            assert "environment" not in jobs[name]
+        publish = jobs["publish"]
+        assert publish["environment"] == "release"
+        mints = _mint_steps(publish)
+        assert [s["id"] for s in mints] == ["push-token", "release-token"]
+        for step in publish["steps"]:
+            if step in mints:
+                assert [step["with"]["client-id"], step["with"]["private-key"]] == [
+                    "${{ " + secret + " }}" for secret in APP_SECRETS
+                ]
+            else:
+                assert "RELEASE_APP" not in str(step)
         assert all("GH_TOKEN" not in job.get("env", {}) for job in jobs.values())
-        assert [s["name"] for s in jobs["publish"]["steps"] if _uses_release_token(s)] == [
-            "Bump version, push, wait for CI",
-            "Create release",
-            "Post replies",
-        ]
+
+    def test_app_tokens_are_narrowed(self, jobs: dict[str, Any]) -> None:
+        perms = {
+            s["id"]: {k: v for k, v in s["with"].items() if k.startswith("permission-")}
+            for s in _mint_steps(jobs["publish"])
+        }
+        assert perms == {
+            "push-token": {"permission-contents": "write"},
+            "release-token": {
+                "permission-contents": "write",
+                "permission-issues": "write",
+                "permission-pull-requests": "write",
+            },
+        }
+
+    def test_app_tokens_reach_only_the_writing_steps(self, jobs: dict[str, Any]) -> None:
+        steps = jobs["publish"]["steps"]
+        assert {s["name"]: s["env"] for s in steps if _uses_app_token(s)} == {
+            "Bump version, push, wait for CI": {
+                "VERSION": "${{ needs.gate.outputs.version }}",
+                "APP_SLUG": "${{ steps.push-token.outputs.app-slug }}",
+                "PUSH_TOKEN": "${{ steps.push-token.outputs.token }}",
+                "GH_TOKEN": "${{ github.token }}",
+            },
+            "Create release": {
+                "VERSION": "${{ needs.gate.outputs.version }}",
+                "GH_TOKEN": "${{ steps.release-token.outputs.token }}",
+            },
+            "Post replies": {
+                "GH_TOKEN": "${{ steps.release-token.outputs.token }}",
+                "TAG": "${{ needs.gate.outputs.tag }}",
+            },
+        }
+        names = [s.get("name") or s.get("id") for s in steps]
+        # The release token is minted after the CI wait, so the one-hour expiry never bites.
+        assert names.index("Bump version, push, wait for CI") < names.index("Mint release token")
 
     def test_publish_needs_draft_and_vets_it_before_the_bump(self, jobs: dict[str, Any]) -> None:
         publish = jobs["publish"]
@@ -103,6 +157,7 @@ class TestWorkflow:
         for job in jobs.values():
             assert set(job["permissions"].values()) == {"read"}
         assert jobs["draft"]["permissions"] == {"contents": "read"}
+        assert jobs["publish"]["permissions"] == {"contents": "read", "checks": "read"}
 
     def test_dry_run_never_publishes(self, jobs: dict[str, Any]) -> None:
         assert "inputs.dry_run" in jobs["publish"]["if"] and "!(" in jobs["publish"]["if"]

@@ -5,10 +5,14 @@ name: Daily release
 # with nothing to release exits before Claude runs.
 #
 # Secrets:
-#   RELEASE_TOKEN            fine-grained PAT of a repo admin (contents, issues,
-#                            pull requests: read/write; actions: read). An admin
-#                            push bypasses the required checks on main and, unlike
-#                            GITHUB_TOKEN, triggers CI on the version bump.
+#   RELEASE_APP_CLIENT_ID,   the govee-ha-release GitHub App, installed on this
+#   RELEASE_APP_PRIVATE_KEY  repo only. Secrets of the `release` environment,
+#                            whose deployment branches are limited to main, so
+#                            only the publish job sees them. It mints one-hour
+#                            tokens, each narrowed to the permissions its step
+#                            needs. The "Protect main" ruleset lists the App as a
+#                            bypass actor, so its push skips the required checks
+#                            and, unlike GITHUB_TOKEN, triggers CI on the bump.
 #   CLAUDE_CODE_OAUTH_TOKEN  from `claude setup-token` (or set ANTHROPIC_API_KEY
 #                            and switch the two claude-code-action inputs below).
 #
@@ -19,7 +23,7 @@ name: Daily release
 #   draft    Claude, read-only GITHUB_TOKEN, no Bash or web tools, writes only
 #            $RUNNER_TEMP/out. `--setting-sources user` ignores the repo's
 #            .claude/ settings and CLAUDE.md. Uploads notes.md + replies.json.
-#   publish  shell, RELEASE_TOKEN, fresh runner and checkout. Takes only those
+#   publish  shell, App tokens, fresh runner and checkout. Takes only those
 #            two files from draft, vets them (scripts/release_replies.py), bumps,
 #            releases, posts, closes and clears the queue.
 # Nothing Claude writes can reach a file the token job executes. The action runs
@@ -279,16 +283,20 @@ jobs:
     if: needs.gate.outputs.ship == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # GITHUB_TOKEN stays read-only; RELEASE_TOKEN goes only to the steps that need it.
+    # The App key is a secret of this environment only (deployment branches: main).
+    environment: release
+    # GITHUB_TOKEN stays read-only (checks: read for wait_checks); App tokens go only
+    # to the steps that write.
     permissions:
       contents: read
+      checks: read
     steps:
       # A fresh runner and checkout: nothing from the draft job's filesystem is here.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
           fetch-depth: 0
-          # Do not leave the admin PAT in .git/config where a later step could read it;
+          # Do not leave a token in .git/config where a later step could read it;
           # pushes use an explicit token URL instead.
           persist-credentials: false
 
@@ -301,16 +309,29 @@ jobs:
       - name: Check drafts
         run: python3 scripts/release_replies.py check-drafts "$RUNNER_TEMP/drafts"
 
+      # Tokens expire after an hour and are revoked when the job ends. The second is
+      # minted after the CI wait so the release and replies never run on a stale one.
+      - name: Mint push token
+        id: push-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
       - name: Bump version, push, wait for CI
         env:
           VERSION: ${{ needs.gate.outputs.version }}
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          APP_SLUG: ${{ steps.push-token.outputs.app-slug }}
+          PUSH_TOKEN: ${{ steps.push-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           source scripts/release_checks.sh
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          python3 - <<'EOF'
+          BOT_ID=$(gh api "users/${APP_SLUG}%5Bbot%5D" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${BOT_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
+          python3 -I - <<'EOF'
           import json, os, re
           p = "custom_components/govee/manifest.json"
           s = open(p).read()
@@ -320,13 +341,23 @@ jobs:
           EOF
           git add custom_components/govee/manifest.json
           git commit -m "chore: Bump version to $VERSION"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          git push "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
           wait_checks "$(git rev-parse HEAD)"
+
+      - name: Mint release token
+        id: release-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Create release
         env:
           VERSION: ${{ needs.gate.outputs.version }}
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
         run: |
           set -euo pipefail
           gh release create "v$VERSION" --target "$(git rev-parse HEAD)" --title "v$VERSION" --notes-file "$RUNNER_TEMP/drafts/notes.md"
@@ -334,7 +365,7 @@ jobs:
 
       - name: Post replies
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
           TAG: ${{ needs.gate.outputs.tag }}
         run: |
           set -euo pipefail
