@@ -7,6 +7,7 @@ such as music sensitivity.
 from __future__ import annotations
 
 import logging
+import math
 
 from homeassistant.components.number import (
     NumberDeviceClass,
@@ -311,7 +312,7 @@ class GoveeHeaterTemperatureNumber(GoveeEntity, RestoreNumber):
             native: float | None = float(last.native_value)
         else:
             native = await self._async_last_state_in_celsius()
-        if native is None:
+        if native is None or not math.isfinite(native):
             return
         restored = min(max(native, self.native_min_value), self.native_max_value)
         self._attr_native_value = restored

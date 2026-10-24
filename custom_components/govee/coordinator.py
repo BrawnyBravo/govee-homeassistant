@@ -2852,8 +2852,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # Skip it only when MQTT itself reported this leak wet (no earlier
             # than LEAK_MQTT_SKEW_MARGIN before the cloud's time) and later
             # reported it dry: the leak was already shown and has ended. The
-            # stamps outlive an entry reload, which resets last_mqtt_wet_at. A
-            # dry report alone never skips it, nor does an older MQTT leak.
+            # dry report must also be later than the cloud's last wet, or a
+            # wet, dry, wet flap whose second wet frame was lost would read as
+            # ended while the sensor is wet. The stamps outlive an entry
+            # reload, which resets last_mqtt_wet_at. A dry report alone never
+            # skips it, nor does an older MQTT leak.
             last_wet = sensor.get("last_wet_time") or 0
             age_ms = now_ms - last_wet if last_wet > 0 else float("inf")
             poll_window_ms = BFF_POLL_INTERVAL * 1000
@@ -2861,7 +2864,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             mqtt_at = self._leak_mqtt_at.get(device_id, {})
             mqtt_wet_ms = mqtt_at.get("wet", 0.0) * 1000
             mqtt_dry_ms = mqtt_at.get("dry", 0.0) * 1000
-            mqtt_saw_it_end = mqtt_wet_ms >= last_wet - LEAK_MQTT_SKEW_MARGIN * 1000 and mqtt_dry_ms > mqtt_wet_ms
+            mqtt_saw_it_end = mqtt_wet_ms >= last_wet - LEAK_MQTT_SKEW_MARGIN * 1000 and mqtt_dry_ms > max(
+                mqtt_wet_ms, last_wet
+            )
 
             if age_ms < poll_window_ms and mqtt_wet_age > BFF_POLL_INTERVAL and not mqtt_saw_it_end:
                 sensor_obj = self._leak_sensors.get(device_id)

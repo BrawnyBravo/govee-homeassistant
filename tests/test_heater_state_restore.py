@@ -173,6 +173,17 @@ class TestHeaterTargetRestore:
         entity = await _number(hass, _coordinator(device, _state()), device)
         assert entity.native_value == 30.0
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    async def test_non_finite_restored_value_is_skipped(self, hass: HomeAssistant, value: float):
+        """A corrupt non-finite value keeps the midpoint instead of failing the entity add."""
+        hass.config.units = METRIC_SYSTEM
+        mock_restore_cache_with_extra_data(hass, [(State(NUMBER_ID, "unknown"), _number_extra(value))])
+        device = _heater()
+        state = _state()
+        entity = await _number(hass, _coordinator(device, state), device)
+        assert entity.native_value == 17.0
+        assert state.heater_temperature is None
+
     @pytest.mark.parametrize("extra", [None, {}, {"native_value": None}])
     async def test_nothing_usable_keeps_the_midpoint(self, hass: HomeAssistant, extra):
         hass.config.units = METRIC_SYSTEM

@@ -164,6 +164,22 @@ class TestFallbackDecision:
         assert state.is_wet is True
 
     @pytest.mark.asyncio
+    async def test_leak_flap_lost_second_wet(self):
+        """Wet, dry, then wet again within the skew margin, the second wet
+        frame lost: the dry report predates the cloud's newest leak, so the
+        sensor is wet and must be forced wet.
+        """
+        coord = _coordinator(MagicMock())
+        state = _add_sensor(coord)
+        now = time.time()
+        coord._leak_mqtt_at[LEAK] = {"wet": now - 100, "dry": now - 80}
+        _bff(coord, int((now - 50) * 1000))
+
+        await coord._poll_bff_leak_state()
+
+        assert state.is_wet is True
+
+    @pytest.mark.asyncio
     async def test_still_wet_sensor_is_forced_wet_after_a_reload(self):
         """MQTT reported wet and never dry: a reload must not drop the leak."""
         coord = _coordinator(MagicMock())
