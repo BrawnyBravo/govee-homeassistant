@@ -263,6 +263,9 @@ DEFAULT_MQTT_STATUS_INTERVAL: Final = 300  # seconds (5 minutes)
 # used since the last reading before then is lost. So they are queried at the
 # app's own cadence, whatever the interval for the other devices (issue #200).
 POWER_MONITORING_STATUS_INTERVAL: Final = 60  # seconds
+# Least time between two status queries to one device outside the sweep
+# (govee.request_status, its bursts, kettle follow-ups), whichever sent them.
+REQUEST_STATUS_MIN_INTERVAL: Final = 3  # seconds
 
 # Bounds for the configurable water-detector poll interval (seconds). The lower
 # bound keeps the unverified account-API rate limit at arm's length; the upper

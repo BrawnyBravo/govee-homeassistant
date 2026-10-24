@@ -41,6 +41,7 @@ from .api.auth import GoveeAuthClient, _derive_client_id
 from .api.openapi_events import GoveeOpenApiEventClient
 from .ble_passthrough import BlePassthroughManager
 from .kettle.manager import KettleManager
+from .status_burst import StatusBurst
 
 from homeassistant.helpers.event import async_call_later
 
@@ -120,6 +121,7 @@ from .const import (
     MQTT_STATUS_QUERY_SPACING,
     OPTIMISTIC_GRACE_CAP_SECONDS,
     POWER_MONITORING_STATUS_INTERVAL,
+    REQUEST_STATUS_MIN_INTERVAL,
     PTREAL_DREAMVIEW_SKUS,
     PTREAL_MAIN_PANEL_BIT,
     PTREAL_SEGMENT_SKUS,
@@ -429,6 +431,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         )
         # H7175 kettle pushes, unit decisions and poll rules (kettle/manager.py).
         self.kettles = KettleManager(self)
+        # Repeated status queries for one device (status_burst.py).
+        self.status_burst = StatusBurst(self)
 
         # BLE direct transport — per-device GoveeBLEDevice instances
         # populated dynamically from Bluetooth advertisements.
@@ -577,6 +581,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # MQTT_STATUS_QUERY_SPACING after the publish. A session that drops
         # while this is set is blamed on that device (issue #195).
         self._status_query_in_flight: str | None = None
+        # One status query at a time, sweep or not (see async_request_status),
+        # and when each device last got one outside the sweep.
+        self._status_query_lock = asyncio.Lock()
+        self._status_request_last: dict[str, float] = {}
         # Per-device count of sessions AWS closed right after its query; at
         # MQTT_STATUS_QUERY_QUARANTINE_STRIKES the device joins the quarantine
         # and is left out of every later sweep until the entry reloads.
@@ -3399,16 +3407,19 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 topic = self._device_topics.get(device_id)
                 if not topic:
                     continue
-                self._status_query_in_flight = device_id
-                try:
-                    await client.async_publish_status_query(topic)
-                    await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
-                    if client.connected:
-                        # The session outlived this query's window, so AWS
-                        # IoT is not refusing status queries account-wide.
-                        self._status_query_unanswered_skus.clear()
-                finally:
-                    self._status_query_in_flight = None
+                # Serialised with async_request_status, so a drop is charged
+                # to the device whose query was in flight.
+                async with self._status_query_lock:
+                    self._status_query_in_flight = device_id
+                    try:
+                        await client.async_publish_status_query(topic)
+                        await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
+                        if client.connected:
+                            # The session outlived this query's window, so AWS
+                            # IoT is not refusing status queries account-wide.
+                            self._status_query_unanswered_skus.clear()
+                    finally:
+                        self._status_query_in_flight = None
         finally:
             self._status_sweep_running = False
 
@@ -3886,18 +3897,72 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if isinstance(result, GoveeDeviceState):
             self.async_update_listeners()
 
-    async def async_request_status(self, device_id: str) -> None:
-        """Ask a device to push its status over AWS IoT, if that can go out.
+    def status_query_possible(self, device_id: str) -> bool:
+        """Whether a status query may go out to the device at all.
 
-        Not while the user turned the status re-query off, nor once AWS IoT
-        refused status queries for the account or quarantined this device.
+        The same devices the sweep queries (``_mqtt_status_poll_targets``): MQTT
+        up, a topic known, not a group, the SKU not excluded and the device not
+        quarantined (#195), and AWS IoT not refusing status queries for the
+        whole account (#259).
         """
-        if not self._mqtt_status_poll_enabled or self._status_queries_refused:
-            return
         client = self._mqtt_client
-        topic = self._device_topics.get(device_id)
-        if client is not None and client.connected and topic and device_id not in self._status_query_quarantine:
-            await client.async_publish_status_query(topic)
+        device = self._devices.get(device_id)
+        return (
+            client is not None
+            and client.connected
+            and device is not None
+            and not device.is_group
+            and device.sku not in MQTT_STATUS_QUERY_EXCLUDED_SKUS
+            and bool(self._device_topics.get(device_id))
+            and device_id not in self._status_query_quarantine
+            and not self._status_queries_refused
+        )
+
+    def status_query_throttled(self, device_id: str) -> bool:
+        """Whether the device had a status query less than REQUEST_STATUS_MIN_INTERVAL ago."""
+        last = self._status_request_last.get(device_id)
+        return last is not None and time.monotonic() - last < REQUEST_STATUS_MIN_INTERVAL
+
+    async def async_request_status(self, device_id: str, *, user: bool = False) -> bool:
+        """Ask a device to push its status over AWS IoT, if that may go out now.
+
+        The one path for status queries outside the sweep (``govee.request_status``,
+        its bursts and the kettle follow-ups). An MQTT publish, not a cloud
+        request. Queries are serialised with the sweep's and each holds the
+        in-flight marker for MQTT_STATUS_QUERY_SPACING, so a session drop is
+        charged to the device that caused it (#195) and the account sees at
+        most one query a second. A device gets at most one query per
+        REQUEST_STATUS_MIN_INTERVAL, whichever caller sent the last.
+
+        Args:
+            device_id: The device to query.
+            user: The user asked for it (the service): sent even with the
+                re-query option off, and waits its turn behind a query in
+                flight rather than being skipped.
+
+        Returns:
+            True if a query was sent.
+        """
+        if not user and not self._mqtt_status_poll_enabled:
+            return False
+        if not user and self._status_query_lock.locked():
+            return False
+        async with self._status_query_lock:
+            client = self._mqtt_client
+            if client is None or not self.status_query_possible(device_id) or self.status_query_throttled(device_id):
+                return False
+            self._status_request_last[device_id] = time.monotonic()
+            self._status_query_in_flight = device_id
+            try:
+                await client.async_publish_status_query(self._device_topics[device_id])
+                await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
+                if client.connected:
+                    # As in the sweep: the session outlived this query's window.
+                    self._status_query_unanswered_skus.clear()
+            finally:
+                if self._status_query_in_flight == device_id:
+                    self._status_query_in_flight = None
+            return True
 
     async def _async_update_data(self) -> dict[str, GoveeDeviceState]:
         """Fetch state for all devices (parallel).
@@ -6141,6 +6206,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and cleanup resources."""
         self.kettles.async_shutdown()
+        self.status_burst.async_shutdown()
         # Cancel BFF polling
         if self._bff_poll_unsub:
             self._bff_poll_unsub()

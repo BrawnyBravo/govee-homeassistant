@@ -26,6 +26,13 @@ from custom_components.govee.models.device import INSTANCE_SLIDER_TEMPERATURE
 
 from .kettle_samples import DEVICE_ID, H7175_DEVICE, H7175_MQTT, H7175_STATE, H7175_STATE_MANUAL, mqtt_frames
 
+
+@pytest.fixture(autouse=True)
+def _no_query_spacing(monkeypatch):
+    """Status queries hold their slot for MQTT_STATUS_QUERY_SPACING; the frozen clock never lets that pass."""
+    monkeypatch.setattr("custom_components.govee.coordinator.MQTT_STATUS_QUERY_SPACING", 0)
+
+
 OPTIONS = [
     "custom_1",
     "custom_2",
