@@ -111,6 +111,7 @@ from .const import (
     MIN_WATER_DETECTOR_POLL_INTERVAL,
     MQTT_MUSIC_MODE_SKUS,
     MQTT_STATUS_POLL_OFF,
+    MQTT_STATUS_QUERY_ACCOUNT_REFUSAL_SKUS,
     MQTT_STATUS_QUERY_EXCLUDED_SKUS,
     MQTT_STATUS_QUERY_QUARANTINE_STRIKES,
     MQTT_STATUS_QUERY_SPACING,
@@ -537,6 +538,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # and is left out of every later sweep until the entry reloads.
         self._status_query_strikes: dict[str, int] = {}
         self._status_query_quarantine: set[str] = set()
+        # SKUs blamed for a drop since a status query last outlived its
+        # window. Once MQTT_STATUS_QUERY_ACCOUNT_REFUSAL_SKUS different ones
+        # are in it, AWS IoT is refusing status queries for the whole account,
+        # not for one device, and the sweep stops until the entry reloads.
+        self._status_query_unanswered_skus: set[str] = set()
+        self._status_queries_refused = False
         # Last seen lastTime per detector — warnMessage is only called when the
         # device has freshly reported (or is currently wet), keeping the account
         # API request count low.
@@ -3176,6 +3183,16 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         ]
 
     @property
+    def mqtt_status_queries_refused(self) -> bool:
+        """Whether the sweep stopped because AWS IoT refuses every status query.
+
+        True once the session dropped right after queries to
+        MQTT_STATUS_QUERY_ACCOUNT_REFUSAL_SKUS different SKUs with none
+        answered in between; for diagnostics.
+        """
+        return self._status_queries_refused
+
+    @property
     def mqtt_status_query_strikes(self) -> list[dict[str, Any]]:
         """Devices blamed for an AWS IoT session drop, for diagnostics (#195).
 
@@ -3233,7 +3250,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         soon as the session is gone: the reconnect runs its own. A no-op when
         the option is 0 (off) or another sweep is still in progress.
         """
-        if not self._mqtt_status_poll_enabled:
+        if not self._mqtt_status_poll_enabled or self._status_queries_refused:
             return
         client = self._mqtt_client
         if client is None or not client.connected:
@@ -3256,6 +3273,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 try:
                     await client.async_publish_status_query(topic)
                     await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
+                    if client.connected:
+                        # The session outlived this query's window, so AWS
+                        # IoT is not refusing status queries account-wide.
+                        self._status_query_unanswered_skus.clear()
                 finally:
                     self._status_query_in_flight = None
         finally:
@@ -3585,6 +3606,23 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         self._status_query_strikes[device_id] = strikes
         device = self._devices.get(device_id)
         label = f"{device.name} ({device.sku})" if device else device_id
+        self._status_query_unanswered_skus.add(device.sku if device else device_id)
+        if len(self._status_query_unanswered_skus) >= MQTT_STATUS_QUERY_ACCOUNT_REFUSAL_SKUS:
+            # Different models in a row and none answered: the account, not
+            # a device. Quarantining would only work through every device.
+            if not self._status_queries_refused:
+                self._status_queries_refused = True
+                _LOGGER.warning(
+                    "AWS IoT closed the MQTT session right after status queries to %d different "
+                    "models in a row (last: %s), with no status query answered in between, so it "
+                    "is refusing status queries for this account rather than for one device. "
+                    "Stopping the status re-query until the integration reloads; real-time updates "
+                    "stay up. Set the MQTT status re-query interval to 0 in the integration options "
+                    "to keep it off",
+                    len(self._status_query_unanswered_skus),
+                    label,
+                )
+            return
         if strikes < MQTT_STATUS_QUERY_QUARANTINE_STRIKES:
             _LOGGER.debug(
                 "AWS IoT session dropped right after the status query to %s (strike %d of %d)",

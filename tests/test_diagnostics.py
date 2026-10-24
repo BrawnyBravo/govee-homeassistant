@@ -74,6 +74,7 @@ def _coordinator_stub(**overrides):
     coordinator.lan_active_count = 0
     coordinator.lan_unmatched_count = 0
     coordinator.mqtt_status_query_strikes = []
+    coordinator.mqtt_status_queries_refused = False
     for key, value in overrides.items():
         setattr(coordinator, key, value)
     return coordinator
@@ -993,6 +994,23 @@ async def test_mqtt_status_query_strikes_ride_along_with_the_id_redacted() -> No
     assert entry["strikes"] == 2
     assert entry["quarantined"] is True
     assert entry["device_id"] == "**REDACTED**"
+    assert out["mqtt"]["status_queries_refused"] is False
+
+
+@pytest.mark.asyncio
+async def test_an_account_wide_refusal_shows_in_the_mqtt_block() -> None:
+    """The sweep stopped because AWS IoT refuses every status query on the account."""
+    mqtt_client = MagicMock()
+    mqtt_client.available = True
+    mqtt_client.connected = True
+    mqtt_client.last_messages = {}
+    mqtt_client.recent_multisync = []
+    mqtt_client.recent_probe_frames = []
+    coordinator = _coordinator_stub(mqtt_client=mqtt_client, mqtt_status_queries_refused=True)
+
+    out = await async_get_config_entry_diagnostics(MagicMock(), _entry_stub(coordinator))
+
+    assert out["mqtt"]["status_queries_refused"] is True
 
 
 @pytest.mark.asyncio
