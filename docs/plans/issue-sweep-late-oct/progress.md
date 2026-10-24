@@ -19,3 +19,5 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-23T13:31:05Z verify T-002 ok=true (all action SHAs cross-checked upstream; actionlint clean; no tracked .claude/settings)
 ## 2026-10-23T13:38:30Z T-003 settings applied via gh api (user-approved): tag ruleset 25725868 on refs/tags/v* (update+deletion, no bypass), immutable releases on, Dependabot alerts on, fork-PR approval all_external_contributors. secret_scanning_non_provider_patterns stayed disabled (plan-gated); push protection already on. Remaining: maintainer rotates RELEASE_TOKEN.
 ## 2026-10-24T11:40:46Z verify T-003 ok=true (RELEASE_TOKEN rotated by maintainer, updated_at 2026-10-24T11:40:11Z)
+## 2026-10-24T11:44:27Z build T-004 start (attempt 1); main thread (two small PRs, merges only)
+## 2026-10-24T11:56:48Z verify T-004 ok=true (#238, #259 merged; #238 body Fixes->Refs #237 so #237 stays open; CI green on 8f6b7ea)
