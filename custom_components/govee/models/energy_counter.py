@@ -156,10 +156,14 @@ class EnergyCounter:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EnergyCounter | None:
-        """Inverse of :meth:`as_dict`; None if the data doesn't fit."""
+        """Inverse of :meth:`as_dict`; None if the data doesn't fit.
+
+        Naive datetimes don't fit either: comparing them with the aware
+        current time would raise on every coordinator update.
+        """
         try:
             reboot_seen = data.get("reboot_seen")
-            return cls(
+            counter = cls(
                 last_reset=datetime.fromisoformat(data["last_reset"]),
                 updated=datetime.fromisoformat(data["updated"]),
                 energy_deciwatt_hours=int(data["energy_deciwatt_hours"]),
@@ -169,3 +173,7 @@ class EnergyCounter:
             )
         except (KeyError, TypeError, ValueError):
             return None
+        stamps = (counter.last_reset, counter.updated, counter.reboot_seen)
+        if any(stamp is not None and stamp.tzinfo is None for stamp in stamps):
+            return None
+        return counter

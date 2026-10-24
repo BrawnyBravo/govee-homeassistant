@@ -152,6 +152,13 @@ class TestSerialization:
     def test_bad_data(self, data):
         assert EnergyCounter.from_dict(data) is None
 
+    @pytest.mark.parametrize("field", ["last_reset", "updated", "reboot_seen"])
+    def test_naive_datetimes_are_rejected(self, field):
+        counter = EnergyCounter.new(START, 38910, 54568, 52410)
+        data = counter.as_dict()
+        data[field] = START.replace(tzinfo=None).isoformat()
+        assert EnergyCounter.from_dict(data) is None
+
 
 def _sensor() -> tuple[GoveeEnergySensor, GoveeDeviceState]:
     coordinator = GoveeCoordinator.__new__(GoveeCoordinator)

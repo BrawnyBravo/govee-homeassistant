@@ -368,6 +368,24 @@ class TestAccountWideRefusal:
         client.async_publish_status_query.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_refusal_also_stops_the_power_monitoring_tick(self, sleeps):
+        """The 60 s H5086 tick (#200) goes through the same guard."""
+        coord, client = _coord(devices=("A", "P"), skus={"P": "H5086"})
+        coord._status_queries_refused = True
+
+        await coord._poll_mqtt_status(power_monitoring_only=True)
+
+        client.async_publish_status_query.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_power_monitoring_tick_queries_only_outlets_and_skips_excluded(self, sleeps):
+        coord, client = _coord(devices=("A", "P", "T"), skus={"P": "H5086", "T": "H5108"})
+
+        await coord._poll_mqtt_status(power_monitoring_only=True)
+
+        assert client.async_publish_status_query.await_args_list == [call("GD/p")]
+
+    @pytest.mark.asyncio
     async def test_an_answered_query_clears_the_count(self, monkeypatch):
         """The #195 case: one model refuses, the others answer, so it stays a
         per-device quarantine however many sweeps it takes.
