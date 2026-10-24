@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T14:35:52Z",
+  "updated": "2026-10-24T14:36:59Z",
   "tasks": [
     {
       "id": "T-001",
@@ -1907,11 +1907,53 @@
           "timeout": 10
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T14:36:59Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #224'",
+            "exit": 0,
+            "duration_ms": 19,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:36:59Z"
+          },
+          {
+            "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #260'",
+            "exit": 0,
+            "duration_ms": 8,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:36:59Z"
+          },
+          {
+            "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #261'",
+            "exit": 0,
+            "duration_ms": 9,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:36:59Z"
+          },
+          {
+            "cmd": "git log -p --format= -- docs/release-replies.md | grep -q '^+## #229'",
+            "exit": 0,
+            "duration_ms": 9,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:36:59Z"
+          },
+          {
+            "cmd": "! grep -q '^## #249' docs/release-replies.md",
+            "exit": 0,
+            "duration_ms": 5,
+            "tail": "",
+            "recorded_at": "2026-10-24T14:36:59Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Uses T-001's close values. Entries: #224 close: yes (reporter confirmed probes, thank); #260 close: duplicate of #209; #209 Developer API omits the H7105 on the same account, keep open; #235 close: declined (keep-warm not taken for now, thank, #229-#234 merged); #228 which layers shipped (unconditional); PR threads the subjects don't name: #229, #230, #232, #233 (merged as ancestors of #231/#234) and #238 (thank, merged); #244 add the account login, wet test, Download diagnostics; #240 Download diagnostics (screenshots unreadable); #239 diagnostics with account login, White mode on and a normal colour; #241 diagnostics while Video Mode runs from the app; #213 diagnostics while DreamView runs from the app + the REST dreamViewToggle response body; #211 thanks for the frame table, waiting on RuslanMelnychenko's PR, third-party frames not used unverified; #261 Download diagnostics for the H1A42 + which segment lights when segment 1 is set. No #249 entry. Held PRs (#251, #252, #256) get theirs in their own merge tasks. ADDED (research gaps): #222 interim entry - the reporter asked on 2026-10-02 whether to wait or re-login and is still unanswered: advise re-entering the account login now (Reconfigure) and attaching diagnostics after an hour; say the silent-session repair is coming. Reply rule (security-kettle-ported.md F-14): no brief may give raw ptReal frames for a kettle, heater or other heating device; frames only where verified on the reporter's own model. #244 brief also notes that battery, online state and the initial leak state need the account login. #213 brief: mention the H66A0 also advertises movieMode and ask whether the app's video mode matches it."
     },
