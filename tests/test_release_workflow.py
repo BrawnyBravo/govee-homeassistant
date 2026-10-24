@@ -21,61 +21,92 @@ rr = importlib.util.module_from_spec(_spec)
 sys.modules["release_replies"] = rr
 _spec.loader.exec_module(rr)
 
-FORBIDDEN_TOOLS = ("git commit", "git push", "gh issue comment", "gh pr comment", "gh issue close")
 OUT_RULE = "Edit(/${{ runner.temp }}/out/**)"
+ALLOWED_TOOLS = ["Read", OUT_RULE]
 
 
 @pytest.fixture(scope="module")
-def job() -> dict[str, Any]:
+def jobs() -> dict[str, Any]:
     data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    return data["jobs"]["release"]
+    return data["jobs"]
 
 
 def _claude_steps(job: dict[str, Any]) -> list[dict[str, Any]]:
     return [s for s in job["steps"] if str(s.get("uses", "")).startswith("anthropics/claude-code-action")]
 
 
+def _uses_release_token(step: dict[str, Any]) -> bool:
+    return "secrets.RELEASE_TOKEN" in str(step)
+
+
 class TestWorkflow:
-    def test_no_job_level_gh_token(self, job: dict[str, Any]) -> None:
-        assert "GH_TOKEN" not in job.get("env", {})
+    def test_jobs(self, jobs: dict[str, Any]) -> None:
+        assert set(jobs) == {"gate", "draft", "preview", "publish"}
 
-    def test_two_claude_steps(self, job: dict[str, Any]) -> None:
-        assert len(_claude_steps(job)) == 2
+    def test_claude_runs_only_in_the_draft_job(self, jobs: dict[str, Any]) -> None:
+        assert len(_claude_steps(jobs["draft"])) == 2
+        for name in ("gate", "preview", "publish"):
+            assert _claude_steps(jobs[name]) == []
 
-    def test_claude_steps_hardened(self, job: dict[str, Any]) -> None:
-        for step in _claude_steps(job):
+    def test_release_token_only_in_publish(self, jobs: dict[str, Any]) -> None:
+        for name in ("gate", "draft", "preview"):
+            assert "RELEASE_TOKEN" not in str(jobs[name])
+        assert all("GH_TOKEN" not in job.get("env", {}) for job in jobs.values())
+        assert [s["name"] for s in jobs["publish"]["steps"] if _uses_release_token(s)] == [
+            "Bump version, push, wait for CI",
+            "Create release",
+            "Post replies",
+        ]
+
+    def test_publish_needs_draft_and_vets_it_before_the_bump(self, jobs: dict[str, Any]) -> None:
+        publish = jobs["publish"]
+        assert set(publish["needs"]) == {"gate", "draft"}
+        names = [s.get("name", "") for s in publish["steps"]]
+        assert names.index("Check drafts") < names.index("Bump version, push, wait for CI")
+        downloads = [s for s in publish["steps"] if str(s.get("uses", "")).startswith("actions/download-artifact")]
+        assert [d["with"]["name"] for d in downloads] == ["release-drafts"]
+
+    def test_draft_uploads_only_the_two_drafts(self, jobs: dict[str, Any]) -> None:
+        uploads = [s for s in jobs["draft"]["steps"] if str(s.get("uses", "")).startswith("actions/upload-artifact")]
+        assert len(uploads) == 1
+        assert uploads[0]["with"]["path"].splitlines() == [
+            "${{ runner.temp }}/out/notes.md",
+            "${{ runner.temp }}/out/replies.json",
+        ]
+
+    def test_claude_steps_hardened(self, jobs: dict[str, Any]) -> None:
+        for step in _claude_steps(jobs["draft"]):
             args = step["with"]["claude_args"]
             assert "--setting-sources user" in args
             assert step["with"]["github_token"] == "${{ secrets.GITHUB_TOKEN }}"
             tools = re.search(r'--allowedTools "([^"]*)"', args)
             assert tools is not None
-            entries = tools.group(1).split(",")
-            assert not {"Edit", "Write", "MultiEdit"} & set(entries)
-            assert [e for e in entries if e.startswith("Edit(")] == [OUT_RULE]
-            assert not any(e.startswith(("Write(", "MultiEdit(")) for e in entries)
-            for forbidden in FORBIDDEN_TOOLS:
-                assert forbidden not in tools.group(1)
+            assert tools.group(1).split(",") == ALLOWED_TOOLS
+            denied = re.search(r'--disallowedTools "([^"]*)"', args)
+            assert denied is not None
+            assert {"Bash", "WebFetch", "WebSearch"} <= set(denied.group(1).split(","))
             assert "--add-dir ${{ runner.temp }}/out" in args
 
-    def test_action_pinned_to_sha(self, job: dict[str, Any]) -> None:
-        for step in _claude_steps(job):
-            assert re.fullmatch(r"anthropics/claude-code-action@[0-9a-f]{40}", step["uses"])
+    def test_actions_pinned_to_sha(self, jobs: dict[str, Any]) -> None:
+        for job in jobs.values():
+            for step in job["steps"]:
+                if "uses" in step:
+                    assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", step["uses"]), step["uses"]
 
-    def test_checkout_does_not_persist_credentials(self, job: dict[str, Any]) -> None:
-        checkout = next(s for s in job["steps"] if str(s.get("uses", "")).startswith("actions/checkout"))
-        assert checkout["with"]["persist-credentials"] is False
+    def test_checkouts_do_not_persist_credentials(self, jobs: dict[str, Any]) -> None:
+        for job in jobs.values():
+            for step in job["steps"]:
+                if str(step.get("uses", "")).startswith("actions/checkout"):
+                    assert step["with"]["persist-credentials"] is False
 
-    def test_notes_written_before_bump(self, job: dict[str, Any]) -> None:
-        names = [s.get("name", "") for s in job["steps"]]
-        notes, check, bump = (
-            names.index("Write release notes"),
-            names.index("Check release notes"),
-            names.index("Bump version, push, wait for CI"),
-        )
-        assert notes < check < bump
+    def test_permissions_read_only(self, jobs: dict[str, Any]) -> None:
+        for job in jobs.values():
+            assert set(job["permissions"].values()) == {"read"}
+        assert jobs["draft"]["permissions"] == {"contents": "read"}
 
-    def test_job_permissions_read_only(self, job: dict[str, Any]) -> None:
-        assert job["permissions"] == {"contents": "read", "issues": "read", "pull-requests": "read"}
+    def test_dry_run_never_publishes(self, jobs: dict[str, Any]) -> None:
+        assert "inputs.dry_run" in jobs["publish"]["if"] and "!(" in jobs["publish"]["if"]
+        assert "inputs.dry_run" in jobs["preview"]["if"]
 
 
 class TestAllowedTargets:
@@ -132,6 +163,28 @@ class TestSanitizeAndReject:
 
     def test_plain_text_ok(self) -> None:
         assert rr.reject_reason("Fixed in **v2026.10.1**.") is None
+
+    @pytest.mark.parametrize(
+        "secret",
+        [
+            "sk-ant-oat01-abcdefghijklmnop",
+            "ghp_" + "a1B2" * 9,
+            "ghs_" + "Z9y8" * 9,
+            "gho_" + "Q7w6" * 9,
+            "github_pat_11ABCDEFG",
+            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo",
+        ],
+    )
+    def test_credentials_rejected(self, secret: str) -> None:
+        assert rr.reject_reason(f"token: {secret}") is not None
+
+    def test_long_plain_identifiers_and_urls_ok(self) -> None:
+        assert rr.reject_reason("custom_components_govee_coordinator_async_control_device_helper") is None
+        assert (
+            rr.reject_reason("https://github.com/lasswellt/govee-homeassistant/blob/main/custom_components/x.py")
+            is None
+        )
+        assert rr.reject_reason("commit 0123456789abcdef0123456789abcdef01234567") is None
 
 
 class TestPlanner:
@@ -219,3 +272,52 @@ class TestCloseThread:
         calls = self._capture(monkeypatch, False)
         assert rr._close_thread(7, close)
         assert calls[-1] == ["gh", "issue", "close", "7", "--reason", reason]
+
+
+class TestDrafts:
+    @staticmethod
+    def _write(tmp_path: Path, notes: str = "## Fixes\n- **x** (#1)\n", replies: str = "[]") -> Path:
+        (tmp_path / "notes.md").write_text(notes, encoding="utf-8")
+        (tmp_path / "replies.json").write_text(replies, encoding="utf-8")
+        return tmp_path
+
+    def test_clean_drafts_pass(self, tmp_path: Path) -> None:
+        assert rr.check_drafts(self._write(tmp_path, replies='[{"number": 3, "body": "hi"}]')) is None
+
+    def test_extra_file_rejected(self, tmp_path: Path) -> None:
+        self._write(tmp_path)
+        (tmp_path / "checks.sh").write_text("x", encoding="utf-8")
+        assert rr.check_drafts(tmp_path) is not None
+
+    def test_symlink_rejected(self, tmp_path: Path) -> None:
+        (tmp_path / "notes.md").symlink_to("/etc/hostname")
+        (tmp_path / "replies.json").write_text("[]", encoding="utf-8")
+        assert rr.check_drafts(tmp_path) is not None
+
+    def test_empty_or_secret_notes_rejected(self, tmp_path: Path) -> None:
+        assert rr.check_drafts(self._write(tmp_path, notes="  \n")) is not None
+        assert rr.check_drafts(self._write(tmp_path, notes="sk-ant-oat01-leak")) is not None
+
+    @pytest.mark.parametrize(
+        "replies",
+        [
+            "{}",
+            "not json",
+            '[{"number": 1}]',
+            '[{"number": 1, "body": "x", "close": "yes"}]',
+            '[{"number": 0, "body": "x"}]',
+            '[{"number": true, "body": "x"}]',
+            '[{"number": 1, "body": 5}]',
+            "[" + ",".join(['{"number": 1, "body": "x"}'] * (rr.MAX_REPLIES + 1)) + "]",
+        ],
+    )
+    def test_schema_violations_rejected(self, tmp_path: Path, replies: str) -> None:
+        assert rr.check_drafts(self._write(tmp_path, replies=replies)) is not None
+
+    def test_targets_command(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        subjects = tmp_path / "s.txt"
+        subjects.write_text("Merge PR #238: x (#237)\nfix: y\n", encoding="utf-8")
+        queue = tmp_path / "q.md"
+        queue.write_text("<!-- entries below -->\n## #5\nclose: no\nbrief: b\n", encoding="utf-8")
+        assert rr.main(["targets", "--subjects-file", str(subjects), "--queue", str(queue)]) == 0
+        assert capsys.readouterr().out.split() == ["5", "237", "238"]

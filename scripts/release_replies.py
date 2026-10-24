@@ -8,8 +8,11 @@ closes threads strictly as the maintainer queue (``docs/release-replies.md``)
 dictates, and clears the processed queue entries.
 
 Subcommands:
-  post         Post vetted replies, close queued threads, clear the queue.
-  check-notes  Fail when a notes file contains disallowed content.
+  targets       Print the thread numbers a reply may go to, one per line.
+  check-drafts  Fail unless a drafts directory holds exactly a clean notes.md
+                and a schema-valid replies.json.
+  post          Post vetted replies, close queued threads, clear the queue.
+  check-notes   Fail when a notes file contains disallowed content.
 
 Pure standard library; subprocess calls use list arguments, never a shell.
 """
@@ -33,6 +36,8 @@ REPO_PATH = "/lasswellt/govee-homeassistant"
 ALLOWED_HOSTS = ("my.home-assistant.io",)
 SHELL_LANGS = {"sh", "bash", "shell", "console", "zsh"}
 MAX_BODY = 4000
+MAX_REPLIES = 200
+DRAFT_FILES = frozenset({"notes.md", "replies.json"})
 COMMIT_MESSAGE = "chore: clear release reply queue"
 
 _ISSUE_REF = re.compile(r"#(\d+)")
@@ -44,6 +49,11 @@ _HIDDEN_CHARS = re.compile("[­​-‏‪-‮⁠-⁤⁦-⁩﻿]")
 _URL = re.compile(r"https?://[^\s)>\]\"'<]+", re.IGNORECASE)
 _FENCE = re.compile(r"^\s*(`{3,}|~{3,})\s*([\w+-]*)", re.MULTILINE)
 _PROMPT_LINE = re.compile(r"^\s*\$ ", re.MULTILINE)
+# Credential shapes that must never be published: Anthropic keys and OAuth
+# tokens (the Claude job holds CLAUDE_CODE_OAUTH_TOKEN), GitHub tokens, and
+# long base64-like runs (certificates, JWTs) mixing upper, lower and digits.
+_SECRET_PREFIX = re.compile(r"sk-ant-|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_", re.IGNORECASE)
+_LONG_RUN = re.compile(r"[A-Za-z0-9+/=_-]{48,}")
 
 
 @dataclass(frozen=True)
@@ -144,8 +154,9 @@ def sanitize(body: str) -> str:
 def reject_reason(body: str) -> str | None:
     """Say why a drafted text must not be published, if it must not.
 
-    Rejects URLs outside this repository and my.home-assistant.io, shell-marked
-    code fences, and ``$ `` prompt lines. The reason never echoes the text.
+    Rejects URLs outside this repository and my.home-assistant.io, credentials
+    and credential-like strings, shell-marked code fences, and ``$ `` prompt
+    lines. The reason never echoes the text.
 
     Args:
         body: Reply or release-notes text.
@@ -161,6 +172,11 @@ def reject_reason(body: str) -> str | None:
         if host == "github.com" and (parsed.path == REPO_PATH or parsed.path.startswith(REPO_PATH + "/")):
             continue
         return "contains a URL outside the allowed hosts"
+    if _SECRET_PREFIX.search(body):
+        return "contains a credential"
+    for run in _LONG_RUN.findall(_URL.sub(" ", body)):
+        if re.search(r"[A-Z]", run) and re.search(r"[a-z]", run) and re.search(r"\d", run):
+            return "contains a credential-like string"
     for fence in _FENCE.finditer(body):
         if fence.group(2).lower() in SHELL_LANGS:
             return "contains a shell code block"
@@ -321,6 +337,60 @@ def check_notes(path: Path) -> str | None:
     return reject_reason(text)
 
 
+def replies_schema_error(replies: object) -> str | None:
+    """Check decoded ``replies.json`` against its schema.
+
+    Args:
+        replies: The decoded file.
+
+    Returns:
+        What is wrong, or None for a list of at most MAX_REPLIES objects with
+        exactly a positive int ``number`` and a str ``body``.
+    """
+    if not isinstance(replies, list):
+        return "must be a JSON list"
+    if len(replies) > MAX_REPLIES:
+        return f"has more than {MAX_REPLIES} items"
+    for item in replies:
+        if not isinstance(item, dict) or set(item) != {"number", "body"}:
+            return "items must be objects with exactly number and body"
+        number = item["number"]
+        if isinstance(number, bool) or not isinstance(number, int) or number <= 0:
+            return "number must be a positive integer"
+        if not isinstance(item["body"], str):
+            return "body must be a string"
+    return None
+
+
+def check_drafts(directory: Path) -> str | None:
+    """Vet the draft job's artifact before the token job uses it.
+
+    Args:
+        directory: Where the ``release-drafts`` artifact was downloaded.
+
+    Returns:
+        A reason to refuse the drafts, or None.
+    """
+    entries = {p.name: p for p in directory.iterdir()} if directory.is_dir() else {}
+    if set(entries) != DRAFT_FILES:
+        return "the drafts must be exactly notes.md and replies.json"
+    for path in entries.values():
+        if path.is_symlink() or not path.is_file():
+            return f"{path.name} is not a regular file"
+    notes = entries["notes.md"]
+    if not notes.read_text(encoding="utf-8").strip():
+        return "notes.md is empty"
+    reason = check_notes(notes)
+    if reason:
+        return f"notes.md {reason}"
+    try:
+        replies = json.loads(entries["replies.json"].read_text(encoding="utf-8"))
+    except ValueError:
+        return "replies.json is not valid JSON"
+    error = replies_schema_error(replies)
+    return f"replies.json {error}" if error else None
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point.
 
@@ -339,8 +409,24 @@ def main(argv: list[str] | None = None) -> int:
     post.add_argument("--dry-run", action="store_true", help="print the plan and call nothing")
     notes = sub.add_parser("check-notes", help="fail on disallowed release-notes content")
     notes.add_argument("file", type=Path)
+    targets = sub.add_parser("targets", help="print the threads a reply may go to")
+    targets.add_argument("--subjects-file", type=Path, required=True, help="`git log <tag>..HEAD --format=%%s` output")
+    targets.add_argument("--queue", type=Path, default=Path("docs/release-replies.md"))
+    drafts = sub.add_parser("check-drafts", help="fail unless the drafts directory is clean")
+    drafts.add_argument("directory", type=Path)
     args = parser.parse_args(argv)
 
+    if args.command == "targets":
+        subjects = args.subjects_file.read_text(encoding="utf-8").splitlines()
+        for number in sorted(allowed_targets(subjects, args.queue.read_text(encoding="utf-8"))):
+            print(number)
+        return 0
+    if args.command == "check-drafts":
+        reason = check_drafts(args.directory)
+        if reason:
+            print(f"::error::drafts rejected: {reason}")
+            return 1
+        return 0
     if args.command == "check-notes":
         reason = check_notes(args.file)
         if reason:
@@ -353,8 +439,9 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError):
         print("::error::replies.json is missing or not valid JSON")
         return 1
-    if not isinstance(replies, list):
-        print("::error::replies.json must be a JSON list")
+    error = replies_schema_error(replies)
+    if error:
+        print(f"::error::replies.json {error}")
         return 1
     queue_text = args.queue.read_text(encoding="utf-8")
     subjects = args.subjects_file.read_text(encoding="utf-8").splitlines()
