@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-23T13:38:30Z",
+  "updated": "2026-10-24T11:40:41Z",
   "tasks": [
     {
       "id": "T-001",
@@ -213,43 +213,50 @@
           "timeout": 30
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
       "last_verify": {
-        "ts": "2026-10-23T13:38:30Z",
-        "ok": false,
-        "failed": "test \"$(gh api 'repos/{owner}/{repo}/actions/secrets/RELEASE_TOKEN' --jq .updated_at)\" \\> 2026-10-23T00:00:00Z",
+        "ts": "2026-10-24T11:40:41Z",
+        "ok": true,
+        "failed": "",
         "tail": "",
         "runs": [
           {
             "cmd": "test \"$(gh api 'repos/{owner}/{repo}/rulesets' --jq '[.[] | select(.target==\"tag\")] | length')\" -ge 1",
             "exit": 0,
-            "duration_ms": 462,
+            "duration_ms": 392,
             "tail": "",
-            "recorded_at": "2026-10-23T13:38:27Z"
+            "recorded_at": "2026-10-24T11:40:39Z"
           },
           {
             "cmd": "test \"$(gh api 'repos/{owner}/{repo}/immutable-releases' --jq .enabled)\" = true",
             "exit": 0,
-            "duration_ms": 803,
+            "duration_ms": 360,
             "tail": "",
-            "recorded_at": "2026-10-23T13:38:27Z"
+            "recorded_at": "2026-10-24T11:40:40Z"
           },
           {
             "cmd": "gh api -i 'repos/{owner}/{repo}/vulnerability-alerts' 2>/dev/null | head -1 | grep -q 204",
             "exit": 0,
-            "duration_ms": 959,
+            "duration_ms": 411,
             "tail": "",
-            "recorded_at": "2026-10-23T13:38:28Z"
+            "recorded_at": "2026-10-24T11:40:40Z"
           },
           {
             "cmd": "test \"$(gh api 'repos/{owner}/{repo}/actions/secrets/RELEASE_TOKEN' --jq .updated_at)\" \\> 2026-10-23T00:00:00Z",
-            "exit": 1,
-            "duration_ms": 1100,
+            "exit": 0,
+            "duration_ms": 508,
             "tail": "",
-            "recorded_at": "2026-10-23T13:38:30Z"
+            "recorded_at": "2026-10-24T11:40:41Z"
+          },
+          {
+            "cmd": "test \"$(gh api 'repos/{owner}/{repo}/actions/permissions/fork-pr-contributor-approval' --jq .approval_policy)\" = all_external_contributors",
+            "exit": 0,
+            "duration_ms": 379,
+            "tail": "",
+            "recorded_at": "2026-10-24T11:40:41Z"
           }
         ]
       },
