@@ -33,3 +33,7 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 ## 2026-10-24T12:28:30Z build T-009 start (attempt 1); main thread; fork PR gated locally
 ## 2026-10-24T12:33:52Z T-001 rework: 56504cb splits daily-release.yml into gate/draft/preview/publish (Claude in its own job, no Bash/web, /proc denied; publish on a fresh runner takes only notes.md + replies.json after check-drafts); secret-shape rejects; dry run 40094032298 started
 ## 2026-10-24T12:33:52Z verify T-009 ok=true (#247 merged; refusal guard covers the 60 s H5086 tick, tick skips excluded SKUs (tests); naive restored datetimes dropped; CI green)
+## 2026-10-24T12:34:30Z build T-010 start (attempt 1); main thread; #229 body Fixes->Refs #228
+## 2026-10-24T12:40:15Z dry run 40094032298 ok: gate/draft/preview success, publish skipped; Claude (no Bash) wrote notes.md (10 KB) + replies.json (8 drafts), check-drafts passed, preview would comment on #259 #237 #238 #250 #248 #257 #253 #255. The new Edit(//) rule is now exercised by a dry run.
+## 2026-10-24T12:40:15Z verify T-010 ok=true (#229-#231 merged as one stack; #229 body Fixes->Refs #228, #228 open; async_read_device double commit removed after #255; kettle status queries respect re-query off and #259 refusal; #235 not merged)
+- Ruling: defer; the H7175 doc stays in docs/_research/ (the repo's established folder, 40 docs), not moved to docs/research/ as T-010 notes said (T-010)
