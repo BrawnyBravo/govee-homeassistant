@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "issue-sweep-late-oct",
-  "updated": "2026-10-24T12:47:42Z",
+  "updated": "2026-10-24T13:01:34Z",
   "tasks": [
     {
       "id": "T-001",
@@ -1010,11 +1010,67 @@
           "timeout": 600
         }
       ],
-      "passes": false,
-      "status": "open",
+      "passes": true,
+      "status": "done",
       "blocked_reason": null,
       "attempts": 0,
-      "last_verify": null,
+      "last_verify": {
+        "ts": "2026-10-24T13:01:34Z",
+        "ok": true,
+        "failed": "",
+        "tail": "",
+        "runs": [
+          {
+            "cmd": "git merge-base --is-ancestor refs/pr/234 HEAD",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T13:00:57Z"
+          },
+          {
+            "cmd": "git log --format=%s v2026.10.0..HEAD | grep -q 'Merge PR #234'",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T13:00:57Z"
+          },
+          {
+            "cmd": "grep -rq 'class StatusBurst' custom_components/govee && grep -q '^request_status:' custom_components/govee/services.yaml",
+            "exit": 0,
+            "duration_ms": 12,
+            "tail": "",
+            "recorded_at": "2026-10-24T13:00:57Z"
+          },
+          {
+            "cmd": "grep -rq 'REQUEST_STATUS_MIN_INTERVAL' custom_components/govee",
+            "exit": 0,
+            "duration_ms": 9,
+            "tail": "",
+            "recorded_at": "2026-10-24T13:00:57Z"
+          },
+          {
+            "cmd": "grep -qE 'async_register_admin_service\\(' custom_components/govee/services.py && grep -B2 -A6 'async_register_admin_service(' custom_components/govee/services.py | grep -q 'request_status'",
+            "exit": 0,
+            "duration_ms": 6,
+            "tail": "",
+            "recorded_at": "2026-10-24T13:00:57Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-fail-under=100 tests",
+            "exit": 0,
+            "duration_ms": 35962,
+            "tail": "................................................ [ 69%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n........................................................................ [ 99%]\n......                                                                   [100%]\n\n---------- coverage: platform linux, python 3.12.14-final-0 ----------\nName                                     Stmts   Miss    Cover   Missing\n------------------------------------------------------------------------\ncustom_components/govee/config_flow.py     422      0  100.00%\n------------------------------------------------------------------------\nTOTAL                                      422      0  100.00%\n\nRequired test coverage of 100% reached. Total coverage: 100.00%\n4038 passed in 34.02s",
+            "recorded_at": "2026-10-24T13:01:33Z"
+          },
+          {
+            "cmd": ".cc-sessions/venv312/bin/flake8 . && .cc-sessions/venv312/bin/mypy custom_components/govee && .cc-sessions/venv312/bin/black --check .",
+            "exit": 0,
+            "duration_ms": 1018,
+            "tail": "Success: no issues found in 54 source files\nAll done! ✨ 🍰 ✨\n177 files would be left unchanged.",
+            "recorded_at": "2026-10-24T13:01:34Z"
+          }
+        ]
+      },
       "origin": "plan",
       "notes": "Merge with git merge --no-ff and subject 'Merge PR #N: <PR title> (#issue)' so the nightly bot sees it; resolve conflicts inside that merge commit (keeps the PR head an ancestor, GitHub marks it merged). Fetch first: git fetch origin +refs/pull/N/head:refs/pr/N. Push only with every verify green. security-kettle-ported.md F-01/F-02 (MEDIUM), fix in this task before push: (1) govee.request_status registered admin-only (async_register_admin_service) in async_setup_services, never per entry; (2) a per-device + global rate limit that holds across sequential calls and restarts of a burst (REQUEST_STATUS_MIN_INTERVAL); (3) every status query goes through one throttled path that skips MQTT_STATUS_QUERY_EXCLUDED_SKUS, #195-quarantined devices and #259's account-wide refusal, and marks the query in flight for the spacing window so a session drop is attributed to the right device. #245's confirmer (T-022) reuses this path. #234 conflicts with #255 in config_flow.py (resolve; 100 %). #234 adds a production async_get_device call (config_flow.py ~959): T-013 replaces it."
     },

@@ -39,3 +39,5 @@ Ruling: class=architectural tasks=32; four independent reviews (plan validation:
 - Ruling: defer; the H7175 doc stays in docs/_research/ (the repo's established folder, 40 docs), not moved to docs/research/ as T-010 notes said (T-010)
 ## 2026-10-24T12:40:25Z build T-011 start (attempt 1); main thread
 ## 2026-10-24T12:47:42Z verify T-011 ok=true (#232/#233 merged; options save keeps slot labels + segment modes; frame kinds capped at 32; config_flow 100%; CI green)
+## 2026-10-24T12:47:55Z build T-012 start (attempt 1); main thread
+## 2026-10-24T13:01:41Z verify T-012 ok=true (#234 merged; request_status admin-only; one throttled, lock-serialised path with in-flight marker held for the spacing window; REQUEST_STATUS_MIN_INTERVAL per device; mirrors sweep targets + #259 refusal; rebased over peer commit ecaa078 (App-token publish), merge edits restored from 905efed; CI green)
