@@ -75,7 +75,10 @@ THERMO_HYGRO_BFF_SKUS = frozenset({"H5301", "H5310"})
 # HA but every reading stays empty (issue #150). It is safe to list here even if
 # a given account's BFF has nothing for it: a reading-less BFF entry leaves the
 # device on the Developer poll rather than silencing it (issue #151).
-THERMO_HYGRO_BFF_READ_SKUS = frozenset({"H5179", "H5112"})
+#
+# H5111 behind an H5151 hub: the Developer poll reports it offline with an
+# empty temperature while the BFF carries the reading (issue #236).
+THERMO_HYGRO_BFF_READ_SKUS = frozenset({"H5179", "H5112", "H5111"})
 
 # Subset of THERMO_HYGRO_BFF_SKUS that have NO hygrometer (e.g. the H5310 pool
 # thermometer). Govee reports their ``hum`` as the u16 sentinel 0xFFFF, so a
