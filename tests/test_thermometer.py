@@ -894,6 +894,7 @@ class TestBffThermoHandover:
         coordinator._display_fahrenheit = {}
         coordinator._bff_thermo_hubs = {}
         coordinator._sensor_reading_changed_at = {}
+        coordinator._bff_last_measurement = {}
         coordinator.hass = MagicMock()
         return coordinator
 

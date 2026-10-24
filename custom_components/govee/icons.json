@@ -48,6 +48,9 @@
       },
       "kettle_keep_warm": {
         "default": "mdi:thermometer-chevron-up"
+      },
+      "reported_online": {
+        "default": "mdi:cloud-check-outline"
       }
     },
     "button": {
@@ -178,6 +181,9 @@
       },
       "kettle_keep_warm_remaining": {
         "default": "mdi:timer-sand"
+      },
+      "last_measurement": {
+        "default": "mdi:clock-check-outline"
       }
     },
     "switch": {

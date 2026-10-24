@@ -378,6 +378,9 @@
       "sensor_reading_changed": {
         "name": "Last changed"
       },
+      "last_measurement": {
+        "name": "Last measurement"
+      },
       "all_data_last_updated": {
         "name": "Last update received"
       },
@@ -442,6 +445,9 @@
     "binary_sensor": {
       "device_connectivity": {
         "name": "Connectivity"
+      },
+      "reported_online": {
+        "name": "Reported online"
       },
       "cloud_api_connectivity": {
         "name": "Cloud API"

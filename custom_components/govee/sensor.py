@@ -197,6 +197,9 @@ async def async_setup_entry(
             entities.append(GoveeFilterLifeSensor(coordinator, device))
         if device.supports_temperature_sensor or device.supports_humidity_sensor:
             entities.append(GoveeSensorReadingTimestampSensor(coordinator, device))
+        # The device-side time of the account-data reading (#258).
+        if coordinator.is_bff_thermometer(device.device_id):
+            entities.append(GoveeLastMeasurementSensor(coordinator, device))
         # Battery level from the BFF API, for either a BFF-synthesized
         # thermo-hygrometer (H5301, #86) OR a Developer-API BLE-bridged
         # thermometer whose battery the BFF carries but the Developer API does
@@ -920,6 +923,28 @@ class GoveeSensorReadingTimestampSensor(GoveeEntity, SensorEntity):
     @property
     def native_value(self) -> datetime | None:
         return self.coordinator.sensor_reading_changed_at(self._device.device_id)
+
+
+class GoveeLastMeasurementSensor(_BffThermometerAvailabilityMixin, SensorEntity):
+    """When the thermometer itself took the reading the account data carries (#258).
+
+    The BFF ``lastTime`` is the device's own clock, so a sensor that stopped
+    uploading shows its real age (days, not "5 minutes ago"), unlike
+    :class:`GoveeSensorReadingTimestampSensor`, which only stamps a change.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "last_measurement"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: GoveeCoordinator, device: GoveeDevice) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.device_id}_last_measurement"
+
+    @property
+    def native_value(self) -> datetime | None:
+        return self.coordinator.bff_last_measurement_at(self._device.device_id)
 
 
 class GoveeAllDataLastUpdatedSensor(GoveeEntity, SensorEntity):

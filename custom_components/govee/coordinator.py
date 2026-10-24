@@ -12,7 +12,7 @@ import logging
 import time
 import zlib
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
@@ -618,6 +618,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # device has freshly reported (or is currently wet), keeping the account
         # API request count low.
         self._water_leak_last_time: dict[str, int] = {}
+        # Device-side time of each BFF thermometer's latest reading (#258).
+        self._bff_last_measurement: dict[str, datetime] = {}
         # Bumped per detector when the user clears its leak alert, so a poll
         # tick already in flight drops the reading it took before the clear.
         self._water_leak_clear_gen: dict[str, int] = {}
@@ -989,6 +991,26 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         )
         if reading_changed or device_id not in self._sensor_reading_changed_at:
             self._sensor_reading_changed_at[device_id] = dt_util.utcnow()
+
+    def bff_last_measurement_at(self, device_id: str) -> datetime | None:
+        """When the device itself last took the reading the account data carries (#258).
+
+        From the BFF ``lastTime``: the device's own clock, unlike
+        :meth:`sensor_reading_changed_at`, so a thermometer that stopped
+        uploading shows its real age.
+        """
+        return self._bff_last_measurement.get(device_id)
+
+    def _note_bff_last_measurement(self, device_id: str, sensor: dict[str, Any]) -> None:
+        """Record a BFF entry's ``lastTime`` (epoch ms, or s on some SKUs)."""
+        last_time = sensor.get("last_time")
+        if isinstance(last_time, bool) or not isinstance(last_time, int) or last_time <= 0:
+            return
+        seconds = last_time / 1000 if last_time > 10**11 else last_time
+        try:
+            self._bff_last_measurement[device_id] = datetime.fromtimestamp(seconds, timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return
 
     def sensor_reading_changed_at(self, device_id: str) -> datetime | None:
         """When the device's temp/humidity reading last changed (#83).
@@ -2497,6 +2519,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
                 self._note_display_unit(device_id, sensor)
                 self._note_thermo_slot(device_id, sensor)
+                self._note_bff_last_measurement(device_id, sensor)
 
                 # A device already discovered via the Developer API (e.g. the
                 # H5179 WiFi thermometer, #141) whose live reading only comes
@@ -2618,6 +2641,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         for sensor in sensors:
             device_id = sensor["device_id"]
             self._note_display_unit(device_id, sensor)
+            self._note_bff_last_measurement(device_id, sensor)
 
             # A device parked on the Developer poll because the BFF had nothing
             # for it (#151) takes over here as soon as a reading appears.

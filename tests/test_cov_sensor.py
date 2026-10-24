@@ -180,6 +180,8 @@ def _fleet_coordinator(*, mqtt: bool) -> MagicMock:
     coordinator.mqtt_client = MagicMock() if mqtt else None
     coordinator.get_state.side_effect = states.get
     coordinator.is_bff_leak_sensor.return_value = False
+    # Account-data thermometers (#258) are covered in test_issue_258.py.
+    coordinator.is_bff_thermometer.return_value = False
     coordinator.leak_sensors = {
         sensor.device_id: sensor
         for sensor in (
