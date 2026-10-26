@@ -33,6 +33,7 @@ from .const import (
 )
 from .coordinator import GoveeConfigEntry, GoveeCoordinator
 from .entity import GoveeEntity
+from .kettle.entities import kettle_selects
 from .models import (
     GoveeDevice,
     ModeCommand,
@@ -252,6 +253,9 @@ async def async_setup_entry(
                     device.name,
                     len(nightlight_scene_options),
                 )
+
+    # H7175 kettles: Brew mode (selects without switching the kettle on).
+    entities.extend(kettle_selects(coordinator))
 
     async_add_entities(entities)
     _LOGGER.debug("Set up %d Govee scene select entities", len(entities))
