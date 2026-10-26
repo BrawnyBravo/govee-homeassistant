@@ -45,6 +45,18 @@ For any other conflict: take upstream's version of anything upstream already
 has, keep only what is genuinely the fork's, run the tests and linters, and push.
 The rule is to resolve a conflict, never to let the fork drift.
 
+## Syncing: workflow files stay the fork's own
+
+Since 2026-10-26 the sync job never takes upstream's changes under
+`.github/workflows/`. Its token has no `workflows` permission, so GitHub refuses
+any push that touches a workflow file; from 2026-10-23 every run failed that way
+after upstream edited its workflows. The job now puts every workflow file back
+to the fork's copy before committing the merge (files upstream adds are dropped,
+files it changes or deletes are restored) and refuses to push if the merge
+would still change one. Inherited upstream jobs the fork does not want stay
+disabled in Actions settings. To adopt an upstream workflow change, copy it
+across by hand in a pull request.
+
 ## Do not create GitHub Releases here
 
 HACS tracks this repository's default branch. Publishing a Release switches it
