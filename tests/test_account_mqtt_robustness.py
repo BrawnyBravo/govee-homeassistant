@@ -146,6 +146,8 @@ class TestTimersStayDeadAfterShutdown:
 
         # The unload lands while the watchdog awaits the stop.
         async def _stop() -> None:
+            # The shutdown stops the same client; that inner stop is a plain no-op.
+            client.async_stop = AsyncMock()
             await _shut_down(coord)
 
         client.async_stop = AsyncMock(side_effect=_stop)
