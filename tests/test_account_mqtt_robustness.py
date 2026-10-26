@@ -33,6 +33,7 @@ from custom_components.govee.const import (
     CONF_PASSWORD,
     KEY_IOT_CREDENTIALS,
     KEY_IOT_LOGIN_FAILED,
+    MQTT_SILENT_MIN_QUERIES,
 )
 from tests.test_cov_coordinator_setup import (
     CREDS,
@@ -45,6 +46,7 @@ from tests.test_cov_coordinator_setup import (
 )
 
 from tests.test_cov_mqtt import _creds, _msg
+from tests.test_issue_222 import _silent_coord
 from tests.test_cov_openapi_events import LOGGER_NAME as OPENAPI_LOGGER
 from tests.test_cov_openapi_events import FakeAiomqtt, Harness, _push
 from tests.test_cov_openapi_events import _message as _openapi_message
@@ -133,6 +135,35 @@ class TestTimersStayDeadAfterShutdown:
 
         built.assert_not_called()
         assert coord._mqtt_client is None
+
+    @pytest.mark.asyncio
+    async def test_silence_check_does_not_reconnect_after_shutdown(self, monkeypatch):
+        """The #222 watchdog's stop-then-start must not reopen a session after unload."""
+        monkeypatch.setattr(coord_mod.asyncio, "sleep", AsyncMock())
+        coord, client, _ = _silent_coord()
+        await coord._poll_mqtt_status()
+        assert coord._mqtt_queries_since_connect >= MQTT_SILENT_MIN_QUERIES
+
+        # The unload lands while the watchdog awaits the stop.
+        async def _stop() -> None:
+            await _shut_down(coord)
+
+        client.async_stop = AsyncMock(side_effect=_stop)
+        await coord._async_check_mqtt_silence()
+
+        client.async_start.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_silence_check_is_not_armed_after_shutdown(self, monkeypatch):
+        coord, _client, _ = _silent_coord()
+        await _shut_down(coord)
+        timers = _TimerCapture()
+        monkeypatch.setattr(coord_mod, "async_call_later", timers)
+
+        coord._arm_mqtt_silence_check()
+
+        assert timers.calls == []
+        assert coord._mqtt_silence_unsub is None
 
     def test_schedulers_still_arm_while_running(self, monkeypatch):
         timers = _TimerCapture()
