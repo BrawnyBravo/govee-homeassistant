@@ -5231,7 +5231,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # Before dispatch: a newer command makes a pending confirm stale, and
         # the confirm compares against the value from before this one (#245).
         pending = confirmer.prepare(device_id, command) if confirmer is not None else None
-        success = await self._async_control_device(device_id, command, confirm=pending)
+        success = await self._async_control_tracking_segments(device_id, command, confirm=pending)
         device = self._devices.get(device_id)
         if success and device is not None and device.decodes_kettle_frames:
             self.kettles.schedule_followup(device_id)
@@ -5258,16 +5258,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             self.async_set_updated_data(self._states)
         return bool(success)
 
-    async def _async_control_device(
+    async def _async_control_tracking_segments(
         self, device_id: str, command: DeviceCommand, *, confirm: PendingConfirm | None = None
     ) -> bool:
-        """Send a command over the best transport; see :meth:`async_control_device`.
-
-        ``confirm`` starts only after an MQTT or REST send; the LAN tier reads
-        the device back itself.
-        """
+        """Dispatch ``command``, rolling back segment colour tracking if it fails."""
         if not isinstance(command, SegmentColorCommand) or device_id not in self._devices:
-            return await self._async_control_device(device_id, command)
+            return await self._async_control_device(device_id, command, confirm=confirm)
 
         # Remember what the segments were last set to, before the first await,
         # so a later whole-device write can faithfully restore them. Recorded
@@ -5281,7 +5277,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         success = False
         try:
-            success = await self._async_control_device(device_id, command)
+            success = await self._async_control_device(device_id, command, confirm=confirm)
             return success
         finally:
             if not success:
@@ -5307,11 +5303,13 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 tracked[index] = old
 
     async def _async_control_device(
-        self,
-        device_id: str,
-        command: DeviceCommand,
+        self, device_id: str, command: DeviceCommand, *, confirm: PendingConfirm | None = None
     ) -> bool:
-        """Dispatch a command over the best transport (see ``async_control_device``)."""
+        """Send a command over the best transport; see :meth:`async_control_device`.
+
+        ``confirm`` starts only after an MQTT or REST send; the LAN tier reads
+        the device back itself.
+        """
         device = self._devices.get(device_id)
         if not device:
             _LOGGER.error("Unknown device: %s", device_id)

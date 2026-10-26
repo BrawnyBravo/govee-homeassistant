@@ -784,9 +784,7 @@ class TestMainPanelControl:
 
         await entity.async_turn_on(brightness=1)
 
-        entity.coordinator.async_set_main_panel.assert_awaited_once_with(
-            H1232_ID, rgb=None, brightness=1, kelvin=None
-        )
+        entity.coordinator.async_set_main_panel.assert_awaited_once_with(H1232_ID, rgb=None, brightness=1, kelvin=None)
 
     async def test_ptreal_failure_keeps_the_previous_colour_and_brightness(self):
         entity = _panel(toggled=True)
