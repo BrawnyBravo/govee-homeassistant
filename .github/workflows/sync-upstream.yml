@@ -14,6 +14,13 @@ name: Sync with upstream
 # 2026.9.7 -> "2026.9.7-house.1". Any other conflict still backs out and opens
 # an issue. See FORK-NOTES.md. A conflict is resolved, never left to drift.
 #
+# WORKFLOW FILES: .github/workflows/** always stays exactly as the fork has it;
+# upstream's changes there are never taken. This job's token has no `workflows`
+# permission, so GitHub refuses any push that changes a workflow file (every run
+# failed this way from 2026-10-23). The fork also runs its own set: inherited
+# upstream jobs it does not want are disabled in Actions settings, not deleted.
+# To adopt an upstream workflow change, copy it across by hand in a pull request.
+#
 # Do NOT create GitHub Releases on this fork without reading the install notes in
 # PLAN.md first: for the Govee fork a release silently switches HACS from tracking
 # the default branch to tracking releases.
@@ -94,6 +101,25 @@ jobs:
             python3 -c "import json,sys; json.load(open(sys.argv[1]))" "${file}" || return 1
           }
 
+          # Put every workflow file back to the fork's own copy: drop files
+          # upstream added, restore ones it changed or deleted, settle any
+          # conflict there to the fork side. Fails if anything is left over.
+          WF=".github/workflows"
+          keep_fork_workflows() {
+            local head_list="${RUNNER_TEMP}/wf-head" index_list="${RUNNER_TEMP}/wf-index" f
+            git ls-tree -r --name-only HEAD -- "${WF}" | sort > "${head_list}"
+            git ls-files -- "${WF}" | sort -u > "${index_list}"
+            comm -13 "${head_list}" "${index_list}" | while IFS= read -r f; do
+              git rm -q -f -- "${f}" || exit 1
+            done || return 1
+            if [ -s "${head_list}" ]; then
+              git checkout HEAD -- "${WF}" || return 1
+            fi
+            [ -z "$(git diff --name-only --diff-filter=U -- "${WF}")" ] || return 1
+            git diff --cached --quiet HEAD -- "${WF}" || return 1
+            [ -z "$(git status --porcelain -- "${WF}")" ] || return 1
+          }
+
           BEFORE="$(git rev-parse HEAD)"
           UPSTREAM_HEAD="$(git rev-parse "upstream/${UPSTREAM_REF}")"
           echo "upstream_head=${UPSTREAM_HEAD}" >> "$GITHUB_OUTPUT"
@@ -104,36 +130,55 @@ jobs:
             exit 0
           fi
 
-          if git merge --no-edit "upstream/${UPSTREAM_REF}"; then
-            if [ "$BEFORE" = "$(git rev-parse HEAD)" ]; then
-              echo "result=up-to-date" >> "$GITHUB_OUTPUT"
-            else
-              echo "result=merged" >> "$GITHUB_OUTPUT"
-            fi
+          # Never commit straight from the merge: the workflow files have to be
+          # put back first, and --no-ff stops a fast-forward bringing them in.
+          git merge --no-commit --no-ff "upstream/${UPSTREAM_REF}" || true
+          if ! git rev-parse -q --verify MERGE_HEAD > /dev/null; then
+            # No merge in progress means git refused to start one (dirty tree,
+            # unrelated histories...). Nothing to undo; report it.
+            CONFLICTS=""
+          elif ! keep_fork_workflows; then
+            echo "::error::could not put ${WF} back to the fork's copy"
+            CONFLICTS="$(git diff --name-only --diff-filter=U || true)"
+            [ -n "${CONFLICTS}" ] || CONFLICTS="${WF} (could not keep the fork's copy)"
           else
             # Read the unmerged paths BEFORE aborting; the abort clears them.
             CONFLICTS="$(git diff --name-only --diff-filter=U || true)"
             MANIFEST="custom_components/govee/manifest.json"
-            if [ "${CONFLICTS}" = "${MANIFEST}" ] && resolve_manifest "${MANIFEST}"; then
+            MESSAGE=""
+            if [ -z "${CONFLICTS}" ]; then
+              MESSAGE="Merge upstream ${UPSTREAM}@${UPSTREAM_REF}"
+            elif [ "${CONFLICTS}" = "${MANIFEST}" ] && resolve_manifest "${MANIFEST}"; then
               git add "${MANIFEST}"
+              MESSAGE="Merge upstream v${UP_VER}"
+              echo "Version line settled: ${UP_VER}${SUFFIX}"
+            fi
+            if [ -n "${MESSAGE}" ]; then
               if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
-                echo "::error::unexpected unmerged paths after resolving ${MANIFEST}"
+                echo "::error::unexpected unmerged paths after resolving conflicts"
                 exit 1
               fi
-              git commit -q -m "Merge upstream v${UP_VER}"
+              git commit -q -m "${MESSAGE}" \
+                -m "The fork's own ${WF} is kept; upstream workflow changes are not taken (see sync-upstream.yml)."
+              # Belt and braces: the push below is refused if this is wrong.
+              if ! git diff --quiet "${BEFORE}" HEAD -- "${WF}"; then
+                echo "::error::merge commit changes ${WF}; refusing to push"
+                exit 1
+              fi
               echo "result=merged" >> "$GITHUB_OUTPUT"
-              echo "Version line settled: ${UP_VER}${SUFFIX}"
               exit 0
             fi
+          fi
+          if git rev-parse -q --verify MERGE_HEAD > /dev/null; then
             git merge --abort || true
-            echo "result=conflict" >> "$GITHUB_OUTPUT"
-            echo "conflicts<<CONFLICT_LIST" >> "$GITHUB_OUTPUT"
-            echo "${CONFLICTS}" >> "$GITHUB_OUTPUT"
-            echo "CONFLICT_LIST" >> "$GITHUB_OUTPUT"
-            if [ "$BEFORE" != "$(git rev-parse HEAD)" ]; then
-              echo "::error::abort left ${BRANCH} moved; refusing to continue"
-              exit 1
-            fi
+          fi
+          echo "result=conflict" >> "$GITHUB_OUTPUT"
+          echo "conflicts<<CONFLICT_LIST" >> "$GITHUB_OUTPUT"
+          echo "${CONFLICTS}" >> "$GITHUB_OUTPUT"
+          echo "CONFLICT_LIST" >> "$GITHUB_OUTPUT"
+          if [ "$BEFORE" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::abort left ${BRANCH} moved; refusing to continue"
+            exit 1
           fi
 
       - name: Push merged branch
