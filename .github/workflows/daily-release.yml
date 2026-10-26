@@ -82,7 +82,6 @@ jobs:
           set -euo pipefail
           source scripts/release_checks.sh
           ship() { echo "ship=$1" >> "$GITHUB_OUTPUT"; }
-          git fetch --tags --force origin
           # Drafts never count: a draft has no publish date, and `date -d ""` is
           # today, which would skip every night without an error.
           TAG=$(gh release list --exclude-drafts -L 1 --json tagName --jq '.[0].tagName // ""')
