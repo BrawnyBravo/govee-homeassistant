@@ -130,6 +130,7 @@ from .const import (
     PROBE_PACKET_SPACING,
     REQUEST_STATUS_MIN_INTERVAL,
     MQTT_SILENT_CHECK_DELAY,
+    MQTT_SILENT_MIN_MISSED_PUSHES,
     MQTT_SILENT_MIN_QUERIES,
     REACHABLE_PUSH_WINDOW,
     PTREAL_DREAMVIEW_SKUS,
@@ -401,6 +402,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     _mqtt_silence_unsub: CALLBACK_TYPE | None = None
     _mqtt_silent_reconnected = False
     _mqtt_silent_reported = False
+    # Gateway readings the cloud received while the session got nothing, the
+    # last device-side lastTime seen per thermometer, and a guard so the timer
+    # and the BFF refresh never handle one silent session twice (#222).
+    _mqtt_missed_pushes_since_connect = 0
+    _bff_last_time_seen: dict[str, int] = {}
+    _mqtt_silence_handling = False
     # Confirm-and-resend for light commands, when the option is on (#245).
     _command_confirmer: CommandConfirmer | None = None
     # Probe polling (#266): sweeps run so far (limits are read on every Nth),
@@ -636,6 +643,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # lastTime so the 5-minute account poll can't overwrite a fresher
         # frame with the cloud's older copy of it (#151).
         self._thermo_frame_ts: dict[str, int] = {}
+        self._bff_last_time_seen = {}
         # Last time the account device list was re-checked for newly added
         # devices (#101). Seeded to "now" so the first re-check waits a full
         # interval rather than firing right after setup discovery.
@@ -2549,6 +2557,49 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             return
         self._sno_to_thermo_id[(hub_device_id, sno)] = device_id
 
+    def _note_bff_push_evidence(self, device_id: str, sensor: dict[str, Any]) -> None:
+        """Count a gateway reading the cloud got while this MQTT session got nothing (#222).
+
+        The hub pushes each bridged thermometer reading on the account topic
+        before the cloud copy reaches the BFF list. A reading newer than the
+        last one seen and than the session's start, with no inbound message
+        since connect, is a push Govee sent that this session did not deliver.
+        The first sighting of a device only seeds the comparison.
+        """
+        last_time = sensor.get("last_time")
+        if isinstance(last_time, bool) or not isinstance(last_time, int) or last_time <= 0:
+            return
+        previous = self._bff_last_time_seen.get(device_id)
+        self._bff_last_time_seen[device_id] = last_time
+        if previous is None or last_time <= previous:
+            return
+        sno = sensor.get("sno")
+        if not sensor.get("hub_device_id") or not isinstance(sno, int) or isinstance(sno, bool):
+            return
+        client = self._mqtt_client
+        since = client.connected_since if client is not None and client.connected else None
+        if since is None or client is None or client.inbound_total > self._mqtt_inbound_at_connect:
+            return
+        seconds = last_time / 1000 if last_time > 10**11 else last_time
+        if seconds <= since.timestamp():
+            return
+        self._mqtt_missed_pushes_since_connect += 1
+
+    async def _async_check_missed_pushes(self) -> None:
+        """Handle a silent session proven by missed gateway pushes; the one-shot timer may be long gone (#222)."""
+        if self._mqtt_missed_pushes_since_connect < MQTT_SILENT_MIN_MISSED_PUSHES:
+            return
+        client = self._mqtt_client
+        if client is None or not client.connected or client.inbound_total > self._mqtt_inbound_at_connect:
+            return
+        since = client.connected_since
+        if since is None or (datetime.now(timezone.utc) - since).total_seconds() < MQTT_SILENT_CHECK_DELAY:
+            return
+        await self._async_handle_silent_session(self._missed_pushes_evidence())
+
+    def _missed_pushes_evidence(self) -> str:
+        return f"while {self._mqtt_missed_pushes_since_connect} gateway readings reached the cloud"
+
     async def _discover_bff_thermometers(self) -> None:
         """Discover thermo-hygrometers (H5301) via the BFF device list (issue #86).
 
@@ -2707,6 +2758,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             device_id = sensor["device_id"]
             self._note_display_unit(device_id, sensor)
             self._note_bff_last_measurement(device_id, sensor)
+            self._note_bff_push_evidence(device_id, sensor)
 
             # A device parked on the Developer poll because the BFF had nothing
             # for it (#151) takes over here as soon as a reading appears.
@@ -2813,6 +2865,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         if changed:
             self.async_set_updated_data(self._states)
+        await self._async_check_missed_pushes()
 
     def register_leak_hubs(self) -> None:
         """Register each leak sensor's hub as a device.
@@ -3915,6 +3968,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Start the silent-session check for the session that just came up (#222)."""
         client = self._mqtt_client
         self._mqtt_queries_since_connect = 0
+        self._mqtt_missed_pushes_since_connect = 0
         self._mqtt_inbound_at_connect = client.inbound_total if client is not None else 0
         if self._mqtt_silence_unsub is not None:
             self._mqtt_silence_unsub()
@@ -3930,8 +3984,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     async def _async_check_mqtt_silence(self, _now: Any = None) -> None:
         """Reconnect a silent session once, then raise the mqtt_silent repair (#222).
 
-        Silent means connected, at least MQTT_SILENT_MIN_QUERIES status queries
-        sent since the session came up, and not one inbound message. A quiet
+        Silent means connected, not one inbound message since the session came
+        up, and either at least MQTT_SILENT_MIN_QUERIES status queries sent or
+        MQTT_SILENT_MIN_MISSED_PUSHES gateway readings that reached the cloud. A quiet
         account with the re-query off, or one AWS IoT refuses status queries
         for (#259), sends none, so it never counts as silent.
         """
@@ -3942,23 +3997,42 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if client.inbound_total > self._mqtt_inbound_at_connect:
             self._note_mqtt_inbound()
             return
-        if self._mqtt_queries_since_connect < MQTT_SILENT_MIN_QUERIES:
+        if self._mqtt_queries_since_connect >= MQTT_SILENT_MIN_QUERIES:
+            evidence = f"despite {self._mqtt_queries_since_connect} status queries"
+        elif self._mqtt_missed_pushes_since_connect >= MQTT_SILENT_MIN_MISSED_PUSHES:
+            evidence = self._missed_pushes_evidence()
+        else:
             return
-        minutes = MQTT_SILENT_CHECK_DELAY // 60
-        if not self._mqtt_silent_reconnected:
-            self._mqtt_silent_reconnected = True
-            _LOGGER.warning(
-                "The AWS IoT session got no message in %d minutes despite %d status queries; reconnecting once",
-                minutes,
-                self._mqtt_queries_since_connect,
-            )
-            # async_restart only reconnects for changed credentials.
-            await client.async_stop()
-            await client.async_start()
+        await self._async_handle_silent_session(evidence)
+
+    async def _async_handle_silent_session(self, evidence: str) -> None:
+        """Reconnect the silent session once, then raise the repair (#222).
+
+        Args:
+            evidence: Phrase naming what proved the silence, for the log.
+        """
+        if self._mqtt_silence_handling:
             return
-        if not self._mqtt_silent_reported:
-            self._mqtt_silent_reported = True
-            async_create_mqtt_silent_issue(self.hass, self._config_entry, minutes)
+        self._mqtt_silence_handling = True
+        try:
+            client = self._mqtt_client
+            if client is None:
+                return
+            minutes = MQTT_SILENT_CHECK_DELAY // 60
+            if not self._mqtt_silent_reconnected:
+                self._mqtt_silent_reconnected = True
+                _LOGGER.warning(
+                    "The AWS IoT session got no message in %d minutes %s; reconnecting once", minutes, evidence
+                )
+                # async_restart only reconnects for changed credentials.
+                await client.async_stop()
+                await client.async_start()
+                return
+            if not self._mqtt_silent_reported:
+                self._mqtt_silent_reported = True
+                async_create_mqtt_silent_issue(self.hass, self._config_entry, minutes)
+        finally:
+            self._mqtt_silence_handling = False
 
     @callback
     def _on_mqtt_disconnected(self) -> None:

@@ -295,6 +295,10 @@ REQUEST_STATUS_MIN_INTERVAL: Final = 3  # seconds
 # asks the user to re-enter the account login.
 MQTT_SILENT_CHECK_DELAY: Final = 1800  # seconds
 MQTT_SILENT_MIN_QUERIES: Final = 3
+# Without queries (an account whose only device is a gateway thermometer has
+# none to send), readings that reached the cloud while the session got nothing
+# are the prompt: this many of them count as silent too (#222).
+MQTT_SILENT_MIN_MISSED_PUSHES: Final = 2
 # A device the cloud reports offline still counts as reachable when a local
 # transport (LAN, BLE) is healthy or AWS IoT carried a message from it this
 # recently (#242): the Developer API's online flag lags or is wrong for some.
