@@ -6435,6 +6435,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             else:
                 _LOGGER.debug("Clearing %s for %s (device turned off)", label, device_id)
 
+    def _is_heater(self, device_id: str) -> bool:
+        """Return True when the device is a heater."""
+        device = self._devices.get(device_id)
+        return device is not None and device.is_heater
+
     def _apply_optimistic_update(
         self,
         device_id: str,
@@ -6479,8 +6484,14 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         elif isinstance(command, TemperatureSettingCommand):
             state.heater_temperature = command.temperature
             state.heater_auto_stop = command.auto_stop
+            if self._is_heater(device_id):
+                # The heater switches itself on for a setpoint write (#265).
+                state.apply_optimistic_power(True)
         elif isinstance(command, WorkModeCommand):
             state.apply_optimistic_work_mode(command.work_mode, command.mode_value)
+            if self._is_heater(device_id):
+                # Same for a heat-level write (#265); fans and purifiers keep their power.
+                state.apply_optimistic_power(True)
         elif isinstance(command, OscillationCommand):
             state.apply_optimistic_oscillation(command.oscillating)
         elif isinstance(command, MusicModeCommand):
