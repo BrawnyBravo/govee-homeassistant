@@ -136,6 +136,7 @@ from .const import (
     MQTT_SILENT_MIN_QUERIES,
     REACHABLE_PUSH_WINDOW,
     PTREAL_DREAMVIEW_SKUS,
+    DREAMVIEW_STATE_FROM_FRAMES_SKUS,
     PTREAL_LIGHT_ZONE_SKUS,
     PTREAL_MAIN_PANEL_BIT,
     PTREAL_RING_MASK,
@@ -3891,6 +3892,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # in an ``aa 30`` frame (issue #223).
         if device is not None and device.sku.upper() in PTREAL_LIGHT_ZONE_SKUS:
             state.update_light_zones_from_frames(self._op_frames_from(state_data))
+        # The H66A0 reports its mode in an ``aa 05`` frame; that real report
+        # replaces HA's optimistic DreamView flag (issue #213).
+        if device is not None and device.sku.upper() in DREAMVIEW_STATE_FROM_FRAMES_SKUS and device.supports_dreamview:
+            state.update_dreamview_from_frames(self._op_frames_from(state_data))
         if device is not None and device.supports_pump_state:
             frames = self._op_frames_from(state_data)
             state.update_pump_state_from_frames(frames)

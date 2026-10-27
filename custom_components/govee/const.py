@@ -236,6 +236,10 @@ PTREAL_RING_MASK: Final = 0xFFFF
 # reports both zones in an ``aa 30 <main> <ring>`` status frame. Verified on
 # an H1252 (#223); the H1232's REST toggles work.
 PTREAL_LIGHT_ZONE_SKUS: Final = frozenset({"H1252"})
+# SKUs whose DreamView switch follows the light's own ``aa 05 <mode>`` report
+# (issue #213: the H66A0 kept HA's optimistic ON while the app ran another
+# mode). Add a model only once a capture confirms its report.
+DREAMVIEW_STATE_FROM_FRAMES_SKUS: Final = frozenset({"H66A0"})
 
 # Colour-temperature range of those zones, the fixture's whole-device
 # colorTemperatureK range. The frame builder clamps to it.
