@@ -7,8 +7,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from custom_components.govee.models import GoveeCapability, GoveeDevice
-from custom_components.govee.models.commands import TemperatureSettingCommand, WorkModeCommand
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.govee import switch as switch_mod
+from custom_components.govee.models.commands import OscillationCommand, TemperatureSettingCommand, WorkModeCommand
 from custom_components.govee.models.state import GoveeDeviceState
+from custom_components.govee.switch import GoveeHeaterOscillationSwitchEntity
 from custom_components.govee.number import GoveeHeaterTemperatureNumber
 from tests.coordinator_mocks import follow_online_flag
 from tests.test_cov_coordinator_control import _add, _coordinator
@@ -119,3 +123,80 @@ async def test_setpoint_rounds_not_truncates(value: float, expected: int) -> Non
     command = coordinator.async_control_device.await_args.args[1]
     assert isinstance(command, TemperatureSettingCommand)
     assert command.temperature == expected
+
+
+_OSCILLATION_CAP = GoveeCapability(
+    type="devices.capabilities.toggle",
+    instance="oscillationToggle",
+    parameters={"dataType": "ENUM", "options": [{"name": "on", "value": 1}, {"name": "off", "value": 0}]},
+)
+
+
+def _oscillating_device(device_type: str = "devices.types.heater", with_cap: bool = True) -> GoveeDevice:
+    caps = _CAPS + ((_OSCILLATION_CAP,) if with_cap else ())
+    return GoveeDevice(device_id=HEATER_ID, sku="H7130", name="Heater", device_type=device_type, capabilities=caps)
+
+
+async def _added_switches(device: GoveeDevice) -> list:
+    coordinator = MagicMock()
+    coordinator.devices = {device.device_id: device}
+    entry = MagicMock()
+    entry.runtime_data = coordinator
+    entry.options = {}
+    added: list = []
+    await switch_mod.async_setup_entry(MagicMock(), entry, added.extend)
+    return [e for e in added if isinstance(e, GoveeHeaterOscillationSwitchEntity)]
+
+
+@pytest.mark.parametrize(
+    ("device_type", "with_cap", "expected"),
+    [
+        ("devices.types.heater", True, 1),
+        ("devices.types.heater", False, 0),
+        ("devices.types.fan", True, 0),
+    ],
+)
+async def test_oscillation_switch_creation(device_type: str, with_cap: bool, expected: int) -> None:
+    created = await _added_switches(_oscillating_device(device_type, with_cap))
+    assert len(created) == expected
+    if expected:
+        assert created[0].unique_id == f"{HEATER_ID}_heater_oscillation"
+
+
+def _oscillation_entity(oscillating: bool | None, accept: bool = True):
+    device = _oscillating_device()
+    state = GoveeDeviceState.create_empty(HEATER_ID)
+    state.online = True
+    state.oscillating = oscillating
+    coordinator = MagicMock()
+    coordinator.devices = {HEATER_ID: device}
+    coordinator.get_state = MagicMock(return_value=state)
+    coordinator.async_control_device = AsyncMock(return_value=accept)
+    follow_online_flag(coordinator)
+    return GoveeHeaterOscillationSwitchEntity(coordinator, device), coordinator, state
+
+
+def test_oscillation_switch_follows_state() -> None:
+    entity, _, state = _oscillation_entity(True)
+    assert entity.is_on is True
+    state.oscillating = False
+    assert entity.is_on is False
+
+
+def test_oscillation_switch_unknown_without_state() -> None:
+    entity, coordinator, _ = _oscillation_entity(None)
+    coordinator.get_state.return_value = None
+    assert entity.is_on is None
+
+
+@pytest.mark.parametrize(("method", "value"), [("async_turn_on", True), ("async_turn_off", False)])
+async def test_oscillation_switch_sends_command(method: str, value: bool) -> None:
+    entity, coordinator, _ = _oscillation_entity(not value)
+    await getattr(entity, method)()
+    coordinator.async_control_device.assert_awaited_once_with(HEATER_ID, OscillationCommand(oscillating=value))
+
+
+async def test_oscillation_switch_rejected_command_raises() -> None:
+    entity, _, _ = _oscillation_entity(False, accept=False)
+    with pytest.raises(HomeAssistantError):
+        await entity.async_turn_on()
