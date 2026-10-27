@@ -126,6 +126,8 @@ from .const import (
     MQTT_STATUS_QUERY_SPACING,
     OPTIMISTIC_GRACE_CAP_SECONDS,
     POWER_MONITORING_STATUS_INTERVAL,
+    PROBE_LIMITS_READ_EVERY,
+    PROBE_PACKET_SPACING,
     REQUEST_STATUS_MIN_INTERVAL,
     MQTT_SILENT_CHECK_DELAY,
     MQTT_SILENT_MIN_QUERIES,
@@ -401,6 +403,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     _mqtt_silent_reported = False
     # Confirm-and-resend for light commands, when the option is on (#245).
     _command_confirmer: CommandConfirmer | None = None
+    # Probe polling (#266): sweeps run so far (limits are read on every Nth),
+    # and the running timer-driven sweep, cancelled on shutdown. Class
+    # defaults for the same reason as above.
+    _probe_poll_tick = 0
+    _probe_poll_task: asyncio.Task[None] | None = None
 
     def __init__(
         self,
@@ -3311,13 +3318,14 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Arm or disarm live polling for one probe thermometer.
 
         Driven by the per-device switch entity. Enabling fires one immediate
-        read burst so the entities populate right away instead of staying
+        read burst for that device (temperatures and limits, whatever the
+        shared tick) so the entities populate right away instead of staying
         unknown until the first tick.
         """
         if enabled:
             self._probe_polling_enabled.add(device_id)
             self._config_entry.async_create_background_task(
-                self.hass, self._poll_probe_thermometers(), name="govee_probe_poll_now"
+                self.hass, self._poll_probe_thermometers(only_device_id=device_id), name="govee_probe_poll_now"
             )
             self._schedule_probe_poll()
         else:
@@ -3330,26 +3338,55 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Return True while live polling is armed for this device."""
         return device_id in self._probe_polling_enabled
 
-    def _schedule_probe_poll(self) -> None:
-        """Schedule the next probe read, replacing any pending timer."""
+    def _schedule_probe_poll(self, delay: float | None = None) -> None:
+        """Schedule the next probe read, replacing any pending timer.
+
+        Args:
+            delay: Seconds until the sweep; defaults to the configured interval.
+        """
         if self._probe_poll_unsub:
             self._probe_poll_unsub()
-        self._probe_poll_unsub = async_call_later(self.hass, self._probe_poll_interval, self._probe_poll_callback)
+        self._probe_poll_unsub = async_call_later(
+            self.hass, self._probe_poll_interval if delay is None else delay, self._probe_poll_callback
+        )
 
     async def _probe_poll_callback(self, _now: Any = None) -> None:
-        """Periodic callback: read every armed probe, then re-arm the timer."""
+        """Timer callback: run the sweep as a tracked task so unload can cancel it."""
+        self._probe_poll_task = self._config_entry.async_create_background_task(
+            self.hass, self._run_probe_sweep(), name="govee_probe_poll"
+        )
+
+    async def _run_probe_sweep(self) -> None:
+        """Sweep every armed probe, then re-arm so sweeps start one interval apart.
+
+        The sweep is paced (PROBE_PACKET_SPACING between packets) and can take
+        a while on a many-probe device; the next timer is shortened by the time
+        it took, but never below one packet spacing.
+        """
+        started = time.monotonic()
         await self._poll_probe_thermometers()
         if self._probe_polling_enabled:
-            self._schedule_probe_poll()
+            elapsed = time.monotonic() - started
+            self._schedule_probe_poll(max(PROBE_PACKET_SPACING, self._probe_poll_interval - elapsed))
 
-    async def _poll_probe_thermometers(self) -> None:
-        """Read current values and limits from every armed probe thermometer.
+    async def _poll_probe_thermometers(self, only_device_id: str | None = None) -> None:
+        """Read current values (and, every sixth sweep, limits) from armed probes.
 
-        One read per probe — the per-probe ``0x24`` reply is the only response
+        One read per probe: the per-probe ``0x24`` reply is the only response
         that could be provoked. The six-value status frame arrives unprompted
         on power-on and when an app session opens; no request was found that
-        triggers it. Limits change rarely but are read on the same tick, which
-        costs two more small packets and keeps the number entities honest.
+        triggers it. Per device every temperature read goes out first, so a
+        slow answer cannot starve a later probe; the limits reads (two more
+        small packets per probe, rarely changing) follow only on ticks where
+        ``tick % PROBE_LIMITS_READ_EVERY == 0``, which includes the first.
+        Packets are PROBE_PACKET_SPACING seconds apart, because a probe
+        answers only the first of several back-to-back requests (#266). After
+        each wait the sweep stops if MQTT dropped, and skips a device that was
+        disarmed meanwhile.
+
+        Args:
+            only_device_id: Read just this device, limits included, without
+                advancing the shared tick (the immediate read on arming).
         """
         if not self._probe_polling_enabled:
             return
@@ -3357,13 +3394,33 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         if client is None or not client.connected:
             return
 
-        for device_id in list(self._probe_polling_enabled):
+        if only_device_id is None:
+            read_limits = self._probe_poll_tick % PROBE_LIMITS_READ_EVERY == 0
+            self._probe_poll_tick += 1
+            targets = list(self._probe_polling_enabled)
+        else:
+            read_limits = True
+            targets = [only_device_id]
+
+        first_packet = True
+        for device_id in targets:
             device = self._devices.get(device_id)
             if device is None:
                 continue
-            for probe in probes_for_sku(device.sku):
-                await self._ble_manager.async_send_ble_packet(device_id, device.sku, build_probe_read_packet(probe))
-                await self._ble_manager.async_send_ble_packet(device_id, device.sku, build_limits_read_packet(probe))
+            probes = probes_for_sku(device.sku)
+            packets = [build_probe_read_packet(probe) for probe in probes]
+            if read_limits:
+                packets.extend(build_limits_read_packet(probe) for probe in probes)
+            for packet in packets:
+                if not first_packet:
+                    await asyncio.sleep(PROBE_PACKET_SPACING)
+                    client = self.mqtt_client
+                    if client is None or not client.connected:
+                        return
+                    if device_id not in self._probe_polling_enabled:
+                        break
+                first_packet = False
+                await self._ble_manager.async_send_ble_packet(device_id, device.sku, packet)
 
     @property
     def _mqtt_status_poll_interval(self) -> int:
@@ -6536,6 +6593,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             self._wd_poll_unsub()
             self._wd_poll_unsub = None
         # Cancel probe-thermometer polling
+        if self._probe_poll_task and not self._probe_poll_task.done():
+            self._probe_poll_task.cancel()
+        self._probe_poll_task = None
         if self._probe_poll_unsub:
             self._probe_poll_unsub()
             self._probe_poll_unsub = None

@@ -306,6 +306,11 @@ REACHABLE_PUSH_WINDOW: Final = 600  # seconds
 MIN_WATER_DETECTOR_POLL_INTERVAL: Final = 60
 MAX_WATER_DETECTOR_POLL_INTERVAL: Final = 3600
 MIN_PROBE_POLL_INTERVAL: Final = 10
+# A probe thermometer answers only the first of several back-to-back requests,
+# so packets go out this many seconds apart (#266), and the rarely changing
+# limits are read on every Nth sweep instead of every one.
+PROBE_PACKET_SPACING: Final = 1.0
+PROBE_LIMITS_READ_EVERY: Final = 6
 MAX_PROBE_POLL_INTERVAL: Final = 600
 
 # Govee's documented developer-API quotas. The per-minute figure comes back
