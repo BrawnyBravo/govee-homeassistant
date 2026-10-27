@@ -106,6 +106,12 @@ CONF_API_TEMPERATURE_UNIT: Final = "api_temperature_unit"
 #     °F reading. The login-enabled BFF harvest returned no thermo-hygrometers
 #     for the account, so no fahOpen hint exists and the model list is the only
 #     signal. Also reported as #85, where the option was the workaround.
+# SKUs whose Platform API listing omits colorRgb although the device reports a
+# colour over AWS IoT (#240, H7073: only powerSwitch, brightness and scenes are
+# listed, the status push carries ``color`` {r,g,b}). With IoT credentials the
+# coordinator synthesises the capability and sends colour over AWS IoT.
+MQTT_COLOR_SKUS: Final = frozenset({"H7073"})
+
 FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
     {
         "H5179",

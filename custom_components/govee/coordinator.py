@@ -92,6 +92,7 @@ from .const import (
     DEFAULT_DAILY_REQUEST_BUDGET,
     KETTLE_FOLLOWUP_MIN_REMAINING,
     DEFAULT_ENABLE_MQTT_CONTROL,
+    MQTT_COLOR_SKUS,
     DEFAULT_MQTT_STATUS_INTERVAL,
     DEFAULT_PROBE_POLL_INTERVAL,
     DEFAULT_WATER_DETECTOR_POLL_INTERVAL,
@@ -1898,6 +1899,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                         device.device_id,
                     )
                     continue
+
+                if self._iot_credentials and device.sku.upper() in MQTT_COLOR_SKUS:
+                    # #240: the Platform API omits colorRgb for these SKUs; colour is sent over AWS IoT.
+                    device = device.with_synthetic_color_rgb()
 
                 _LOGGER.debug("Adding device to coordinator: %s", device.device_id)
                 self._devices[device.device_id] = device
@@ -5474,8 +5479,13 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # A publish is never acknowledged, so only devices that have
             # answered on AWS IoT this session qualify: some firmware (H6163)
             # never listens there, and its commands would vanish (#198).
+            # MQTT_COLOR_SKUS (#240) have no REST colour at all, so their colour
+            # goes over AWS IoT even with the control option off.
             if (
-                self._enable_mqtt_control
+                (
+                    self._enable_mqtt_control
+                    or (isinstance(command, ColorCommand) and device.sku.upper() in MQTT_COLOR_SKUS)
+                )
                 and self.mqtt_connected
                 and not device.is_group
                 and self._mqtt_heard_from(device_id)
