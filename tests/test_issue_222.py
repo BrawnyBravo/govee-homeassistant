@@ -388,6 +388,16 @@ class TestGatewayPushEvidence:
         assert coord._mqtt_missed_pushes_since_connect == 0
 
 
+class TestDiagnosticsAccessors:
+    def test_topic_and_missed_push_accessors(self):
+        coordinator, _client = _gateway_coord()
+        coordinator._device_topics = {"OWN": "GD/topic"}
+        coordinator._mqtt_missed_pushes_since_connect = 2
+        assert coordinator.has_device_topic("OWN") is True
+        assert coordinator.has_device_topic("CHILD") is False
+        assert coordinator.mqtt_missed_pushes_since_connect == 2
+
+
 class TestRepairIssue:
     async def test_create_and_delete(self, hass: HomeAssistant) -> None:
         entry = MockConfigEntry(domain=DOMAIN, title="Govee", data={})

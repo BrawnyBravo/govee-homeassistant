@@ -1141,6 +1141,15 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         """Number of devices with a resolved MQTT publish topic."""
         return len(self._device_topics)
 
+    def has_device_topic(self, device_id: str) -> bool:
+        """Whether the device has its own MQTT publish topic, for diagnostics (#222)."""
+        return device_id in self._device_topics
+
+    @property
+    def mqtt_missed_pushes_since_connect(self) -> int:
+        """Gateway readings that reached the cloud but not this MQTT session (#222)."""
+        return self._mqtt_missed_pushes_since_connect
+
     @property
     def gateway_route_count(self) -> int:
         """Number of devices reachable through a gateway's command topic (#135)."""
