@@ -15,7 +15,7 @@ v2026.10.1 shipped on 2026-10-25 and the threads answered within a day. Three fo
 - A connected but silent AWS IoT session is detected on a hub-only account, by gateway readings that reached Govee's cloud but not the session. A quiet account with no prompts still never gets the repair (#222) → T-003, T-004
 - An H7130 heat-level or setpoint change shows the heater as on, and setpoints round instead of truncating. The heater gets an oscillation switch, and Auto Stop drives the device's own Auto Stop field (#265) → T-005, T-006, T-007
 - An H7073 with the account login gets a colour picker whose writes go over AWS IoT (#240) → T-008
-- The DreamView switch follows the device's own mode report, not a stale optimistic ON (#213, #220) → T-009
+- The H66A0's DreamView switch follows the device's own mode report, not a stale optimistic ON (#213); other DreamView models keep today's behaviour until a capture confirms theirs → T-009
 - Every thread that needs a specific reply has a queued brief, and no thread gets two replies → T-010
 - Day A passes every gate: 95 % overall, 96 % per module, config_flow.py 100 %, lint and types, and the 3.14 suite → T-011
 - PR #267 lands alone on its own release day, CI green. Its behaviour changes are limited to an opted-in H6104, it has translated errors and icons, and its README is written for upstream users. Its BLE connection bugs are fixed, and a config-entry test covers it → T-012, T-013, T-014
