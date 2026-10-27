@@ -10,7 +10,12 @@ from custom_components.govee.models import GoveeCapability, GoveeDevice
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.govee import switch as switch_mod
-from custom_components.govee.models.commands import OscillationCommand, TemperatureSettingCommand, WorkModeCommand
+from custom_components.govee.models.commands import (
+    OscillationCommand,
+    TemperatureSettingCommand,
+    ToggleCommand,
+    WorkModeCommand,
+)
 from custom_components.govee.models.state import GoveeDeviceState
 from custom_components.govee.switch import GoveeHeaterOscillationSwitchEntity
 from custom_components.govee.number import GoveeHeaterTemperatureNumber
@@ -200,3 +205,128 @@ async def test_oscillation_switch_rejected_command_raises() -> None:
     entity, _, _ = _oscillation_entity(False, accept=False)
     with pytest.raises(HomeAssistantError):
         await entity.async_turn_on()
+
+
+# --- Auto Stop via the STRUCT field, thermostat as its own switch ---
+
+_THERMOSTAT_CAP = GoveeCapability(
+    type="devices.capabilities.toggle",
+    instance="thermostatToggle",
+    parameters={"dataType": "ENUM", "options": [{"name": "on", "value": 1}, {"name": "off", "value": 0}]},
+)
+_AUTO_STOP_TEMP_CAP = GoveeCapability(
+    type="devices.capabilities.temperature_setting",
+    instance="targetTemperature",
+    parameters={
+        "dataType": "STRUCT",
+        "fields": [
+            {"fieldName": "temperature", "dataType": "INTEGER", "range": {"min": 5, "max": 30, "precision": 1}},
+            {
+                "fieldName": "autoStop",
+                "dataType": "ENUM",
+                "options": [{"name": "Auto Stop", "value": 1}, {"name": "Maintain", "value": 0}],
+            },
+        ],
+    },
+)
+
+
+def _both_caps_device(sku: str) -> GoveeDevice:
+    caps = tuple(c for c in _CAPS if c.instance != "targetTemperature") + (_AUTO_STOP_TEMP_CAP, _THERMOSTAT_CAP)
+    return GoveeDevice(
+        device_id=HEATER_ID, sku=sku, name="Heater", device_type="devices.types.heater", capabilities=caps
+    )
+
+
+def _entity(cls, sku: str = "H7130", restored: str | None = None):
+    device = _both_caps_device(sku)
+    state = GoveeDeviceState.create_empty(HEATER_ID)
+    state.online = True
+    state.heater_temperature = 23
+    coordinator = MagicMock()
+    coordinator.devices = {HEATER_ID: device}
+    coordinator.get_state = MagicMock(return_value=state)
+    coordinator.async_control_device = AsyncMock(return_value=True)
+    follow_online_flag(coordinator)
+    entity = cls(coordinator, device)
+    entity.hass = MagicMock()
+    entity.async_write_ha_state = MagicMock()
+    if restored is not None:
+        entity.async_get_last_state = AsyncMock(return_value=MagicMock(state=restored))
+    return entity, coordinator, state
+
+
+@pytest.mark.parametrize(("method", "value"), [("async_turn_on", 1), ("async_turn_off", 0)])
+async def test_h7130_auto_stop_sends_struct(method: str, value: int) -> None:
+    entity, coordinator, _ = _entity(switch_mod.GoveeAutoStopSwitchEntity)
+    await getattr(entity, method)()
+    coordinator.async_control_device.assert_awaited_once_with(
+        HEATER_ID, TemperatureSettingCommand(temperature=23, auto_stop=value)
+    )
+
+
+async def test_other_heater_with_both_caps_still_uses_thermostat_toggle() -> None:
+    entity, coordinator, _ = _entity(switch_mod.GoveeAutoStopSwitchEntity, sku="H7131")
+    await entity.async_turn_on()
+    coordinator.async_control_device.assert_awaited_once_with(
+        HEATER_ID, ToggleCommand(toggle_instance="thermostatToggle", enabled=True)
+    )
+
+
+@pytest.mark.parametrize(("method", "value"), [("async_turn_on", True), ("async_turn_off", False)])
+async def test_h7130_thermostat_switch_sends_toggle(method: str, value: bool) -> None:
+    entity, coordinator, _ = _entity(switch_mod.GoveeHeaterThermostatSwitchEntity)
+    await getattr(entity, method)()
+    coordinator.async_control_device.assert_awaited_once_with(
+        HEATER_ID, ToggleCommand(toggle_instance="thermostatToggle", enabled=value)
+    )
+    assert entity.unique_id == f"{HEATER_ID}_heater_thermostat"
+
+
+async def test_thermostat_switch_rejected_command_raises() -> None:
+    entity, coordinator, _ = _entity(switch_mod.GoveeHeaterThermostatSwitchEntity)
+    coordinator.async_control_device.return_value = False
+    with pytest.raises(HomeAssistantError):
+        await entity.async_turn_on()
+
+
+async def test_thermostat_switch_restores_and_prefers_state() -> None:
+    entity, _, state = _entity(switch_mod.GoveeHeaterThermostatSwitchEntity, restored="on")
+    await entity.async_added_to_hass()
+    assert state.heater_thermostat is True
+    assert entity.is_on is True
+    state.heater_thermostat = False
+    assert entity.is_on is False
+    state.heater_thermostat = None
+    assert entity.is_on is True
+
+
+async def test_thermostat_switch_restore_ignores_unavailable() -> None:
+    entity, _, state = _entity(switch_mod.GoveeHeaterThermostatSwitchEntity, restored="unavailable")
+    await entity.async_added_to_hass()
+    assert state.heater_thermostat is None
+    assert entity.is_on is False
+
+
+async def test_thermostat_switch_created_only_for_h7130() -> None:
+    for sku, expected in (("H7130", 1), ("H7131", 0)):
+        device = _both_caps_device(sku)
+        coordinator = MagicMock()
+        coordinator.devices = {HEATER_ID: device}
+        entry = MagicMock()
+        entry.runtime_data = coordinator
+        entry.options = {}
+        added: list = []
+        await switch_mod.async_setup_entry(MagicMock(), entry, added.extend)
+        assert len([e for e in added if isinstance(e, switch_mod.GoveeHeaterThermostatSwitchEntity)]) == expected
+        assert len([e for e in added if isinstance(e, switch_mod.GoveeAutoStopSwitchEntity)]) == 1
+
+
+@pytest.mark.parametrize(("sku", "thermo", "auto_stop"), [("H7130", True, None), ("H7131", None, 1)])
+def test_thermostat_toggle_optimistic_target(sku: str, thermo: bool | None, auto_stop: int | None) -> None:
+    coord = _coordinator()
+    device = _both_caps_device(sku)
+    state = _add(coord, device, _heater_state())
+    coord._apply_optimistic_update(HEATER_ID, ToggleCommand(toggle_instance="thermostatToggle", enabled=True))
+    assert state.heater_thermostat is thermo
+    assert state.heater_auto_stop == auto_stop

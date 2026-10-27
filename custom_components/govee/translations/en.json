@@ -285,6 +285,9 @@
       "govee_heater_auto_stop": {
         "name": "Auto stop"
       },
+      "govee_heater_thermostat": {
+        "name": "Thermostat"
+      },
       "govee_heater_oscillation": {
         "name": "Oscillation"
       },

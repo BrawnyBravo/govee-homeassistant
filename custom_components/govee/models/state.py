@@ -246,6 +246,7 @@ class GoveeDeviceState:
     # Heater state
     heater_temperature: int | None = None  # Target temperature in Celsius
     heater_auto_stop: int | None = None  # Auto-stop setting (0=Maintain, 1=Auto-stop)
+    heater_thermostat: bool | None = None  # thermostatToggle, optimistic only (device never reports it)
     fan_speed: int | None = None  # Fan speed mode value (1=Low, 2=Medium, 3=High)
     # Unit reported by the temperature_setting STRUCT state ("Celsius" /
     # "Fahrenheit"). Heaters like the H713B run in °F internally and report

@@ -137,6 +137,10 @@ FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
 # homebridge's capability grouping, so it is a different protocol class, and
 # the H7108 is unverified — both stay on the REST OscillationCommand, as does
 # every other fan SKU. Compared case-insensitively against GoveeDevice.sku.
+# Heaters that advertise both thermostatToggle (never reported by the device) and
+# the targetTemperature STRUCT's autoStop field: Auto Stop drives the STRUCT field
+# and the thermostat toggle is its own switch (#265).
+HEATER_AUTO_STOP_STRUCT_SKUS: Final = frozenset({"H7130"})
 MQTT_OSCILLATION_SKUS: Final = frozenset({"H7105", "H7107"})
 
 # Leak sensors reporting independent upper/lower probe moisture bytes over
@@ -628,6 +632,7 @@ SUFFIX_HEATER_TEMPERATURE: Final = "_heater_temperature"
 SUFFIX_HEATER_FAN_SPEED: Final = "_heater_fan_speed"
 SUFFIX_HEATER_AUTO_STOP: Final = "_heater_auto_stop"
 SUFFIX_HEATER_OSCILLATION: Final = "_heater_oscillation"
+SUFFIX_HEATER_THERMOSTAT: Final = "_heater_thermostat"
 SUFFIX_PURIFIER_MODE_SELECT: Final = "_purifier_mode_select"
 SUFFIX_PRESET_SCENE_SELECT: Final = "_preset_scene_select"
 SUFFIX_NIGHTLIGHT_SCENE_SELECT: Final = "_nightlight_scene_select"

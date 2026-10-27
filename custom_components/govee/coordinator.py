@@ -76,6 +76,7 @@ from .api.lan_client import (
 )
 from .api.lan_control import command_to_lan, lan_brightness_to_device
 from .const import (
+    HEATER_AUTO_STOP_STRUCT_SKUS,
     CONF_API_TEMPERATURE_UNIT,
     CONF_EMAIL,
     CONF_CONFIRM_COMMANDS,
@@ -4956,6 +4957,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     state.heater_temperature = existing_state.heater_temperature
                 if existing_state.heater_auto_stop is not None and state.heater_auto_stop is None:
                     state.heater_auto_stop = existing_state.heater_auto_stop
+                if existing_state.heater_thermostat is not None and state.heater_thermostat is None:
+                    state.heater_thermostat = existing_state.heater_thermostat
                 if existing_state.device_temperature_unit is not None and state.device_temperature_unit is None:
                     state.device_temperature_unit = existing_state.device_temperature_unit
                 if device.decodes_kettle_frames:
@@ -6513,7 +6516,11 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             if command.toggle_instance == INSTANCE_DREAMVIEW:
                 state.apply_optimistic_dreamview(command.enabled)
             elif command.toggle_instance == INSTANCE_THERMOSTAT_TOGGLE:
-                state.heater_auto_stop = 1 if command.enabled else 0
+                thermostat_device = self._devices.get(device_id)
+                if thermostat_device is not None and thermostat_device.sku.upper() in HEATER_AUTO_STOP_STRUCT_SKUS:
+                    state.heater_thermostat = command.enabled
+                else:
+                    state.heater_auto_stop = 1 if command.enabled else 0
             elif command.toggle_instance == INSTANCE_FAN_TOGGLE:
                 state.ceiling_fan_on = command.enabled
             elif command.toggle_instance == INSTANCE_REVERSE_AIRFLOW:
