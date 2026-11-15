@@ -40,11 +40,18 @@ PRESENCE_SENSOR_SKUS = frozenset({"H5127"})
 # therefore SKU-locked, issue #114 follow-up.
 PUMP_DEHUMIDIFIER_SKUS = frozenset({"H7152"})
 
+# Dehumidifiers whose ``aa 10 81`` status frames carry a packed temperature and
+# humidity reading (no capability exists for either). The H7152 first, then the
+# tank-only H7151 with the same layout (#283). Separate from
+# PUMP_DEHUMIDIFIER_SKUS because the H7151 has no pump or hose. H7150: no data.
+FRAME_CLIMATE_DEHUMIDIFIER_SKUS = frozenset({"H7152", "H7151"})
+
 # Kettles whose AWS IoT push (``sta`` temperatures and BLE-format status
-# frames, see kettle/frames.py) is decoded. Verified on the H7175 only: other
-# kettles (H717A, H7170) share the capability family but their frames are
-# unknown, so their pushes are handled as before.
-KETTLE_FRAME_SKUS = frozenset({"H7175"})
+# frames, see kettle/frames.py) is decoded. Verified on the H7175 and the
+# H7170 (#278, same frames, correct 104-212 F on hardware): the H717A shares
+# the capability family but its frames are unknown, so its pushes are handled
+# as before.
+KETTLE_FRAME_SKUS = frozenset({"H7170", "H7175"})
 
 # Smart outlets that report live voltage/current/power/energy over AWS IoT
 # push frames rather than any capability (issue #200). Detection is
@@ -719,7 +726,7 @@ class GoveeDevice:
         capability exists for that one at all, see
         GoveeDeviceState.update_temperature_from_frames. The capability path
         is read-only — surfaced as an HA sensor either way."""
-        if self.sku.upper() in PUMP_DEHUMIDIFIER_SKUS:
+        if self.sku.upper() in FRAME_CLIMATE_DEHUMIDIFIER_SKUS:
             return True
         return any(
             cap.type == CAPABILITY_PROPERTY and cap.instance == INSTANCE_SENSOR_TEMPERATURE
@@ -733,7 +740,7 @@ class GoveeDevice:
         reverse-engineered live humidity reading alongside temperature — no
         capability exists for that one at all, see
         GoveeDeviceState.update_temperature_from_frames."""
-        if self.sku.upper() in PUMP_DEHUMIDIFIER_SKUS:
+        if self.sku.upper() in FRAME_CLIMATE_DEHUMIDIFIER_SKUS:
             return True
         return any(
             cap.type == CAPABILITY_PROPERTY and cap.instance == INSTANCE_SENSOR_HUMIDITY for cap in self.capabilities

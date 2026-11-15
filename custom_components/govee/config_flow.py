@@ -14,6 +14,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
+    SOURCE_BLUETOOTH,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
@@ -52,6 +53,7 @@ from .const import (
     CONF_ENABLE_GROUPS,
     CONF_CONFIRM_COMMANDS,
     CONF_ENABLE_MQTT_CONTROL,
+    CONF_ENABLE_H6104_BLE,
     CONF_ENABLE_SCENES,
     CONF_KETTLE_SLOT_LABELS,
     CONF_EXPOSE_TRANSPORT_ENTITIES,
@@ -70,6 +72,7 @@ from .const import (
     DEFAULT_ENABLE_GROUPS,
     DEFAULT_CONFIRM_COMMANDS,
     DEFAULT_ENABLE_MQTT_CONTROL,
+    DEFAULT_ENABLE_H6104_BLE,
     DEFAULT_ENABLE_SCENES,
     DEFAULT_EXPOSE_TRANSPORT_ENTITIES,
     DEFAULT_LAN_TARGETS,
@@ -292,7 +295,10 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
                             await client.request_verification_code(email, self._client_id)
                     except GoveeApiError as err:
                         _LOGGER.warning("Failed to request verification code: %s", err)
-                        errors["base"] = "cannot_connect"
+                        # Govee refusing to send (rate limit ...) is not a network fault.
+                        errors["base"] = (
+                            "login_rejected" if isinstance(err, GoveeLoginRejectedError) else "cannot_connect"
+                        )
                     else:
                         return await self.async_step_verification_code()
                 except GoveeAuthError as err:
@@ -465,7 +471,7 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
         """Clear cached MQTT credentials and login-failure marker.
 
         This allows a fresh login attempt after reconfigure.
-        Also dismisses any 2FA repairs issue for this entry.
+        Also dismisses the 2FA and token-expired repairs issues for this entry.
         """
         entry = self.hass.config_entries.async_get_entry(entry_id)
         if entry is not None:
@@ -480,8 +486,10 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
             if mutated:
                 self.hass.config_entries.async_update_entry(entry, data=new_data)
 
-        # Dismiss 2FA repairs issue if it exists
+        # Dismiss the repairs that told the user to reconfigure: 2FA needed,
+        # and an expired token the coordinator could not refresh itself.
         ir.async_delete_issue(self.hass, DOMAIN, f"mqtt_2fa_required_{entry_id}")
+        ir.async_delete_issue(self.hass, DOMAIN, f"mqtt_token_expired_{entry_id}")
 
         _LOGGER.debug("Cleared MQTT cache for entry %s", entry_id)
 
@@ -500,6 +508,12 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
             # 2FA, being asked for a second verification code).
             if self._iot_credentials is not None and is_dataclass(self._iot_credentials):
                 data[KEY_IOT_CREDENTIALS] = asdict(self._iot_credentials)
+
+        # Home Assistant only closes a discovery card for an entry with the
+        # same unique ID, which an entry set up by hand doesn't have
+        for flow in self._async_in_progress():
+            if flow["context"].get("source") == SOURCE_BLUETOOTH:
+                self.hass.config_entries.flow.async_abort(flow["flow_id"])
 
         return self.async_create_entry(
             title="Govee",
@@ -645,7 +659,9 @@ class GoveeConfigFlow(ConfigFlow, domain=DOMAIN):
                                     "Failed to request verification code: %s",
                                     err,
                                 )
-                                errors["base"] = "cannot_connect"
+                                errors["base"] = (
+                                    "login_rejected" if isinstance(err, GoveeLoginRejectedError) else "cannot_connect"
+                                )
                             else:
                                 return await self.async_step_verification_code()
                         except GoveeAuthError as err:
@@ -934,6 +950,10 @@ class GoveeOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_CONFIRM_COMMANDS,
                         default=source.get(CONF_CONFIRM_COMMANDS, DEFAULT_CONFIRM_COMMANDS),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ENABLE_H6104_BLE,
+                        default=source.get(CONF_ENABLE_H6104_BLE, DEFAULT_ENABLE_H6104_BLE),
                     ): bool,
                     vol.Optional(
                         CONF_API_TEMPERATURE_UNIT,

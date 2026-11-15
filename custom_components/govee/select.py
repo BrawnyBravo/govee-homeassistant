@@ -16,6 +16,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_ENABLE_DIY_SCENES,
+    CONF_ENABLE_H6104_BLE,
+    DEFAULT_ENABLE_H6104_BLE,
     CONF_ENABLE_SCENES,
     DEFAULT_ENABLE_DIY_SCENES,
     DEFAULT_ENABLE_SCENES,
@@ -32,6 +34,7 @@ from .const import (
 )
 from .coordinator import GoveeConfigEntry, GoveeCoordinator
 from .entity import GoveeEntity
+from .h6104 import GoveeTVAreaSelect
 from .kettle.entities import kettle_selects
 from .models import (
     GoveeDevice,
@@ -67,6 +70,26 @@ class _GoveeSelectBase(GoveeEntity, SelectEntity):
             translation_placeholders={"option": option, "device": self._device.name},
         )
 
+    def _light_is_off(self) -> bool:
+        """Return True when the device is known to be switched off.
+
+        The stored scene is kept through power off because the light resumes
+        it when switched back on. The scene selects read this to show "None"
+        while the light is dark and the scene again once it is back on.
+        """
+        state = self.coordinator.get_state(self._device_id)
+        return state is not None and state.power_state is False
+
+    async def _async_select_none(self) -> None:
+        """Handle the "None" option of a scene select."""
+        # While the light is off the select already reads "None". Clearing the
+        # scene then would send a color command, which switches the light on,
+        # so the stored scene is left for the next power-on instead.
+        if not self._light_is_off():
+            # Send a color/color_temp command to exit the scene on the device
+            await self.coordinator.async_clear_scene(self._device_id)
+        self.async_write_ha_state()
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -89,6 +112,12 @@ async def async_setup_entry(
     )
 
     for device in coordinator.devices.values():
+        if (
+            device.sku == "H6104"
+            and not device.is_group
+            and entry.options.get(CONF_ENABLE_H6104_BLE, DEFAULT_ENABLE_H6104_BLE) is True
+        ):
+            entities.append(GoveeTVAreaSelect(coordinator, device))
         _LOGGER.debug(
             "Device %s: supports_scenes=%s supports_diy_scenes=%s is_group=%s",
             device.name,
@@ -318,7 +347,10 @@ class GoveeSceneSelectEntity(_GoveeSelectBase):
 
         Reads from coordinator state to reflect mutual exclusion.
         When DreamView or Music Mode is active, scene is cleared.
+        Reads "None" while the light is off.
         """
+        if self._light_is_off():
+            return SCENE_NONE
         state = self.coordinator.get_state(self._device_id)
         if state and state.active_scene:
             # Look up option name from scene ID
@@ -333,9 +365,7 @@ class GoveeSceneSelectEntity(_GoveeSelectBase):
         Selecting a scene clears Music Mode and DreamView states.
         """
         if option == SCENE_NONE:
-            # Send a color/color_temp command to exit the scene on the device
-            await self.coordinator.async_clear_scene(self._device_id)
-            self.async_write_ha_state()
+            await self._async_select_none()
             return
 
         scene_info = self._scene_map.get(option)
@@ -414,7 +444,10 @@ class GoveeDIYSceneSelectEntity(_GoveeSelectBase):
 
         Reads from coordinator state to reflect mutual exclusion.
         When DreamView or Music Mode is active, DIY scene is cleared.
+        Reads "None" while the light is off.
         """
+        if self._light_is_off():
+            return SCENE_NONE
         state = self.coordinator.get_state(self._device_id)
         if state and state.active_diy_scene:
             # Look up option name from scene ID
@@ -429,9 +462,7 @@ class GoveeDIYSceneSelectEntity(_GoveeSelectBase):
         Selecting a DIY scene clears Music Mode and DreamView states.
         """
         if option == SCENE_NONE:
-            # Send a color/color_temp command to exit the scene on the device
-            await self.coordinator.async_clear_scene(self._device_id)
-            self.async_write_ha_state()
+            await self._async_select_none()
             return
 
         scene_info = self._scene_map.get(option)
@@ -694,10 +725,18 @@ class GoveeMusicModeSelectEntity(_GoveeSelectBase):
     def current_option(self) -> str | None:
         """Return current selected option from state."""
         state = self.coordinator.get_state(self._device_id)
+        if (
+            self._device.sku == "H6104"
+            and self.coordinator.h6104_ble_enabled
+            and (state is None or state.music_mode_enabled is not True)
+        ):
+            return None
         if state and state.music_mode_name is not None:
             # Check if the name is in our options
             if state.music_mode_name in self._option_map:
                 return state.music_mode_name
+        if self._device.sku == "H6104" and self.coordinator.h6104_ble_enabled:
+            return None
         # Return first option as default if available
         return self._attr_options[0] if self._attr_options else None
 
