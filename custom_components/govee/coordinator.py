@@ -99,6 +99,7 @@ from .const import (
     DEFAULT_DAILY_REQUEST_BUDGET,
     KETTLE_FOLLOWUP_MIN_REMAINING,
     DEFAULT_ENABLE_MQTT_CONTROL,
+    BFF_SEGMENT_COUNT_SKUS,
     MQTT_COLOR_SKUS,
     DEFAULT_MQTT_STATUS_INTERVAL,
     DEFAULT_PROBE_POLL_INTERVAL,
@@ -184,6 +185,7 @@ from .models.commands import (
     PowerCommand,
     RangeCommand,
     SceneCommand,
+    SegmentBrightnessCommand,
     SegmentColorCommand,
     TemperatureSettingCommand,
     ToggleCommand,
@@ -227,7 +229,7 @@ from .models.device import (
     looks_like_group_id,
 )
 from .models.device import GoveeLeakSensor, GoveeLeakSensorState
-from .scene_cache import SceneCacheManager
+from .scene_cache import SceneCacheManager, scenes_refreshed_signal
 from .repairs import (
     async_create_mqtt_issue,
     async_create_rate_limit_issue,
@@ -2518,6 +2520,19 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         except Exception as err:
             _LOGGER.warning("Unexpected error fetching device topics: %s", err)
 
+    def _apply_bff_segment_counts(self, counts: dict[str, int]) -> None:
+        """Adopt the account's segment count for SKUs in ``BFF_SEGMENT_COUNT_SKUS`` (#301).
+
+        Runs during setup, before platforms are forwarded, so segment entities
+        are created from the account count. Without BFF data the API count stays.
+        """
+        for device_id, count in counts.items():
+            device = self._devices.get(device_id)
+            if device is None or device.sku.upper() not in BFF_SEGMENT_COUNT_SKUS:
+                continue
+            _LOGGER.debug("Segment count for %s from the account: %d", device.sku, count)
+            self._devices[device_id] = dataclasses.replace(device, bff_segment_count=count)
+
     async def _discover_leak_sensors(self) -> None:
         """Discover leak sensor sub-devices via BFF API.
 
@@ -2534,13 +2549,16 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             self._bff_device_census = auth_client.bff_device_census()
             self._bff_response_skeleton = auth_client.bff_response_skeleton()
             self._bff_device_values = auth_client.bff_device_values()
+            bff_segment_counts.update(auth_client.bff_segment_counts())
             return result
 
+        bff_segment_counts: dict[str, int] = {}
         try:
             # A short-lived auth client per call, consistent with
             # _fetch_device_topics(). The hass= param shares HA's managed
             # aiohttp.ClientSession, so no new TCP connections are created.
             fetched = await self._async_bff_call(_op, "leak-sensor list")
+            self._apply_bff_segment_counts(bff_segment_counts)
             if fetched is None:
                 return
             sensor_data, hub_data, thermo_readings = fetched
@@ -5630,7 +5648,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         # Before dispatch: a newer command makes a pending confirm stale, and
         # the confirm compares against the value from before this one (#245).
         pending = confirmer.prepare(device_id, command) if confirmer is not None else None
-        success = await self._async_control_device(device_id, command, confirm=pending)
+        success = await self._async_control_tracking_segments(device_id, command, confirm=pending)
         device = self._devices.get(device_id)
         if success and device is not None and device.decodes_kettle_frames:
             self.kettles.schedule_followup(device_id)
@@ -5657,6 +5675,50 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             self.async_set_updated_data(self._states)
         return bool(success)
 
+    async def _async_control_tracking_segments(
+        self, device_id: str, command: DeviceCommand, *, confirm: PendingConfirm | None = None
+    ) -> bool:
+        """Dispatch ``command``, rolling back segment colour tracking if it fails."""
+        if not isinstance(command, SegmentColorCommand) or device_id not in self._devices:
+            return await self._async_control_device(device_id, command, confirm=confirm)
+
+        # Remember what the segments were last set to, before the first await,
+        # so a later whole-device write can faithfully restore them. Recorded
+        # here rather than in the REST branch so it captures the command
+        # whichever transport tier ends up carrying it.
+        rgb = command.color.as_tuple
+        tracked = self._segment_colors.get(device_id, {})
+        previous = {index: tracked.get(index) for index in command.segment_indices}
+        for index in command.segment_indices:
+            self.record_segment_color(device_id, index, rgb)
+
+        success = False
+        try:
+            success = await self._async_control_device(device_id, command, confirm=confirm)
+            return success
+        finally:
+            if not success:
+                # The colour never reached the device: put the tracking back so
+                # a later whole-device write does not replay it (#131). Leave a
+                # segment alone if a newer write has replaced the value since.
+                self._restore_segment_colors(device_id, previous, rgb)
+
+    def _restore_segment_colors(
+        self,
+        device_id: str,
+        previous: dict[int, tuple[int, int, int] | None],
+        written: tuple[int, int, int],
+    ) -> None:
+        """Undo a failed segment write's colour tracking."""
+        tracked = self._segment_colors.get(device_id, {})
+        for index, old in previous.items():
+            if tracked.get(index) != written:
+                continue
+            if old is None:
+                tracked.pop(index, None)
+            else:
+                tracked[index] = old
+
     async def _async_control_device(
         self, device_id: str, command: DeviceCommand, *, confirm: PendingConfirm | None = None
     ) -> bool:
@@ -5675,15 +5737,6 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         is_power_off = isinstance(command, PowerCommand) and not command.power_on
         if is_power_off:
             self._pending_power_off.add(device_id)
-
-        # Remember what the segments were last set to, before the first await,
-        # so a later whole-device write can faithfully restore them. Recorded
-        # here rather than in the REST branch so it captures the command
-        # whichever transport tier ends up carrying it.
-        if isinstance(command, SegmentColorCommand):
-            rgb = command.color.as_tuple
-            for index in command.segment_indices:
-                self.record_segment_color(device_id, index, rgb)
 
         try:
             # H8057 exposes four segments, but REST RGB accepts only 0-2.
@@ -5819,6 +5872,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 self.async_set_updated_data(self._states)
                 success = await self._dispatch_segment_command(device_id, device.sku, command)
                 return success
+            # Segment brightness has no device-state field to update, but goes
+            # through the same per-device queue so a burst is not dropped.
+            if isinstance(command, SegmentBrightnessCommand):
+                return await self._dispatch_segment_command(device_id, device.sku, command)
 
             success = await self._api_client.control_device(
                 device_id,
@@ -5972,7 +6029,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         self,
         device_id: str,
         sku: str,
-        command: SegmentColorCommand,
+        command: SegmentColorCommand | SegmentBrightnessCommand,
     ) -> bool:
         """Send a single segment command under a per-device lock.
 
@@ -6891,8 +6948,8 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         return success
 
-    async def async_send_raw_ptreal(self, device_id: str, frame: bytes) -> bool:
-        """Send a raw ptReal BLE frame to a device (developer/debug aid).
+    async def async_send_raw_ptreal(self, device_id: str, frame: bytes | list[bytes]) -> bool:
+        """Send raw ptReal BLE frame(s) to a device (developer/debug aid).
 
         This is a debug path for issue #208 (H7026 and similar RGBIC devices
         where the Platform API cannot address every segment): it lets a
@@ -6901,19 +6958,58 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         applies no optimistic state update. Sending a wrong frame can put the
         light into an unexpected mode.
 
+        A list of frames is delivered in ONE ptReal message, the way the Govee
+        app uploads a scene: an ``a3`` multi-packet carrying the scene data
+        followed by its ``33 05 04`` activation. Sent as separate messages the
+        device activates the scene without its data (a rainbow cycle).
+
+        A device with a healthy LAN transport gets the message over LAN
+        (``ptReal`` with the same ``command`` list), otherwise it goes over the
+        AWS IoT passthrough. A LAN ptReal write cannot be read back, so the
+        LAN read-health gate is what stands in for confirmation.
+
         Args:
             device_id: Device identifier.
-            frame: Raw command bytes. 1-19 bytes are padded and checksummed
-                via `build_packet`; exactly 20 bytes are sent as-is provided
-                the last byte is a valid XOR checksum of the first 19.
+            frame: Raw command bytes, or a list of them. 1-19 bytes are padded
+                and checksummed via `build_packet`; exactly 20 bytes are sent
+                as-is provided the last byte is a valid XOR checksum of the
+                first 19.
 
         Returns:
-            True if the frame was sent successfully.
+            True if the frame(s) were sent successfully.
         """
         device = self._devices.get(device_id)
         if not device or device.is_group:
             _LOGGER.debug("Unknown or group device for raw ptReal: %s", device_id)
             return False
+
+        frames = frame if isinstance(frame, list) else [frame]
+        if not frames:
+            _LOGGER.debug("No raw ptReal frames for %s", device_id)
+            return False
+
+        packets: list[bytes] = []
+        for raw in frames:
+            if not raw or len(raw) > 20:
+                _LOGGER.debug("Invalid raw ptReal frame length for %s: %d bytes", device_id, len(raw))
+                return False
+            if len(raw) == 20:
+                if calculate_checksum(list(raw[:19])) != raw[19]:
+                    _LOGGER.debug("Invalid raw ptReal checksum for %s", device_id)
+                    return False
+                packets.append(bytes(raw))
+            else:
+                packets.append(build_packet(list(raw)))
+
+        encoded = [encode_packet_base64(packet) for packet in packets]
+
+        lan_ip = self._lan_ptreal_ip(device_id, device)
+        if lan_ip is not None and self._lan_client is not None:
+            if await self._lan_client.async_send_command(lan_ip, "ptReal", {"command": encoded}):
+                self._record_transport_send(device_id, "lan")
+                _LOGGER.debug("Sent %d raw ptReal frame(s) to %s over LAN", len(packets), device_id)
+                return True
+            self._record_transport_failure(device_id, "lan", "send_failed")
 
         if not self._ble_manager.available:
             _LOGGER.debug(
@@ -6922,28 +7018,37 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             )
             return False
 
-        if not frame or len(frame) > 20:
-            _LOGGER.debug("Invalid raw ptReal frame length for %s: %d bytes", device_id, len(frame))
-            return False
-
-        if len(frame) == 20:
-            if calculate_checksum(list(frame[:19])) != frame[19]:
-                _LOGGER.debug("Invalid raw ptReal checksum for %s", device_id)
-                return False
-            packet = bytes(frame)
-        else:
-            packet = build_packet(list(frame))
-
-        result = await self._ble_manager.async_send_ble_packet(device_id, device.sku, encode_packet_base64(packet))
+        payload: str | list[str] = encoded if isinstance(frame, list) else encoded[0]
+        result: bool = await self._ble_manager.async_send_ble_packet(device_id, device.sku, payload)
 
         _LOGGER.debug(
             "Sent raw ptReal %s to %s: %s",
-            packet.hex(),
+            ",".join(packet.hex() for packet in packets),
             device_id,
             "ok" if result else "failed",
         )
 
         return result
+
+    def _lan_ptreal_ip(self, device_id: str, device: GoveeDevice) -> str | None:
+        """Return the LAN IP to carry a raw ptReal write, or None to use AWS IoT.
+
+        Same gates as a LAN control write: LAN client up, a correlated
+        non-group device, read-proven LAN health (or a write-only override)
+        and no active write suppression.
+        """
+        if self._lan_client is None or device.is_group or looks_like_group_id(device_id):
+            return None
+        info = self._lan_devices.get(device_id)
+        if info is None:
+            return None
+        if device_id not in self._lan_write_only:
+            health = self._transport.get(device_id, "lan")
+            if health is None or not health.is_available:
+                return None
+        if self._lan_writes_suppressed(device_id):
+            return None
+        return info.ip
 
     @staticmethod
     def _preserve_optimistic_field(
@@ -7090,6 +7195,19 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         device = self._devices.get(device_id)
         return await self._scene_cache.async_get_scenes(device_id, device, refresh)
 
+    async def async_refresh_scenes(self, device_id: str) -> None:
+        """Force-refresh a device's scene and DIY scene catalogs and tell the entities.
+
+        Backs the "Refresh scenes" button and ``govee.refresh_scenes``; the
+        selects and the light's effect list rebuild from the signal.
+        """
+        device = self._devices.get(device_id)
+        if device is None:
+            return
+        scenes = await self.async_get_scenes(device_id, refresh=True) if device.supports_scenes else []
+        diy_scenes = await self.async_get_diy_scenes(device_id, refresh=True) if device.supports_diy_scenes else []
+        async_dispatcher_send(self.hass, scenes_refreshed_signal(device_id), scenes, diy_scenes)
+
     async def async_get_diy_scenes(
         self,
         device_id: str,
@@ -7107,22 +7225,26 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
         device = self._devices.get(device_id)
         return await self._scene_cache.async_get_diy_scenes(device_id, device, refresh)
 
-    async def async_clear_scene(self, device_id: str) -> None:
+    async def async_clear_scene(self, device_id: str) -> bool:
         """Clear active scene by sending a color/color_temp command to exit it on the device.
 
         Brightness commands don't exit scenes, so we must send a color or color_temp
         command. Restores the last known color/color_temp when available.
+
+        Returns:
+            False when Govee rejected the command that exits the scene; True
+            otherwise, including when there was nothing to clear.
         """
         state = self._states.get(device_id)
         device = self._devices.get(device_id)
         if not state or not device:
-            return
+            return True
 
         # Nothing to clear if no scene is active
         if not state.active_scene and not state.active_diy_scene:
             self.clear_scene(device_id)
             self.clear_diy_scene(device_id)
-            return
+            return True
 
         # HDMI sync boxes (e.g., H6604 AI Sync Box) have no meaningful "static
         # color" to restore — their default mode is video sync of the live HDMI
@@ -7142,7 +7264,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             if success:
                 self.clear_scene(device_id)
                 self.clear_diy_scene(device_id)
-            return
+            return success
 
         # Resolve the color to restore. Skip RGBColor(0,0,0) — the API returns
         # colorRgb=0 when a scene is running, which is not a meaningful restore target.
@@ -7154,15 +7276,17 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             color = None
         color_temp = state.color_temp_kelvin or state.last_color_temp_kelvin
 
-        success = False
+        # None means no command applies to this device (neither RGB nor colour
+        # temperature), which is not a rejection.
+        result: bool | None = None
         if color and device.supports_rgb:
-            success = await self.async_control_device(device_id, ColorCommand(color=color))
+            result = await self.async_control_device(device_id, ColorCommand(color=color))
         elif color_temp and device.supports_color_temp:
-            success = await self.async_control_device(device_id, ColorTempCommand(kelvin=color_temp))
+            result = await self.async_control_device(device_id, ColorTempCommand(kelvin=color_temp))
         elif device.supports_rgb:
             # Prefer RGB white — Govee API reflects this value reliably
             # (colorRgb=16777215), unlike color_temp which may return 0.
-            success = await self.async_control_device(device_id, ColorCommand(color=RGBColor(255, 255, 255)))
+            result = await self.async_control_device(device_id, ColorCommand(color=RGBColor(255, 255, 255)))
         elif device.supports_color_temp:
             # Fallback for color-temp-only devices
             ct_range = device.color_temp_range
@@ -7170,13 +7294,14 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 midpoint = (ct_range.min_kelvin + ct_range.max_kelvin) // 2
             else:
                 midpoint = 4000
-            success = await self.async_control_device(device_id, ColorTempCommand(kelvin=midpoint))
+            result = await self.async_control_device(device_id, ColorTempCommand(kelvin=midpoint))
 
-        if success:
+        if result:
             # ColorCommand/ColorTempCommand already clear active_scene via optimistic handlers,
             # but we also need to clear active_diy_scene explicitly.
             self.clear_scene(device_id)
             self.clear_diy_scene(device_id)
+        return result is not False
 
     def clear_scene(self, device_id: str) -> None:
         """Clear active scene for a device."""
