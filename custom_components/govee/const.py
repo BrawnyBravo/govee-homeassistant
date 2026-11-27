@@ -121,6 +121,10 @@ CONF_API_TEMPERATURE_UNIT: Final = "api_temperature_unit"
 #     and the H5107's 84.2 in an attic, both °F-scale with no unit field. With
 #     an account login the fahOpen preference decides; this list covers the
 #     API-key-only case.
+#   H5074 (thermo-hygrometer, #317): same class. A unit showed 146.3°F while the
+#     app showed 63°F: 63.5°F read as °C is 146.3 exactly. The raw cloud value
+#     is °F-scale with no unit field; the API temperature unit option remains
+#     the override.
 # SKUs whose Platform API listing omits colorRgb although the device reports a
 # colour over AWS IoT (#240, H7073: only powerSwitch, brightness and scenes are
 # listed, the status push carries ``color`` {r,g,b}). With IoT credentials the
@@ -160,6 +164,7 @@ FAHRENHEIT_REPORTING_SKUS: Final = frozenset(
         "H5220",
         "H5102",
         "H5107",
+        "H5074",
     }
 )
 
@@ -260,10 +265,12 @@ BFF_SEGMENT_COUNT_SKUS: Final = frozenset({"H3A53"})
 # H1A42 (#261): the cloud segmentedColorRgb call returns 200 but does nothing;
 # the reporter confirmed the raw frames over AWS IoT ptReal (first segment
 # ``33 05 15 01 00 FF 00 00 00 00 00 00 01 00 00``, all 15 with mask ``FF 7F 00``).
-PTREAL_SEGMENT_SKUS: Final = frozenset({"H1232", "H1252", "H1A42"})
+# H7038 (#310): 30 bulbs; the reporter verified on hardware that a 4-byte mask
+# (``FF 7F 00 00`` / ``00 80 FF 00`` / ``00 00 00 3F``) reaches bulbs 1-30.
+PTREAL_SEGMENT_SKUS: Final = frozenset({"H1232", "H1252", "H1A42", "H7038"})
 
 # SKUs whose 17th internal segment is a separate main panel, not a ring
-# segment, addressed by this bit in the same 3-byte little-endian ptReal
+# segment, addressed by this bit in the same little-endian ptReal
 # segment mask (bit i = internal segment i+1). Reporter-verified on the
 # H1232 and the H1252 (#223).
 PTREAL_MAIN_PANEL_BIT: Final = {"H1232": 16, "H1252": 16}
@@ -279,10 +286,22 @@ PTREAL_RING_MASK: Final = 0xFFFF
 # reports both zones in an ``aa 30 <main> <ring>`` status frame. Verified on
 # an H1252 (#223); the H1232's REST toggles work.
 PTREAL_LIGHT_ZONE_SKUS: Final = frozenset({"H1252"})
+# SKUs whose ``aa 30 <main> <ring>`` zone frame in the AWS IoT push is read
+# back into the main/background light switches. A superset of
+# PTREAL_LIGHT_ZONE_SKUS: the H60A6 Ceiling Light's REST toggles work, so it
+# keeps the REST write path, but the poll returns "" for both toggles and the
+# push frame is the only live report of each zone.
+LIGHT_ZONE_FRAME_SKUS: Final = PTREAL_LIGHT_ZONE_SKUS | frozenset({"H60A6"})
+
+# SKUs whose ripple light's flow speed the app sets with ``33 05 2c 01 03
+# <0-100>`` over ptReal; the Platform API has no capability for it and reads
+# nothing back. The frame is from the table posted on #211; verified on an
+# H60B0 over LAN (2026-11: 10 slowed the ripple, 0 stopped it).
+RIPPLE_FLOW_SKUS: Final = frozenset({"H60B0"})
 # SKUs whose DreamView switch follows the light's own ``aa 05 <mode>`` report
 # (issue #213: the H66A0 kept HA's optimistic ON while the app ran another
 # mode). Add a model only once a capture confirms its report.
-DREAMVIEW_STATE_FROM_FRAMES_SKUS: Final = frozenset({"H66A0"})
+DREAMVIEW_STATE_FROM_FRAMES_SKUS: Final = frozenset({"H66A0", "H6099"})
 
 # Colour-temperature range of those zones, the fixture's whole-device
 # colorTemperatureK range. The frame builder clamps to it.
@@ -497,8 +516,7 @@ MQTT_STATUS_QUERY_ACCOUNT_REFUSAL_SKUS: Final = 3
 #   H5074 (thermo-hygrometer, the H5075's smaller sibling): the same class,
 #     BLE-only with a topic on the account it never answers, so a status
 #     query to it drops the session just as the H5075's did (issue #195).
-#     Not in FAHRENHEIT_REPORTING_SKUS: that list needs a reading showing
-#     which unit the model reports in.
+#     In FAHRENHEIT_REPORTING_SKUS since #317.
 #   H5108 (thermo-hygrometer): same class. Confirmed on v2026.10.0 with six
 #     units on one account: a status query to any of them closed the session
 #     within ~5s, and the two strikes apiece added up to ~35 minutes of
@@ -594,11 +612,17 @@ MAIN_LIGHT_TOGGLE_SKUS: Final = frozenset({"H1270"})
 # Deliberately narrow: only the H2A41 is verified against real hardware.
 MOVIE_MODE_DREAMVIEW_SKUS: Final = frozenset({"H2A41"})
 
+# SKUs with no DreamView capability in the Platform API whose video mode is
+# read from the light's own ``aa 05`` status frame (issue #241: the H6099
+# advertises no ``dreamViewToggle``). The switch is created from that alone;
+# ON/OFF go through the ptReal path. The ON frame is unverified on this model.
+FRAME_DREAMVIEW_SKUS: Final = frozenset({"H6099"})
+
 # SKUs that advertise ``dreamViewToggle`` but ignore it: Govee answers HTTP 200
 # and the light never enters screen sync (issue #213). The REST toggle is
 # skipped for them, so DreamView ON goes straight to the video-mode frame over
 # AWS IoT and OFF restores the last colour. Unverified on hardware.
-PTREAL_DREAMVIEW_SKUS: Final = frozenset({"H66A0"})
+PTREAL_DREAMVIEW_SKUS: Final = frozenset({"H66A0", "H6099"})
 
 # SKUs that accept ``dreamViewToggle`` OFF over REST (HTTP 200) but stay in
 # video mode: diagnostics for the H605B showed an MQTT op frame (``aa 05 00``)
@@ -607,6 +631,23 @@ PTREAL_DREAMVIEW_SKUS: Final = frozenset({"H66A0"})
 # the normal REST path since it does enter video mode. Unverified on
 # hardware beyond the reporter's diagnostics.
 DREAMVIEW_OFF_VIA_COLOUR_SKUS: Final = frozenset({"H605B"})
+
+# Fixtures whose named light toggles fall into groups the lamp never lights
+# together: switching on a part in one group turns every part of the other
+# groups off on the device itself. Govee returns "" for these toggles on poll,
+# so without this table the other switches would stay "on" in Home Assistant.
+# Each SKU maps a mode key (the "Light mode" select option, translated under
+# ``entity.select.govee_light_mode.state``) to the toggles that mode lights.
+# A toggle in no group (the H60B0's side light) is left alone either way.
+# The H60B0 floor lamp lights its bottom light or its ripple light, never both,
+# and the side light alongside either one (an owner's report, checked on the
+# lamp, 2026-11).
+EXCLUSIVE_LIGHT_TOGGLE_MODES: Final[dict[str, dict[str, tuple[str, ...]]]] = {
+    "H60B0": {
+        "bottom": ("bottomLightToggle",),
+        "ripple": ("rippleLightToggle",),
+    },
+}
 
 # BLE constants
 # Govee AWS/BLE advert manufacturer ID. Verified against
@@ -705,6 +746,7 @@ SUFFIX_PILLAR_LIGHT: Final = "_pillar_light"
 SUFFIX_BASE_LIGHT: Final = "_base_light"
 SUFFIX_MUSIC_MODE: Final = "_music_mode"
 SUFFIX_MUSIC_SENSITIVITY: Final = "_music_sensitivity"
+SUFFIX_RIPPLE_FLOW: Final = "_ripple_flow"
 SUFFIX_DREAMVIEW: Final = "_dreamview"
 SUFFIX_HEATER_TEMPERATURE: Final = "_heater_temperature"
 SUFFIX_HEATER_FAN_SPEED: Final = "_heater_fan_speed"
@@ -714,6 +756,7 @@ SUFFIX_HEATER_THERMOSTAT: Final = "_heater_thermostat"
 SUFFIX_PURIFIER_MODE_SELECT: Final = "_purifier_mode_select"
 SUFFIX_PRESET_SCENE_SELECT: Final = "_preset_scene_select"
 SUFFIX_NIGHTLIGHT_SCENE_SELECT: Final = "_nightlight_scene_select"
+SUFFIX_LIGHT_MODE_SELECT: Final = "_light_mode_select"
 # H7175 kettle. The water heater is suffixed so the kettle's existing power
 # switch keeps its bare-device-id unique_id.
 SUFFIX_KETTLE: Final = "_kettle"

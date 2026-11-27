@@ -148,6 +148,7 @@ from .const import (
     REACHABLE_PUSH_WINDOW,
     PTREAL_DREAMVIEW_SKUS,
     DREAMVIEW_STATE_FROM_FRAMES_SKUS,
+    LIGHT_ZONE_FRAME_SKUS,
     PTREAL_LIGHT_ZONE_SKUS,
     PTREAL_MAIN_PANEL_BIT,
     PTREAL_RING_MASK,
@@ -199,6 +200,7 @@ from .api.ble_packet import (
     LIGHT_ZONE_RING,
     build_light_zone_ptreal,
     build_packet,
+    build_ripple_flow_ptreal,
     build_segment_brightness_ptreal,
     build_segment_color_ptreal,
     build_segment_color_temp_ptreal,
@@ -847,6 +849,10 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
     def diy_scene_cache_count(self) -> int:
         """Return number of devices with cached DIY scenes."""
         return self._scene_cache.diy_scene_cache_count
+
+    def diy_fetch_result(self, device_id: str) -> dict[str, Any] | None:
+        """Return the last DIY scene fetch outcome for a device (diagnostics)."""
+        return self._scene_cache.diy_fetch_result(device_id)
 
     @property
     def mqtt_connected(self) -> bool:
@@ -3888,7 +3894,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                     self._status_query_in_flight = device_id
                     try:
                         await client.async_publish_status_query(topic)
-                        self._mqtt_queries_since_connect += 1
+                        self._count_mqtt_status_query(device_id)
                         await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
                         if client.connected:
                             # The session outlived this query's window, so AWS
@@ -4124,9 +4130,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             state.brightness = normalize_reported_brightness(device.sku, state.brightness, device.brightness_range)
         if ceiling_fan:
             state.update_ceiling_fan_from_frames(self._op_frames_from(state_data))
-        # Ceiling Light Pro zones (H1252) report main panel / ring on-off only
-        # in an ``aa 30`` frame (issue #223).
-        if device is not None and device.sku.upper() in PTREAL_LIGHT_ZONE_SKUS:
+        # Ceiling lights (H1252 #223, H60A6) report main panel / ring on-off
+        # only in an ``aa 30`` frame.
+        if device is not None and device.sku.upper() in LIGHT_ZONE_FRAME_SKUS:
             state.update_light_zones_from_frames(self._op_frames_from(state_data))
         # The H66A0 reports its mode in an ``aa 05`` frame; that real report
         # replaces HA's optimistic DreamView flag (issue #213).
@@ -4227,6 +4233,21 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 self._poll_mqtt_status(),
                 name="govee_mqtt_connected_status_poll",
             )
+
+    def _count_mqtt_status_query(self, device_id: str) -> None:
+        """Count a published status query as silence evidence if the device is online.
+
+        An offline device cannot answer, so when every MQTT device is genuinely
+        offline the quiet session is expected, not broken (#316). The query is
+        still published, because a live device the cloud falsely reports
+        offline answers it and ``update_from_mqtt`` then sets it online (#242).
+        This reads ``state.online``, not ``device_reachable()``.
+
+        Args:
+            device_id: Device the status query was published for.
+        """
+        if (state := self._states.get(device_id)) is not None and state.online:
+            self._mqtt_queries_since_connect += 1
 
     def _arm_mqtt_silence_check(self) -> None:
         """Start the silent-session check for the session that just came up (#222)."""
@@ -4539,7 +4560,7 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             self._status_query_in_flight = device_id
             try:
                 await client.async_publish_status_query(self._device_topics[device_id])
-                self._mqtt_queries_since_connect += 1
+                self._count_mqtt_status_query(device_id)
                 await asyncio.sleep(MQTT_STATUS_QUERY_SPACING)
                 if client.connected:
                     # As in the sweep: the session outlived this query's window.
@@ -5884,6 +5905,9 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
             # REST equivalent and fail.
             if isinstance(command, SegmentColorCommand) and device.sku.upper() in PTREAL_SEGMENT_SKUS:
                 if self._ble_manager.available:
+                    if any(index >= 32 for index in command.segment_indices):
+                        _LOGGER.debug("Segment index >= 32 does not fit the 4-byte ptReal mask for %s", device_id)
+                        return False
                     mask = 0
                     for index in command.segment_indices:
                         mask |= 1 << index
@@ -6995,6 +7019,22 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
 
         return success
 
+    async def async_set_ripple_flow(self, device_id: str, speed: int) -> bool:
+        """Set the ripple light's flow speed (0-100) on a ``RIPPLE_FLOW_SKUS`` lamp.
+
+        The Platform API has no capability for it, so the app's ptReal frame
+        goes over LAN when healthy, else the AWS IoT passthrough. Nothing reads
+        the speed back.
+
+        Returns:
+            True if the frame was sent.
+        """
+        device = self._devices.get(device_id)
+        if device is None or not device.supports_ripple_flow:
+            _LOGGER.debug("Ripple flow is not supported on %s", device_id)
+            return False
+        return await self.async_send_raw_ptreal(device_id, bytes(build_ripple_flow_ptreal(speed)))
+
     async def async_send_raw_ptreal(self, device_id: str, frame: bytes | list[bytes]) -> bool:
         """Send raw ptReal BLE frame(s) to a device (developer/debug aid).
 
@@ -7224,6 +7264,12 @@ class GoveeCoordinator(DataUpdateCoordinator[dict[str, GoveeDeviceState]]):
                 # entity reading state.toggles agrees with the one that wrote
                 # it, and a later push or poll can still overwrite it.
                 state.toggles[command.toggle_instance] = command.enabled
+                # Lamps that never light some parts together (H60B0: bottom
+                # vs ripple) switch the other group off themselves;
+                # mirror that so those switches do not stay "on".
+                if command.enabled and device is not None:
+                    for other in device.light_toggles_turned_off_by(command.toggle_instance):
+                        state.toggles[other] = False
 
     async def async_get_scenes(
         self,
