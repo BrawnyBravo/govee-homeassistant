@@ -1,0 +1,354 @@
+{
+  "$schema": "blitz-tasks/1.0",
+  "plan": "diy-source-and-tap-to-run",
+  "updated": "2026-11-28T16:03:59Z",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "Parse exec-plat/home into frozen OneClick models",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/models/one_click.py",
+        "tests/test_one_click_model.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_one_click_model.py",
+          "timeout": 300
+        },
+        {
+          "cmd": "grep -qE '^def parse_one_clicks' custom_components/govee/models/one_click.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE '@dataclass\\(frozen=True' custom_components/govee/models/one_click.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Q3: data.components[].oneClicks[] (name, groupName, execRules, iotRules[]); iotRules[].deviceObj.topic and rule[].iotMsg (a JSON string, kept verbatim). Skip oneClicks with no topic-bearing step and count them (BLE-only, execRules-only, malformed). Stable id from groupId/presetId, falling back to groupName+name. Parse with .get, never raise on a missing field. Fixture built from govee2mqtt undoc_api.rs:575-700 structs."
+    },
+    {
+      "id": "T-002",
+      "title": "Fetch Tap-to-Runs from exec-plat/home with the account token",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/auth.py",
+        "tests/test_auth_one_click.py"
+      ],
+      "depends_on": [
+        "T-001"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'GOVEE_BFF_ONE_CLICK_URL = \"https://app2.govee.com/bff-app/v1/exec-plat/home\"' custom_components/govee/api/auth.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'async def fetch_one_clicks' custom_components/govee/api/auth.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_auth_one_click.py tests/test_auth.py tests/test_cov_auth.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Q4 + Step 1: GET with Bearer token, appVersion, clientId, clientType 1, iotVersion 0, timestamp, User-Agent (the #288 reporter proved the app2 token works). Mirror _fetch_bff_device_topics (auth.py:743): _raise_if_unauthorized, non-200 -> GoveeApiError, _raise_for_bff_status, then parse_one_clicks. Never log the token or iotMsg contents."
+    },
+    {
+      "id": "T-003",
+      "title": "Raw MQTT publish for pre-built iotMsg payloads",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/mqtt.py",
+        "tests/test_mqtt_publish_raw.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -qE 'async def async_publish_raw' custom_components/govee/api/mqtt.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_mqtt_publish_raw.py tests/test_cov_mqtt.py tests/test_mqtt_connection.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Theme 3 + Step 2: async_publish_command (mqtt.py:1149) wraps its own envelope; add async_publish_raw(topic, payload) that sends the payload unchanged at QoS 1 with ACK_TIMEOUT so a failure is detectable. Raise when disconnected or the topic is empty. Log the topic truncated to [:30], never the payload."
+    },
+    {
+      "id": "T-004",
+      "title": "Tap-to-Run option (default off) and its user-facing strings",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/const.py",
+        "custom_components/govee/config_flow.py",
+        "custom_components/govee/strings.json",
+        "custom_components/govee/translations/en.json",
+        "custom_components/govee/icons.json",
+        "tests/test_config_flow_one_clicks.py"
+      ],
+      "depends_on": [],
+      "verify": [
+        {
+          "cmd": "grep -qE 'CONF_ENABLE_ONE_CLICKS: Final = \"enable_one_clicks\"' custom_components/govee/const.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -q 'CONF_ENABLE_ONE_CLICKS' custom_components/govee/config_flow.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/python -c \"import json;a=json.load(open('custom_components/govee/strings.json'));b=json.load(open('custom_components/govee/translations/en.json'));assert a==b;assert 'one_click' in a['entity']['scene'];assert 'enable_one_clicks' in json.dumps(a['options'])\"",
+          "timeout": 30
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/python -c \"import json;assert 'one_click' in json.load(open('custom_components/govee/icons.json'))['entity']['scene']\"",
+          "timeout": 30
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= --cov=custom_components.govee.config_flow --cov-report=term-missing --cov-fail-under=100 tests/test_config_flow.py tests/test_config_flow_manager.py tests/test_config_flow_manager_steps.py tests/test_config_flow_bluetooth.py tests/test_config_flow_one_clicks.py",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Step 3-4: CONF_ENABLE_ONE_CLICKS (default False) in GoveeOptionsFlow.async_step_init with a data_description; scene entity translation key one_click with a name placeholder; exception key for a failed Tap-to-Run; icon mdi:gesture-tap-button under entity.scene.one_click. strings.json and translations/en.json must stay identical. config_flow.py must stay at 100% line coverage. Six files, all small edits: the option and its strings ship as one unit."
+    },
+    {
+      "id": "T-005",
+      "title": "Coordinator fetches, refreshes (24 h) and runs Tap-to-Runs",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/coordinator.py",
+        "tests/test_coordinator_one_click.py"
+      ],
+      "depends_on": [
+        "T-002",
+        "T-003",
+        "T-004"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -qE 'async def async_activate_one_click' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'fetch_one_clicks' custom_components/govee/coordinator.py && grep -qE 'async_publish_raw' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_coordinator_one_click.py tests/test_setup_entry.py tests/test_setup_entry_account.py",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Decision 1 + Step 4: only with IoT credentials and the option on; fetch through _async_bff_call after _fetch_device_topics (startup step), then on a 24 h TTL; any failure keeps the previous list, logs once and never fails setup (govee2mqtt #628 risk). Expose one_clicks and a dispatcher signal on change. async_activate_one_click(id) publishes each step's iotMsg in order through async_publish_raw (govee2mqtt iot.rs:212-227) and returns False on the first failure or when MQTT is down."
+    },
+    {
+      "id": "T-006",
+      "title": "Scene platform: Tap-to-Runs as scenes on the hub device",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/scene.py",
+        "custom_components/govee/__init__.py",
+        "tests/test_scene.py"
+      ],
+      "depends_on": [
+        "T-005"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'Platform.SCENE' custom_components/govee/__init__.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'class GoveeOneClickScene' custom_components/govee/scene.py && grep -q '_attr_translation_key = \"one_click\"' custom_components/govee/scene.py && grep -q 'PARALLEL_UPDATES = 0' custom_components/govee/scene.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_scene.py tests/test_setup_entry.py tests/test_setup_entry_account.py",
+          "timeout": 600
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/flake8 custom_components/govee/scene.py custom_components/govee/__init__.py",
+          "timeout": 120
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Step 3 + Theme 3: GoveeOneClickScene(CoordinatorEntity, Scene) with _attr_translation_key one_click, unique_id f\"{entry_id}_one_click_{id}\", DeviceInfo on hub_device_identifier (protected from orphan cleanup, __init__.py:470-481). Add on the coordinator signal; remove entities whose Tap-to-Run disappeared through the entity registry. async_activate raises a translated HomeAssistantError when the coordinator returns False. PARALLEL_UPDATES = 0 (quality_scale parallel-updates). Platform.SCENE in PLATFORMS. Test through MockConfigEntry setup."
+    },
+    {
+      "id": "T-007",
+      "title": "Tap-to-Run diagnostics counts and docs",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/diagnostics.py",
+        "README.md",
+        "CLAUDE.md",
+        "tests/test_diagnostics_one_click.py"
+      ],
+      "depends_on": [
+        "T-005",
+        "T-006"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'one_click_count' custom_components/govee/diagnostics.py && grep -q 'one_click_skipped' custom_components/govee/diagnostics.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qi 'Tap-to-Run' README.md && grep -q 'scene.py' CLAUDE.md",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_diagnostics_one_click.py tests/test_diagnostics.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Decision 1: diagnostics carry one_click_count and one_click_skipped only, never topics, iotMsg or names (the test asserts no topic string appears in the dump). README: what Tap-to-Run does, the option, that it needs the account login, that BLE-only steps are skipped. CLAUDE.md directory structure gains scene.py."
+    },
+    {
+      "id": "T-008",
+      "title": "Account DIY fetch from groups-diys; keep BFF goodsType per device",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/api/auth.py",
+        "tests/test_auth_diy_groups.py"
+      ],
+      "depends_on": [
+        "T-002"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'GOVEE_DIY_GROUPS_URL = \"https://app2.govee.com/appsku/v1/diys/groups-diys\"' custom_components/govee/api/auth.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'async def fetch_diy_groups' custom_components/govee/api/auth.py && grep -qE 'def goods_types' custom_components/govee/api/auth.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_auth_diy_groups.py tests/test_auth.py tests/test_cov_auth.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Q2 + Decision 2: GET https://app2.govee.com/appsku/v1/diys/groups-diys with params sku, goodsType, device and the BFF headers; parse data.diys or data.diys.diyGroups[].diys[] reading code|diyCode (govee-ultimate rest_client.py:114-145, :454-489; field names unconfirmed, so accept both). Return the codes only. goodsType is a top-level field of each BFF device-list entry (docs/_research/2026-06-30_30day-issue-sweep.md:840): record it per device in _fetch_bff_device_topics and expose goods_types() beside gateway_routes(). Depends on T-002 only to serialise edits to auth.py."
+    },
+    {
+      "id": "T-009",
+      "title": "Record the groups-diys probe next to the Developer DIY result",
+      "role": "backend",
+      "files": [
+        "custom_components/govee/scene_cache.py",
+        "custom_components/govee/coordinator.py",
+        "tests/test_scene_cache_diy_probe.py"
+      ],
+      "depends_on": [
+        "T-008",
+        "T-005"
+      ],
+      "verify": [
+        {
+          "cmd": "grep -q 'account_count' custom_components/govee/scene_cache.py && grep -q 'overlap_with_developer' custom_components/govee/scene_cache.py && grep -q 'account_error' custom_components/govee/scene_cache.py",
+          "timeout": 10
+        },
+        {
+          "cmd": "grep -qE 'fetch_diy_groups' custom_components/govee/coordinator.py",
+          "timeout": 10
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/pytest -q -p no:cacheprovider -o addopts= tests/test_scene_cache_diy_probe.py tests/test_scene_cache.py tests/test_diagnostics.py",
+          "timeout": 300
+        },
+        {
+          "cmd": ".cc-sessions/venv314/bin/mypy custom_components/govee",
+          "timeout": 300
+        }
+      ],
+      "passes": false,
+      "status": "open",
+      "blocked_reason": null,
+      "attempts": 0,
+      "last_verify": null,
+      "origin": "plan",
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Decision 2 + Step 5: diagnostics only, the DIY select options must not change. The coordinator keeps auth_client.goods_types() from the _fetch_device_topics op and passes SceneCacheManager a probe callable wrapping _async_bff_call(fetch_diy_groups). After a successful Developer DIY fetch, add account_count and overlap_with_developer (account codes intersected with Developer option values) to _diy_fetch_results[device_id], or account_error (exception class name). Skip without IoT credentials or goodsType. diagnostics.py already prints diy_fetch_result (diagnostics.py:248). Depends on T-005 to serialise edits to coordinator.py."
+    }
+  ]
+}
