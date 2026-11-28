@@ -43,6 +43,7 @@ Two account-API features from the 2026-11-28 research.
 - **Response shape.** The exec-plat/home response matches govee2mqtt's `undoc_api.rs:575-700` structs closely enough to parse with `.get()`. Fields we don't recognise are ignored.
 - **QoS.** Publishing at QoS 1 (where govee2mqtt uses 0) is harmless, because each `iotMsg` is a self-contained command. We choose it so a dropped publish is detectable.
 - **`goodsType`.** It comes from the top-level field of each BFF device-list entry (`docs/_research/2026-06-30_30day-issue-sweep.md:840`). Devices without it skip the probe.
+- **Probe frequency.** The DIY probe has no option, so it reaches every account-login user. To keep calls to the unvetted endpoint low, it runs at most once per device per integration load and only on devices with the `diyScene` capability. A failed probe is not retried until the next reload. We chose this over an opt-in so reporters don't have to find and enable a setting before their diagnostics are useful.
 - **One release.** Both tracks can go out in the same daily release. Tap-to-Run is opt-in and the probe touches diagnostics only, so neither counts as a broad behaviour change that needs a release day to itself.
 
 ## Verification

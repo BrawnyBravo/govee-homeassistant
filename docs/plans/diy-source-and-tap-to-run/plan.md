@@ -64,6 +64,7 @@ No gaps.
 
 - **Response shape (exec-plat/home).** We have govee2mqtt's structs and one account's summary from the #288 reporter, not a raw body. T-001 parses defensively with `.get()`, and its fixture follows `undoc_api.rs:575-700`. The #288 reporter's diagnostics confirm it after release.
 - **Response shape (groups-diys).** It is completely unconfirmed: govee-ultimate hedges between `code` and `diyCode`. T-008 accepts both names, and a failure is recorded as `account_error` rather than raised. Learning the shape is the probe's whole purpose.
+- **Probe traffic.** The probe has no opt-in, so it reaches every account-login user. T-009 caps it at one `groups-diys` call per device per integration load, on `diyScene` devices only, with no retry after a failure. The probe can be removed once the follow-up has its data.
 - **App-API auth breakage** (the govee2mqtt #628 pattern). `_async_bff_call` returns `None` or raises `GoveeApiError`, and T-005 keeps the previous list and never fails setup.
 - **Shared-device topics.** The IoT policy may refuse topics of devices shared from another account. The publish then fails, and the scene raises a translated error.
 - **`presetId` stability** across refreshes is unverified. If it changes, an entity is replaced on refresh, which costs a new entity_id and nothing worse. We check this against the #288 reporter's next diagnostics.

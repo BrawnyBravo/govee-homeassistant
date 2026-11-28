@@ -1,7 +1,7 @@
 {
   "$schema": "blitz-tasks/1.0",
   "plan": "diy-source-and-tap-to-run",
-  "updated": "2026-11-28T16:03:59Z",
+  "updated": "2026-11-28T16:10:47Z",
   "tasks": [
     {
       "id": "T-001",
@@ -348,7 +348,7 @@
       "attempts": 0,
       "last_verify": null,
       "origin": "plan",
-      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Decision 2 + Step 5: diagnostics only, the DIY select options must not change. The coordinator keeps auth_client.goods_types() from the _fetch_device_topics op and passes SceneCacheManager a probe callable wrapping _async_bff_call(fetch_diy_groups). After a successful Developer DIY fetch, add account_count and overlap_with_developer (account codes intersected with Developer option values) to _diy_fetch_results[device_id], or account_error (exception class name). Skip without IoT credentials or goodsType. diagnostics.py already prints diy_fetch_result (diagnostics.py:248). Depends on T-005 to serialise edits to coordinator.py."
+      "notes": "docs/research/2026-11-28_diy-source-and-tap-to-run.md Decision 2 + Step 5: diagnostics only, the DIY select options must not change. The coordinator keeps auth_client.goods_types() from the _fetch_device_topics op and passes SceneCacheManager a probe callable wrapping _async_bff_call(fetch_diy_groups). After a successful Developer DIY fetch, add account_count and overlap_with_developer (account codes intersected with Developer option values) to _diy_fetch_results[device_id], or account_error (exception class name). Skip without IoT credentials or goodsType. diagnostics.py already prints diy_fetch_result (diagnostics.py:248). Depends on T-005 to serialise edits to coordinator.py. Frequency cap (side-agent review 2026-11-28): probe each device at most once per integration load (a set of probed device ids on SceneCacheManager, kept across 24 h TTL refetches and the refresh-scenes button), only for devices with the diyScene capability; a failed probe is recorded and not retried until reload. Tests must assert a second Developer fetch for the same device makes no second groups-diys call."
     }
   ]
 }
